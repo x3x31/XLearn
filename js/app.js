@@ -8,7 +8,14 @@
 
 import { loadManifest, loadMaterial } from "./questions.js";
 import { shuffle, seededRandom, hashString } from "./parser.js";
-import { getSettings, applyVisualSettings } from "./settings.js";
+import { getSettings, applyVisualSettings, normalizeSettings, setSettings } from "./settings.js";
+import {
+  getActiveSession,
+  getProgressSummary,
+  getSettingsRecord,
+  recordAnswer,
+  saveSession,
+} from "./db.js";
 
 const app = document.getElementById("app");
 
@@ -19,6 +26,8 @@ const state = {
   error: null,
   session: null,
   sessionMaterial: null,
+  progress: { byPath: {}, byId: {} },
+  storageWarned: false,
   route: "inicio",
 };
 
@@ -223,10 +232,10 @@ function updateBadge() {
   }
 }
 
-async function loadCatalog({ force = false } = {}) {
+async function loadCatalog({ force = false, quiet = false } = {}) {
   state.loading = true;
   state.error = null;
-  render();
+  if (!quiet) render();
   try {
     const manifest = await loadManifest({ force });
     state.manifest = manifest;
@@ -238,12 +247,90 @@ async function loadCatalog({ force = false } = {}) {
     state.error = error.message;
   } finally {
     state.loading = false;
-    render();
+    if (!quiet) render();
   }
 }
 
-function boot() {
+function warnStorageOnce(error) {
+  if (state.storageWarned) return;
+  state.storageWarned = true;
+  console.warn("XLearn: falha de persistência local.", error);
+  toast(
+    "Não foi possível salvar no armazenamento local. O estudo continua, mas o progresso pode não persistir.",
+    "error"
+  );
+}
+
+async function persistSession(session) {
+  try {
+    await saveSession(session);
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+}
+
+async function loadPersistedSettings() {
+  try {
+    const stored = await getSettingsRecord();
+    if (stored && typeof stored === "object") setSettings(normalizeSettings(stored));
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+}
+
+async function refreshProgress() {
+  try {
+    state.progress = await getProgressSummary();
+  } catch (error) {
+    warnStorageOnce(error);
+    state.progress = { byPath: {}, byId: {} };
+  }
+}
+
+async function restoreActiveSession() {
+  try {
+    const active = await getActiveSession();
+    if (!active || !Array.isArray(active.questionIds) || active.questionIds.length === 0) return;
+
+    const entry =
+      state.entries.find((item) => item.path === active.materialPath) ||
+      state.entries.find((item) => item.materialId === active.materialId);
+    if (!entry) return;
+
+    const material = await loadMaterial(entry);
+    const validIds = new Set(material.questions.map((question) => question.id));
+    if (!active.questionIds.every((id) => validIds.has(id))) return;
+
+    active.answers = active.answers && typeof active.answers === "object" ? active.answers : {};
+    active.orders = active.orders && typeof active.orders === "object" ? active.orders : {};
+    active.pending = null;
+    if (!Number.isInteger(active.index) || active.index < 0) active.index = 0;
+
+    state.session = active;
+    state.sessionMaterial = material;
+
+    const answeredCount = Object.keys(active.answers).length;
+    if (answeredCount >= active.questionIds.length && !active.finishedAt) {
+      active.finishedAt = new Date().toISOString();
+      active.updatedAt = active.finishedAt;
+      await persistSession(active);
+      if (currentRoute() === "sessao") navigate("resumo");
+    }
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+}
+
+async function initialize() {
+  await loadPersistedSettings();
   applyVisualSettings(getSettings());
+  await loadCatalog({ quiet: true });
+  await restoreActiveSession();
+  await refreshProgress();
+  render();
+}
+
+function boot() {
   buildShell();
   state.route = currentRoute();
   window.addEventListener("hashchange", () => {
@@ -251,7 +338,7 @@ function boot() {
     render({ focus: true });
   });
   render();
-  loadCatalog();
+  initialize();
 }
 
 /* Router ------------------------------------------------------------------ */
@@ -454,8 +541,17 @@ function renderMaterialGrid() {
   return h(
     "div",
     { class: "material-grid" },
-    ...state.entries.map((entry) =>
-      h(
+    ...state.entries.map((entry) => {
+      const progress =
+        state.progress?.byPath?.[entry.path] ||
+        state.progress?.byId?.[entry.materialId] ||
+        null;
+      const answered = Math.min(progress?.answered || 0, entry.questionCount);
+      const pct =
+        progress && progress.seen > 0
+          ? Math.round((progress.correct / progress.seen) * 100)
+          : null;
+      return h(
         "article",
         { class: "material-card" },
         h(
@@ -470,6 +566,24 @@ function renderMaterialGrid() {
           h("h3", { text: entry.title }),
           h("p", { class: "topic", text: entry.topic || "Material de estudo" })
         ),
+        answered > 0
+          ? h(
+              "div",
+              { class: "material-card__progress" },
+              h(
+                "div",
+                { class: "progress", "aria-hidden": "true" },
+                h("div", {
+                  class: "progress__bar",
+                  style: `--value:${Math.round((answered / entry.questionCount) * 100)}%`,
+                })
+              ),
+              h("span", {
+                class: "hint",
+                text: `${answered} de ${entry.questionCount} respondidas${pct === null ? "" : ` · ${pct}% de acerto`}`,
+              })
+            )
+          : null,
         h(
           "div",
           { class: "material-card__footer" },
@@ -490,8 +604,8 @@ function renderMaterialGrid() {
             "Estudar"
           )
         )
-      )
-    )
+      );
+    })
   );
 }
 
@@ -538,6 +652,7 @@ async function startSession(entry, options = {}) {
       finishedAt: null,
     };
     state.sessionMaterial = material;
+    await persistSession(state.session);
     navigate("sessao");
   } catch (error) {
     toast(error.message || "Não foi possível iniciar a sessão.", "error");
@@ -588,6 +703,17 @@ function confirmAnswer(question) {
     feedback?.setAttribute("tabindex", "-1");
     feedback?.focus({ preventScroll: false });
   });
+
+  recordAnswer({
+    session,
+    question,
+    answer: session.answers[question.id],
+  })
+    .then(async () => {
+      await refreshProgress();
+      if (state.route === "inicio" || state.route === "estudar") render();
+    })
+    .catch(warnStorageOnce);
 }
 
 function goToNextQuestion() {
@@ -596,6 +722,7 @@ function goToNextQuestion() {
   if (session.index + 1 >= session.questionIds.length) {
     session.finishedAt = new Date().toISOString();
     session.updatedAt = session.finishedAt;
+    persistSession(session);
     navigate("resumo");
     return;
   }
@@ -603,6 +730,7 @@ function goToNextQuestion() {
   session.pending = null;
   session.updatedAt = new Date().toISOString();
   render();
+  persistSession(session);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -855,7 +983,7 @@ function renderFeedback(question, answer) {
       h(
         "p",
         { class: "hint" },
-        "A repetição espaçada e a pontuação serão registradas a partir das próximas entregas. Por enquanto, esta sessão fica apenas em memória."
+        "Esta resposta, a ordem das alternativas e o progresso da questão foram salvos neste dispositivo."
       )
     )
   );
@@ -990,7 +1118,7 @@ function renderSummary() {
     h(
       "p",
       { class: "hint" },
-      `Sessão iniciada em ${formatDateTime(session.createdAt)}. O progresso será preservado automaticamente após a entrega da persistência local.`
+      `Sessão iniciada em ${formatDateTime(session.createdAt)}. Respostas e histórico salvos localmente neste dispositivo.`
     ),
   ];
 }

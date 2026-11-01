@@ -536,6 +536,11 @@ button:disabled {
   height: 16px;
 }
 
+.material-card__progress {
+  display: grid;
+  gap: 6px;
+}
+
 /* Buttons ----------------------------------------------------------------- */
 
 .btn {

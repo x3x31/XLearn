@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.3.0` |
+| **Versão atual** | `0.4.0` |
 | **Data da última atualização** | 2026-11-01 |
 
 ---
@@ -58,9 +58,9 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 
 | ID | Nome | Descrição | Prioridade | Status |
 |---|---|---|---|---|
-| REQ-008 | Persistência IndexedDB | Armazenar configurações, estatísticas, progresso, sessões e tentativas. | Alta | PENDENTE |
-| REQ-009 | Retomada de sessão | Persistir a sessão ativa e permitir continuar exatamente de onde parou. | Alta | PENDENTE |
-| REQ-010 | Histórico e progresso | Registrar tentativas, acertos, erros, domínio e progresso por prova. | Média | PENDENTE |
+| REQ-008 | Persistência IndexedDB | Armazenar configurações, estatísticas, progresso, sessões e tentativas. | Alta | IMPLEMENTADO |
+| REQ-009 | Retomada de sessão | Persistir a sessão ativa e permitir continuar exatamente de onde parou. | Alta | IMPLEMENTADO |
+| REQ-010 | Histórico e progresso | Registrar tentativas, acertos, erros, domínio e progresso por prova. | Média | IMPLEMENTADO |
 
 ### Fase 3 — Repetição espaçada
 
@@ -148,7 +148,7 @@ XLearn/
 ├── css/styles.css            # IMPLEMENTADO: temas, layout e componentes
 ├── js/
 │   ├── app.js                # IMPLEMENTADO: rotas, estado de UI, dashboard, quiz e resumo
-│   ├── db.js                 # (planejado) IndexedDB e operações de dados
+│   ├── db.js                 # IMPLEMENTADO: IndexedDB, progresso, sessões, tentativas e estatísticas
 │   ├── parser.js             # IMPLEMENTADO: frontmatter + JSON + normalização (puro)
 │   ├── questions.js          # IMPLEMENTADO: manifesto, fetch e cache em memória
 │   ├── settings.js           # IMPLEMENTADO: defaults e aplicação visual (persistência pendente)
@@ -251,7 +251,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Rótulos das alternativas | As letras originais A–D acompanham o texto mesmo fora de ordem. | As explicações dos materiais citam letras; remapear rótulos tornaria os comentários incorretos. A posição visual nunca é usada na correção. |
 | Navegação | SPA com rotas em hash (`#/inicio`, `#/estudar`, `#/sessao`, `#/resumo`). | Compatível com GitHub Pages sem regras de servidor. |
 | Renderização segura | Todo texto dinâmico usa `textContent`/nós de texto; `innerHTML` só com ícones constantes. | Evita XSS mesmo que um arquivo de questão contenha HTML. |
-| Sessão em memória (interina) | Sessão guardada no estado da aplicação até REQ-008/009. | Permite entregar o fluxo funcional incrementalmente; a limitação é registrada e corrigida no próximo requisito. |
+| Sessão persistida | Objeto completo em `sessions`, incluindo índice, respostas e ordem das alternativas; restauração automática da sessão ativa. | Garante continuidade mesmo após fechar o navegador, sem reembaralhar. |
 | Persistência | IndexedDB (`xlearn`) com stores `meta`, `progress`, `sessions`, `attempts`. localStorage apenas para preferência de tema inicial, se necessário. | Requisito do projeto; maior capacidade e consultas por chave. |
 | SRS | Níveis 0–5; acerto avança e usa intervalos 1/3/7/14/30 dias; erro reduz nível e agenda 10 minutos. Intervalos configuráveis. | Simples, auditável e explicitamente não apresentado como validado cientificamente. |
 | XP | Centralizado em módulo puro, com bônus por dificuldade, sessão concluída e meta diária; conquistas pagam uma única vez. | Evita duplicação e mantém critérios consistentes. |
@@ -268,7 +268,8 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 |---|---|---|---|---|
 | 0.1.0 | — | Inspeção inicial e criação do `PROJECT_STATUS.md` | `cacae51` | 2026-11-01 |
 | 0.2.0 | REQ-001, REQ-002, REQ-003 | Gerador de manifesto, manifesto real com 2 materiais/150 questões, parser puro, normalização, validação e carregador via fetch | `c18edd1` | 2026-11-01 |
-| 0.3.0 | REQ-004, REQ-005, REQ-006, REQ-007 | Shell responsivo, dashboard, seleção de provas, sessão com embaralhamento determinístico, confirmação única, feedback completo e resumo | _a preencher após o commit_ | 2026-11-01 |
+| 0.3.0 | REQ-004, REQ-005, REQ-006, REQ-007 | Shell responsivo, dashboard, seleção de provas, sessão com embaralhamento determinístico, confirmação única, feedback completo e resumo | `7912bed` | 2026-11-01 |
+| 0.4.0 | REQ-008, REQ-009, REQ-010 | IndexedDB com meta/progress/sessions/attempts, gravação atômica das respostas, restauração da sessão ativa, histórico e progresso por prova | _a preencher após o commit_ | 2026-11-01 |
 
 ---
 
@@ -282,12 +283,15 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-006 — Embaralhamento:** Fisher–Yates com PRNG semeado por `sessionId + questionId`; a ordem é guardada em `session.orders`, as letras originais A–D acompanham cada alternativa e o gabarito é corrigido por identificador.
 - **REQ-007 — Correção e feedback:** confirmação explícita, bloqueio de resposta duplicada, destaque da correta e da marcada, resolução, aula completa, abordagem da banca, dica, resumo e comentário individual das alternativas. Resumo final com aproveitamento, duração, acertos/erros e revisão dos erros.
 - **Interface:** `index.html` e `css/styles.css` com temas escuro/claro por variáveis, layout responsivo, navegação inferior, foco visível, `prefers-reduced-motion` e componentes de acessibilidade.
+- **REQ-008 — IndexedDB:** `js/db.js` cria o banco `xlearn` (versão 1) com stores `meta`, `progress`, `sessions` e `attempts`. Cada confirmação é gravada em transação atômica com sessão, progresso da questão (acertos, erros, sequência, histórico curto), tentativa completa e estatísticas agregadas por dia/material.
+- **REQ-009 — Retomada:** a sessão é salva no início, a cada resposta e a cada avanço. Ao abrir o app, a sessão ativa mais recente é restaurada, o material é recarregado, a ordem original das alternativas é reproduzida pelo PRNG semeado e o índice é mantido. Se todas as questões já estavam respondidas, o app abre o resumo.
+- **REQ-010 — Progresso:** o dashboard exibe, por prova, quantas questões já foram respondidas e o percentual de acerto; as tentativas ficam disponíveis em `attempts` para histórico e estatísticas futuras. Configurações salvas são carregadas no boot.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-007. Prioridade imediata: REQ-008 (IndexedDB) e REQ-009 (retomada de sessão após recarregar).
+Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-010. Prioridade imediata: repetição espaçada (REQ-011 a REQ-013).
 
 Dependências principais:
 
@@ -306,7 +310,7 @@ Dependências principais:
 | Problema | Impacto | Situação |
 |---|---|---|
 | `README.md` vazio no estado inicial | Falta de instruções de uso | Será resolvido em REQ-028. |
-| Sessão atual ainda não é persistida | Recarregar a página perde a sessão em andamento | Será resolvido em REQ-008/REQ-009; a interface informa a limitação temporária. |
+| SRS ainda não agendado | Progresso não possui revisão automática | Campos `dueAt`/`srsLevel` já existem; REQ-011 os preenche. |
 | Materiais fora do padrão JSON não são suportados | Provas em Markdown puro não carregam | Limitação documentada; corpus atual está dentro do padrão. |
 | Manifesto precisa ser regenerado ao adicionar provas | Esquecimento pode ocultar material | O gerador detecta e o README orientará; a validação acusa no console. |
 | Ranking local tem um único perfil de dispositivo | Não representa ranking global | Comunicado na interface; usa apenas dados reais. |
@@ -328,6 +332,8 @@ Dependências principais:
 - Servidor estático local: `index.html`, `css/styles.css`, `js/app.js`, `questoes/manifest.json` e um material responderam HTTP 200.
 - Teste automatizado de fluxo com DOM simulado (happy-dom, apenas ambiente de desenvolvimento, fora do repositório): dashboard com 2 provas/150 questões; início de sessão; 4 alternativas sem duplicação; confirmação desabilitada antes da seleção; feedback após confirmar; avanço para a questão 2; retomada em memória ao voltar ao início; conclusão das 10 questões; resumo com anel e 10 resultados. Todos os passos passaram.
 - Revisão do diff e dos caminhos relativos para GitHub Pages.
+- Persistência testada com IndexedDB em memória (fake-indexeddb) e DOM simulado: resposta gravada, sessão ativa persistida com índice 1, tentativa no histórico, estatística agregada, recarga do app com restauração na questão 2, sessão em andamento no início, progresso "1 de 50" no cartão e mesmo ID de sessão após recarregar.
+- Fluxo completo de 10 questões reexecutado após a integração com IndexedDB, incluindo resumo final.
 
 ### Testes finais pendentes
 
@@ -346,6 +352,6 @@ Dependências principais:
 
 ## L. Próxima tarefa recomendada
 
-**REQ-008 e REQ-009 — persistência IndexedDB e retomada de sessão.**
+**REQ-011, REQ-012 e REQ-013 — repetição espaçada e fila de revisões.**
 
-Motivo: o fluxo de estudo já funciona, mas a sessão vive apenas em memória. A próxima entrega deve criar `js/db.js` com os stores `meta`, `progress`, `sessions` e `attempts`, salvar cada confirmação e o estado da sessão, restaurar automaticamente a sessão ativa ao recarregar e registrar o histórico/progresso por questão e por prova (REQ-010). A interface passará a exibir "Continuar sessão" mesmo após fechar o navegador.
+Motivo: a persistência e o progresso já existem, e os campos `srsLevel`, `dueAt` e `lastIntervalMinutes` estão preparados. A próxima entrega deve criar `js/srs.js` (módulo puro) com níveis 0–5 e intervalos configuráveis, aplicar o agendamento automático ao confirmar respostas, permitir escolha manual após acertos (10 min a 30 dias ou automático), criar a fila de revisões vencidas/futuras com prioridade para atrasadas e permitir iniciar uma sessão só de revisões. A tela de revisões deve mostrar o que está vencido e o que está agendado.
