@@ -280,7 +280,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.6.0 | REQ-014 | Módulo `gamification.js`, XP por resposta e dificuldade, bônus de sessão pago uma única vez, níveis em faixas quadráticas e card de progresso no dashboard | `d5736f7` | 2026-11-01 |
 | 0.7.0 | REQ-015 | Conquistas declarativas (primeira resposta, primeiro acerto, volume, sessões, sessão perfeita e níveis 3/5), recompensa de XP única, anúncio por toast e card de conquistas no dashboard | `f82aac5` | 2026-11-01 |
 | 0.8.0 | REQ-016 | Meta diária configurável, progresso do dia, sequência atual, recorde de dias consecutivos, conquistas de meta e sequências de 3/7 dias e card de ritmo no dashboard | `1e7ef43` | 2026-11-01 |
-| 0.9.0 | REQ-017 | Tela de progresso com totais, precisão, nível, meta/sequência, desempenho por disciplina, grade completa de conquistas, tentativas recentes e estados vazios | _a preencher após o commit_ | 2026-11-01 |
+| 0.9.0 | REQ-017 | Tela de progresso com totais, precisão, nível, meta/sequência, desempenho por disciplina, grade completa de conquistas, tentativas recentes e estados vazios | `944c71b` | 2026-11-01 |
 
 ---
 
