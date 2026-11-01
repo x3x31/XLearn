@@ -643,6 +643,118 @@ button:disabled {
   letter-spacing: 0.05em;
 }
 
+/* Statistics / history ---------------------------------------------------- */
+
+.summary-stats--four {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.subject-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.subject-row {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.subject-row__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.subject-row__head strong {
+  font-size: 0.88rem;
+}
+
+.subject-row__head span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.progress--sm {
+  height: 8px;
+  margin-top: 8px;
+}
+
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.attempt-list {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attempt-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface-2);
+}
+
+.attempt-item__icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+}
+
+.attempt-item__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.attempt-item.is-correct .attempt-item__icon {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.attempt-item.is-wrong .attempt-item__icon {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.attempt-item__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.attempt-item__body strong {
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.attempt-item__body span,
+.attempt-item__body small {
+  color: var(--muted);
+  font-size: 0.73rem;
+  overflow-wrap: anywhere;
+}
+
+.attempt-item__body small {
+  font-size: 0.7rem;
+}
+
 /* Cards ------------------------------------------------------------------- */
 
 .card {
@@ -1749,6 +1861,14 @@ button:disabled {
 
   .summary-hero {
     gap: 16px;
+  }
+
+  .summary-stats--four {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .achievement-grid {
+    grid-template-columns: 1fr;
   }
 
   .score-ring {

@@ -17,6 +17,7 @@ import {
   getProgressSummary,
   getSettingsRecord,
   getStats,
+  listAttempts,
   recordAnswer,
   saveSession,
 } from "./db.js";
@@ -48,13 +49,14 @@ const state = {
   reviewQueue: { groups: [], counts: { overdue: 0, upcoming: 0 } },
   gamification: createGamification(),
   stats: { answered: 0, correct: 0, daily: {}, byMaterial: {} },
+  recentAttempts: [],
   lastAnswerSave: null,
   scheduling: null,
   storageWarned: false,
   route: "inicio",
 };
 
-const ROUTES = new Set(["inicio", "estudar", "sessao", "resumo", "revisoes"]);
+const ROUTES = new Set(["inicio", "estudar", "sessao", "resumo", "revisoes", "progresso"]);
 
 const ICONS = {
   logo: '<path d="M8 7h4l3 5 3-5h4l-5 8 5 8h-4l-3-5-3 5H8l5-8z" fill="currentColor" stroke="none"/>',
@@ -239,6 +241,7 @@ function updateNav() {
       icon: "clock",
       badge: state.reviewQueue?.counts?.overdue || 0,
     },
+    { route: "progresso", label: "Progresso", icon: "chart" },
   ];
   if (state.session && !state.session.finishedAt) {
     items.push({ route: "sessao", label: "Sessão", icon: "play" });
@@ -327,20 +330,23 @@ async function loadPersistedSettings() {
 
 async function refreshProgress() {
   try {
-    const [progress, gamification, stats] = await Promise.all([
+    const [progress, gamification, stats, recentAttempts] = await Promise.all([
       getProgressSummary(),
       getGamification(),
       getStats(),
+      listAttempts(10),
     ]);
     state.progress = progress;
     state.gamification = gamification;
     state.stats = stats;
+    state.recentAttempts = recentAttempts;
     state.reviewQueue = buildReviewQueue(state.progress.records || []);
   } catch (error) {
     warnStorageOnce(error);
     state.progress = { byPath: {}, byId: {}, byKey: {}, records: [] };
     state.gamification = createGamification();
     state.stats = { answered: 0, correct: 0, daily: {}, byMaterial: {} };
+    state.recentAttempts = [];
     state.reviewQueue = { groups: [], counts: { overdue: 0, upcoming: 0 } };
   }
   updateNav();
@@ -425,6 +431,9 @@ function render({ focus = false } = {}) {
       break;
     case "revisoes":
       content = renderReviews();
+      break;
+    case "progresso":
+      content = renderProgress();
       break;
     default:
       content = renderHome();
@@ -952,6 +961,223 @@ function renderReviews() {
       { class: "notice notice--info" },
       h("strong", { text: "Sobre o agendamento: " }),
       "os intervalos automáticos são 1, 3, 7, 14 e 30 dias após acertos consecutivos. Um erro reduz o nível e agenda nova revisão em 10 minutos. Após acertar, você pode escolher outro intervalo no feedback da questão."
+    ),
+  ];
+}
+
+function subjectPerformance() {
+  const map = new Map();
+  for (const entry of state.entries) {
+    const materialStats = state.stats?.byMaterial?.[entry.path];
+    if (!materialStats?.answered) continue;
+    const subject = entry.subject || "Geral";
+    const item = map.get(subject) || { subject, answered: 0, correct: 0 };
+    item.answered += materialStats.answered;
+    item.correct += materialStats.correct;
+    map.set(subject, item);
+  }
+  return [...map.values()]
+    .map((item) => ({
+      ...item,
+      accuracy: item.answered > 0 ? Math.round((item.correct / item.answered) * 100) : 0,
+    }))
+    .sort((a, b) => b.answered - a.answered || a.subject.localeCompare(b.subject));
+}
+
+function renderProgress() {
+  const stats = state.stats || { answered: 0, correct: 0, daily: {}, byMaterial: {} };
+  const gamification = state.gamification || createGamification();
+  const accuracy = stats.answered > 0 ? Math.round((stats.correct / stats.answered) * 100) : 0;
+  const subjects = subjectPerformance();
+  const achievements = listAchievements(gamification);
+  const unlocked = achievements
+    .filter((item) => item.unlockedAt)
+    .sort((a, b) => String(b.unlockedAt).localeCompare(String(a.unlockedAt)));
+  const locked = achievements.filter((item) => !item.unlockedAt);
+  const orderedAchievements = [...unlocked, ...locked];
+  const attempts = state.recentAttempts || [];
+
+  return [
+    h(
+      "div",
+      { class: "section-head" },
+      h(
+        "div",
+        {},
+        h("span", { class: "eyebrow" }, icon("chart"), "Estatísticas"),
+        h("h1", { text: "Seu progresso" }),
+        h("p", {
+          text: "Totais, desempenho por disciplina e tentativas recentes calculados apenas com os dados deste dispositivo.",
+        })
+      ),
+      h(
+        "button",
+        {
+          class: "icon-btn",
+          type: "button",
+          title: "Atualizar estatísticas",
+          "aria-label": "Atualizar estatísticas",
+          onclick: async () => {
+            await refreshProgress();
+            render({ focus: true });
+          },
+        },
+        icon("sparkles")
+      )
+    ),
+
+    h(
+      "div",
+      { class: "summary-stats summary-stats--four", "aria-label": "Totais de estudo" },
+      h("div", { class: "summary-stat" }, h("strong", { text: String(stats.answered) }), h("span", { text: "respondidas" })),
+      h("div", { class: "summary-stat" }, h("strong", { text: String(stats.correct) }), h("span", { text: "acertos" })),
+      h("div", { class: "summary-stat" }, h("strong", { text: `${accuracy}%` }), h("span", { text: "precisão" })),
+      h("div", { class: "summary-stat" }, h("strong", { text: String(gamification.sessionsCompleted) }), h("span", { text: "sessões" }))
+    ),
+
+    renderLevelCard(),
+    renderHabitCard(),
+
+    h(
+      "section",
+      { class: "card", "aria-labelledby": "subjects-title" },
+      h(
+        "div",
+        { class: "section-head" },
+        h(
+          "div",
+          {},
+          h("span", { class: "eyebrow" }, icon("book"), "Por disciplina"),
+          h("h2", { id: "subjects-title", text: "Desempenho por disciplina" })
+        ),
+        h("span", { class: "chip chip--neutral", text: `${subjects.length} com estudo` })
+      ),
+      subjects.length === 0
+        ? h("p", { class: "hint", text: "Ainda não há respostas para calcular o desempenho por disciplina." })
+        : h(
+            "div",
+            { class: "subject-list" },
+            ...subjects.map((subject) =>
+              h(
+                "div",
+                { class: "subject-row" },
+                h(
+                  "div",
+                  { class: "subject-row__head" },
+                  h("strong", { text: subject.subject }),
+                  h("span", {
+                    text: `${plural(subject.answered, "questão", "questões")} · ${subject.accuracy}% de acerto`,
+                  })
+                ),
+                h(
+                  "div",
+                  {
+                    class: "progress progress--sm",
+                    role: "progressbar",
+                    "aria-label": `Precisão em ${subject.subject}`,
+                    "aria-valuemin": "0",
+                    "aria-valuemax": "100",
+                    "aria-valuenow": String(subject.accuracy),
+                  },
+                  h("span", { class: "progress__bar", style: `width:${subject.accuracy}%` })
+                )
+              )
+            )
+          )
+    ),
+
+    h(
+      "section",
+      { class: "card", "aria-labelledby": "all-achievements-title" },
+      h(
+        "div",
+        { class: "section-head" },
+        h(
+          "div",
+          {},
+          h("span", { class: "eyebrow" }, icon("award"), "Conquistas"),
+          h("h2", { id: "all-achievements-title", text: `${unlocked.length} de ${achievements.length}` })
+        ),
+        h("span", { class: "chip chip--success", text: `${unlocked.reduce((sum, item) => sum + item.xp, 0)} XP recebidos` })
+      ),
+      h(
+        "div",
+        { class: "achievement-grid" },
+        ...orderedAchievements.map((achievement) =>
+          h(
+            "article",
+            { class: `achievement-mini${achievement.unlockedAt ? "" : " is-locked"}` },
+            h(
+              "span",
+              { class: "achievement-mini__icon", "aria-hidden": "true" },
+              icon(achievement.unlockedAt ? achievement.icon : "lock")
+            ),
+            h(
+              "div",
+              {},
+              h("strong", { text: achievement.title }),
+              h("span", { text: achievement.description }),
+              h("small", {
+                text: achievement.unlockedAt
+                  ? `Desbloqueada em ${formatDateTime(achievement.unlockedAt)}`
+                  : `Recompensa: ${achievement.xp} XP`,
+              })
+            )
+          )
+        )
+      )
+    ),
+
+    h(
+      "section",
+      { class: "card", "aria-labelledby": "attempts-title" },
+      h(
+        "div",
+        { class: "section-head" },
+        h(
+          "div",
+          {},
+          h("span", { class: "eyebrow" }, icon("clock"), "Histórico"),
+          h("h2", { id: "attempts-title", text: "Tentativas recentes" })
+        ),
+        h("span", { class: "chip chip--neutral", text: `${attempts.length} exibidas` })
+      ),
+      attempts.length === 0
+        ? h("p", { class: "hint", text: "Nenhuma tentativa registrada ainda. Responda uma questão para começar o histórico." })
+        : h(
+            "ul",
+            { class: "attempt-list" },
+            ...attempts.map((attempt) =>
+              h(
+                "li",
+                { class: `attempt-item ${attempt.correct ? "is-correct" : "is-wrong"}` },
+                h(
+                  "span",
+                  { class: "attempt-item__icon", "aria-hidden": "true" },
+                  icon(attempt.correct ? "check" : "x")
+                ),
+                h(
+                  "div",
+                  { class: "attempt-item__body" },
+                  h("strong", { text: truncate(attempt.materialTitle || "Material", 80) }),
+                  h("span", {
+                    text: `${attempt.subject || "Geral"}${attempt.topic ? ` · ${attempt.topic}` : ""} · ${formatDateTime(attempt.answeredAt)}`,
+                  }),
+                  h("small", {
+                    text: `Marcada: ${attempt.selectedId} · Gabarito: ${attempt.correctId}${
+                      attempt.mode === "revisao" ? " · revisão" : ""
+                    }`,
+                  })
+                )
+              )
+            )
+          )
+    ),
+
+    h(
+      "p",
+      { class: "hint" },
+      "Os números acima são cumulativos neste navegador. Limpar os dados do site remove o histórico e a gamificação."
     ),
   ];
 }
