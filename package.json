@@ -1,0 +1,11 @@
+{
+  "name": "xlearn",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PWA educacional de questões com repetição espaçada e gamificação",
+  "scripts": {
+    "build:manifest": "node scripts/build-manifest.mjs",
+    "check": "node scripts/build-manifest.mjs --check"
+  }
+}

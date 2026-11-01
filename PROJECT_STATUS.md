@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.1.0` |
+| **Versão atual** | `0.2.0` |
 | **Data da última atualização** | 2026-11-01 |
 
 ---
@@ -46,9 +46,9 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 
 | ID | Nome | Descrição | Prioridade | Status |
 |---|---|---|---|---|
-| REQ-001 | Manifesto e descoberta de provas | Gerar `questoes/manifest.json` a partir dos `.md` encontrados, com metadados, contagem, hash e diagnóstico. | Alta | PENDENTE |
-| REQ-002 | Interpretador de questões | Interpretar frontmatter e blocos JSON, validar estrutura e normalizar questões sem `eval` nem HTML arbitrário. | Alta | PENDENTE |
-| REQ-003 | Carregamento e validação | Carregar manifesto e materiais via `fetch`, tratar falhas por arquivo e continuar os demais. | Alta | PENDENTE |
+| REQ-001 | Manifesto e descoberta de provas | Gerar `questoes/manifest.json` a partir dos `.md` encontrados, com metadados, contagem, hash e diagnóstico. | Alta | IMPLEMENTADO |
+| REQ-002 | Interpretador de questões | Interpretar frontmatter e blocos JSON, validar estrutura e normalizar questões sem `eval` nem HTML arbitrário. | Alta | IMPLEMENTADO |
+| REQ-003 | Carregamento e validação | Carregar manifesto e materiais via `fetch`, tratar falhas por arquivo e continuar os demais. | Alta | IMPLEMENTADO |
 | REQ-004 | Seleção de provas | Listar provas reais do manifesto e permitir iniciar sessão. | Alta | PENDENTE |
 | REQ-005 | Exibição de questões | Exibir enunciado, progresso da sessão e alternativas em ordem estável durante a resposta. | Alta | PENDENTE |
 | REQ-006 | Embaralhamento de alternativas | Embaralhar com Fisher–Yates, preservando identificadores e o gabarito original; ordem persistida por sessão. | Alta | PENDENTE |
@@ -137,33 +137,34 @@ XLearn/
 └── .git/
 ```
 
-Arquitetura planejada (será atualizada conforme a implementação):
+Arquitetura após REQ-001 a REQ-003:
 
 ```
 XLearn/
-├── index.html                # shell da SPA
-├── manifest.webmanifest      # manifesto PWA
-├── service-worker.js         # cache e offline
-├── css/styles.css            # temas, layout e componentes
+├── index.html                # (planejado) shell da SPA
+├── manifest.webmanifest      # (planejado) manifesto PWA
+├── service-worker.js         # (planejado) cache e offline
+├── package.json              # scripts de desenvolvimento; sem dependências de execução
+├── css/styles.css            # (planejado) temas, layout e componentes
 ├── js/
-│   ├── app.js                # rotas, estado de UI e telas
-│   ├── db.js                 # IndexedDB e operações de dados
-│   ├── parser.js             # frontmatter + JSON + normalização (puro)
-│   ├── questions.js          # manifesto, fetch e cache em memória
-│   ├── srs.js                # repetição espaçada (puro)
-│   ├── gamification.js       # XP, níveis, conquistas (puro)
-│   └── settings.js           # defaults e aplicação de preferências
+│   ├── app.js                # (planejado) rotas, estado de UI e telas
+│   ├── db.js                 # (planejado) IndexedDB e operações de dados
+│   ├── parser.js             # IMPLEMENTADO: frontmatter + JSON + normalização (puro)
+│   ├── questions.js          # IMPLEMENTADO: manifesto, fetch e cache em memória
+│   ├── srs.js                # (planejado) repetição espaçada (puro)
+│   ├── gamification.js       # (planejado) XP, níveis, conquistas (puro)
+│   └── settings.js           # (planejado) defaults e aplicação de preferências
 ├── scripts/
-│   └── build-manifest.mjs    # geração e validação do manifesto
-├── icons/                    # ícones PWA
+│   └── build-manifest.mjs    # IMPLEMENTADO: geração e validação do manifesto
+├── icons/                    # (planejado) ícones PWA
 ├── questoes/
-│   ├── manifest.json         # gerado, não editar à mão
-│   └── *.md                  # materiais originais
-├── README.md
+│   ├── manifest.json         # IMPLEMENTADO: gerado, não editar à mão
+│   └── *.md                  # materiais originais preservados
+├── README.md                 # (planejado) documentação de uso
 └── PROJECT_STATUS.md
 ```
 
-Responsabilidades: `parser.js`, `srs.js` e `gamification.js` são módulos puros, sem DOM, testáveis no Node. `db.js` concentra o acesso ao IndexedDB. `app.js` não acessa IndexedDB diretamente. A ordem das alternativas é gerada no início de cada apresentação e persistida na sessão.
+Responsabilidades: `parser.js`, `srs.js` e `gamification.js` são módulos puros, sem DOM, testáveis no Node. `db.js` concentrará o acesso ao IndexedDB. `app.js` não acessará IndexedDB diretamente. A ordem das alternativas será gerada no início de cada apresentação e persistida na sessão. `questions.js` resolve os caminhos do manifesto a partir da URL do próprio módulo, o que mantém compatibilidade com subdiretórios do GitHub Pages.
 
 ---
 
@@ -253,6 +254,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Ranking | Ranking local por material, calculado do progresso real; texto explica que não é global. | Atende ao requisito sem inventar estudantes. |
 | Cache | App shell em cache na instalação; materiais em cache após o primeiro acesso; navegação com fallback para `index.html`. | Compatível com offline e subdiretórios do GitHub Pages. |
 | Versionamento | Um commit funcional por requisito, Conventional Commits, push após cada entrega; hash registrado no commit seguinte. | Rastreabilidade e histórico incremental. |
+| Entrega conjunta REQ-004..007 | Seleção, exibição, embaralhamento e correção entregues juntos. | São inseparáveis para que exista um fluxo utilizável; um commit intermediário sem correção ou sem shuffle seria uma funcionalidade parcial, o que o projeto proíbe. |
 
 ---
 
@@ -260,19 +262,22 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 
 | Versão | Requisito | Implementação | Commit | Data |
 |---|---|---|---|---|
-| 0.1.0 | — | Inspeção inicial e criação do `PROJECT_STATUS.md` | _a preencher após o commit_ | 2026-11-01 |
+| 0.1.0 | — | Inspeção inicial e criação do `PROJECT_STATUS.md` | `cacae51` | 2026-11-01 |
+| 0.2.0 | REQ-001, REQ-002, REQ-003 | Gerador de manifesto, manifesto real com 2 materiais/150 questões, parser puro, normalização, validação e carregador via fetch | _a preencher após o commit_ | 2026-11-01 |
 
 ---
 
 ## H. Funcionalidades implementadas
 
-Nenhuma funcionalidade de aplicativo implementada até o momento. Apenas a inspeção do repositório e este documento.
+- **REQ-001 — Manifesto:** `scripts/build-manifest.mjs` varre `questoes/` recursivamente, ignora `manifest.json`/`README.md`, interpreta cada material, calcula SHA-256 e metadados, detecta IDs duplicados e gera `questoes/manifest.json`. Modo `--check` valida sem gravar. `npm run build:manifest` e `npm run check` disponíveis.
+- **REQ-002 — Interpretador:** `js/parser.js` lê frontmatter YAML simples e blocos ```json, normaliza questões, valida alternativas, gabarito e campos obrigatórios, e reporta diagnósticos sem interromper o material. Inclui `shuffle` Fisher–Yates, PRNG semeado e hash de string.
+- **REQ-003 — Carregamento:** `js/questions.js` carrega o manifesto, valida caminhos e duplicatas, resolve URLs relativas à raiz do projeto, mantém cache em memória e continua carregando os demais materiais quando um falha.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes. Prioridade imediata: REQ-001 (manifesto) e REQ-002 (interpretador), seguidos do fluxo mínimo de estudo (REQ-003 a REQ-007).
+Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-003. Prioridade imediata: REQ-004 a REQ-007 (seleção, exibição, embaralhamento, correção e feedback).
 
 Dependências principais:
 
@@ -304,6 +309,10 @@ Dependências principais:
 - Estrutura do repositório e estado do Git inspecionados.
 - 2 arquivos Markdown encontrados, 150 blocos JSON analisados: 100% válidos, IDs únicos, 4 alternativas por questão, gabarito consistente com `is_correct`.
 - `git status` limpo antes do início; branch `main` sincronizada com `origin/main`.
+- Gerador executado com sucesso: 2 materiais válidos, 150 questões, 0 erros e 0 avisos; `questoes/manifest.json` criado.
+- Parser reexecutado em Node sobre os dois materiais: 50 e 100 questões válidas.
+- Shuffle semeado testado nas duas provas: 4 alternativas preservadas, gabarito presente e identificadores únicos.
+- Importação cruzada entre `js/parser.js` (navegador) e `scripts/build-manifest.mjs` (Node) executada sem erro.
 
 ### Testes finais pendentes
 
@@ -322,6 +331,6 @@ Dependências principais:
 
 ## L. Próxima tarefa recomendada
 
-**REQ-001 — Manifesto e descoberta de provas.**
+**REQ-004 a REQ-007 — fluxo mínimo de estudo.**
 
-Motivo: é a base para todo o carregamento dinâmico e não depende de nenhuma outra funcionalidade. A entrega deve incluir o script gerador, o `questoes/manifest.json` real gerado a partir dos dois arquivos existentes e validação de integridade. Em seguida, REQ-002 implementará o interpretador que o aplicativo usará.
+Motivo: o manifesto, o parser e o carregador já estão prontos. A próxima entrega deve tornar o aplicativo utilizável: shell da SPA, dashboard/seleção de provas, tela de resolução, embaralhamento Fisher–Yates por sessão, confirmação única e feedback com gabarito/explicação. Esses quatro requisitos são tecnicamente inseparáveis para um fluxo utilizável e serão documentados em um único commit funcional, com a justificativa registrada. Persistência virá em seguida (REQ-008 e REQ-009).

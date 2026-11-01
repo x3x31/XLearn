@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "generator": "scripts/build-manifest.mjs",
+  "generatedAt": "2026-11-01T05:30:16.056Z",
+  "summary": {
+    "materials": 2,
+    "validMaterials": 2,
+    "invalidMaterials": 0,
+    "questions": 150,
+    "errors": 0,
+    "warnings": 0
+  },
+  "files": [
+    {
+      "path": "questoes/ESTUDO_BANCO_DE_DADOS_COMPERVE_50_QUESTOES.md",
+      "file": "ESTUDO_BANCO_DE_DADOS_COMPERVE_50_QUESTOES.md",
+      "title": "Banco de Dados — 50 questões inéditas no estilo COMPERVE",
+      "materialId": "MAT-BD-COMPERVE-001",
+      "bank": "COMPERVE",
+      "subject": "Banco de Dados",
+      "topic": "Conceitos, modelos, projeto conceitual, lógico e físico, linguagens de consulta, bancos distribuídos, SGBDs e SQL",
+      "language": "pt-BR",
+      "questionCount": 50,
+      "declaredQuestions": 50,
+      "sizeBytes": 220419,
+      "sha256": "a5a8f79679af072af22d4399975a0e43eadca317f8933f63bab2eac767596f63",
+      "valid": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "questoes/ESTUDO_LEGISLACAO_COMPERVE_100_QUESTOES.md",
+      "file": "ESTUDO_LEGISLACAO_COMPERVE_100_QUESTOES.md",
+      "title": "Material de Estudo — Legislação — COMPERVE",
+      "materialId": "MAT-LEG-COMPERVE-001",
+      "bank": "COMPERVE",
+      "subject": "Legislação",
+      "topic": "Regimento Interno da Câmara Municipal de Mossoró, Lei Orgânica do Município de Mossoró e Lei nº 8.429/1992",
+      "language": "pt-BR",
+      "questionCount": 100,
+      "declaredQuestions": 100,
+      "sizeBytes": 365079,
+      "sha256": "95b4043297619f96c6dc10f862c107efa059d132285780797af2d1afd7ddcb96",
+      "valid": true,
+      "errors": [],
+      "warnings": []
+    }
+  ]
+}
