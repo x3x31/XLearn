@@ -597,6 +597,52 @@ button:disabled {
   margin-top: 12px;
 }
 
+/* Daily goal / streak ----------------------------------------------------- */
+
+.habit-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.habit-card__head h2 {
+  margin-top: 6px;
+  font-size: 1.02rem;
+}
+
+.habit-card__head p {
+  margin-top: 4px;
+}
+
+.habit-card__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.habit-card__stats > div {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  text-align: center;
+}
+
+.habit-card__stats strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.habit-card__stats span {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 /* Cards ------------------------------------------------------------------- */
 
 .card {

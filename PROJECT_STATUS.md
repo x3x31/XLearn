@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.7.0` |
+| **Versão atual** | `0.8.0` |
 | **Data da última atualização** | 2026-11-01 |
 
 ---
@@ -76,7 +76,7 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 |---|---|---|---|---|
 | REQ-014 | XP e níveis | Centralizar pontuação, bônus de sessão e progressão de níveis. | Média | IMPLEMENTADO |
 | REQ-015 | Conquistas | Desbloquear conquistas reais com base no histórico, sem duplicar recompensa. | Média | IMPLEMENTADO |
-| REQ-016 | Meta diária e sequência | Acompanhar meta configurável e dias consecutivos de estudo. | Média | PENDENTE |
+| REQ-016 | Meta diária e sequência | Acompanhar meta configurável e dias consecutivos de estudo. | Média | IMPLEMENTADO |
 | REQ-017 | Estatísticas | Exibir totais, precisão, desempenho por disciplina e tentativas recentes. | Média | PENDENTE |
 | REQ-018 | Ranking local | Classificar provas/disciplinas por desempenho real do dispositivo, deixando claro que não é global. | Baixa | PENDENTE |
 
@@ -153,7 +153,7 @@ XLearn/
 │   ├── questions.js          # IMPLEMENTADO: manifesto, fetch e cache em memória
 │   ├── settings.js           # IMPLEMENTADO: defaults, intervalos manuais e aplicação visual (tela em REQ-019)
 │   ├── srs.js                # IMPLEMENTADO: repetição espaçada e fila de revisões (puro)
-│   └── gamification.js       # IMPLEMENTADO: XP, níveis, conquistas e bônus de sessão (puro)
+│   └── gamification.js       # IMPLEMENTADO: XP, níveis, conquistas, meta e sequência (puro)
 ├── scripts/
 │   └── build-manifest.mjs    # IMPLEMENTADO: geração e validação do manifesto
 ├── icons/                    # (planejado) ícones PWA
@@ -258,6 +258,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Fila de revisões | Agrupa o progresso por material, separa vencidas e futuras, ordena vencidas por data e oferece sessão apenas com as questões da fila (limite = tamanho configurado de sessão). | Prioriza o que está atrasado e transforma o agendamento em ação de estudo. |
 | XP | Centralizado em `gamification.js` (puro): 2 XP por participação no erro; 10 XP + 2/4/6 por dificuldade no acerto; bônus de sessão de 25 XP + até 25 por aproveitamento + 25 se perfeita. Níveis em faixas quadráticas de 100 XP. | Evita duplicação, mantém critérios consistentes e recompensa consistência sem depender de dados externos. |
 | Conquistas | Lista declarativa com critérios verificáveis sobre respostas, acertos, sessões, sessões perfeitas e nível. O desbloqueio e a recompensa de XP são resolvidos em laço, uma única vez, na mesma transação da resposta ou da sessão. | Critérios auditáveis, sem dados fictícios e sem risco de pagamento duplicado. |
+| Meta e sequência | Calculadas de `stats.daily` em módulo puro, usando a chave de dia local. A sequência continua válida no dia seguinte ao último estudo e quebra após um dia inteiro sem respostas; o recorde é persistido na gamificação. Meta configurável define o percentual e a conquista diária. | Reflete o uso real no fuso do dispositivo, sem depender de servidor nem inventar dias. |
 | Ranking | Ranking local por material, calculado do progresso real; texto explica que não é global. | Atende ao requisito sem inventar estudantes. |
 | Cache | App shell em cache na instalação; materiais em cache após o primeiro acesso; navegação com fallback para `index.html`. | Compatível com offline e subdiretórios do GitHub Pages. |
 | Versionamento | Um commit funcional por requisito, Conventional Commits, push após cada entrega; hash registrado no commit seguinte. | Rastreabilidade e histórico incremental. |
@@ -277,6 +278,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.5.0 | REQ-011, REQ-012, REQ-013 | Módulo `srs.js`, agendamento automático 1/3/7/14/30 dias, revisão curta de 10 min no erro, escolha manual após acerto, fila vencidas/futuras, selo na navegação e sessão só de revisões | `e175e96` | 2026-11-01 |
 | 0.6.0 | REQ-014 | Módulo `gamification.js`, XP por resposta e dificuldade, bônus de sessão pago uma única vez, níveis em faixas quadráticas e card de progresso no dashboard | `d5736f7` | 2026-11-01 |
 | 0.7.0 | REQ-015 | Conquistas declarativas (primeira resposta, primeiro acerto, volume, sessões, sessão perfeita e níveis 3/5), recompensa de XP única, anúncio por toast e card de conquistas no dashboard | `f82aac5` | 2026-11-01 |
+| 0.8.0 | REQ-016 | Meta diária configurável, progresso do dia, sequência atual, recorde de dias consecutivos, conquistas de meta e sequências de 3/7 dias e card de ritmo no dashboard | _a preencher após o commit_ | 2026-11-01 |
 
 ---
 
@@ -298,12 +300,13 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-013 — Fila de revisões:** a rota `#/revisoes` agrupa por prova, mostra contadores de vencidas e futuras, lista as próximas questões e prioriza as atrasadas ao montar a sessão. O item "Revisões" na navegação exibe um selo com o total vencido, e o dashboard alerta quando há revisões atrasadas.
 - **REQ-014 — XP e níveis:** `js/gamification.js` centraliza as regras: 2 XP por participação no erro; 10 XP + bônus de dificuldade (2/4/6) no acerto; bônus de sessão de 25 XP + até 25 por aproveitamento + 25 se todas corretas. O XP e os contadores são gravados na mesma transação da resposta; a premiação de sessão é paga uma única vez por `sessionId`, inclusive após recarregar. O dashboard exibe nível, título, XP acumulado, barra para o próximo nível, questões respondidas, precisão e sessões concluídas.
 - **REQ-015 — Conquistas:** dez conquistas reais baseadas em primeira resposta, primeiro acerto, 10/50/100 questões, 1/5 sessões, sessão perfeita e níveis 3/5. Cada uma tem recompensa própria de XP, data de desbloqueio e é paga uma única vez. O desbloqueio é resolvido na mesma transação da resposta ou da sessão, pode encadear conquistas (por exemplo, XP de uma conquista que sobe de nível) e é anunciado por toast. O dashboard mostra quantas foram desbloqueadas e as três mais recentes.
+- **REQ-016 — Meta e sequência:** `gamification.js` calcula a meta diária a partir de `settings.dailyGoal` e de `stats.daily`, com questões respondidas, percentual, restante e conclusão. A sequência atual continua válida no dia seguinte ao último estudo e quebra somente após um dia inteiro sem respostas; o recorde histórico é recalculado e persistido. O dashboard mostra meta, barra, sequência atual, recorde e se já houve estudo no dia. Três novas conquistas cobrem meta batida e sequências de 3 e 7 dias.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-015. Prioridade imediata: meta diária e sequência (REQ-016).
+Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-016. Prioridade imediata: estatísticas (REQ-017).
 
 Dependências principais:
 
@@ -353,6 +356,7 @@ Dependências principais:
 - XP e níveis verificados com testes unitários puros: participação no erro, bônus 2/4/6 por dificuldade, bônus de sessão (25/38/75), faixas de nível (0/100/400/900) e bloqueio de premiação duplicada da mesma sessão.
 - Integração de XP testada com IndexedDB em memória: resposta correta grava XP e contadores, sessão concluída paga o bônus uma única vez mesmo após nova chamada, card de nível e XP total aparecem no dashboard.
 - Conquistas testadas com funções puras: desbloqueio de primeira resposta/primeiro acerto, recompensa somada ao XP, não duplicação em respostas seguintes, sessão completa e sessão perfeita, lista completa com estado. Integração confirmou persistência das conquistas, XP com recompensas e card no dashboard.
+- Meta e sequência testadas com datas controladas: dia sem estudo, primeiro dia, três dias consecutivos, sequência de ontem ainda válida, quebra por intervalo, recorde histórico, meta atingida e percentual. Integração com meta configurada em 1 questão confirmou registro diário, sequência persistida, conquista da meta e card "1/1" no dashboard.
 
 ### Testes finais pendentes
 
@@ -371,6 +375,6 @@ Dependências principais:
 
 ## L. Próxima tarefa recomendada
 
-**REQ-016 — meta diária e sequência.**
+**REQ-017 — estatísticas.**
 
-Motivo: as estatísticas diárias já são gravadas em `stats.daily` e as conquistas já usam contadores consolidados. A próxima entrega deve calcular, em módulo puro, o progresso da meta configurável (`dailyGoal`), a sequência atual de dias consecutivos e o recorde histórico, considerando o dia atual ou o último dia estudado; persistir o recorde; exibir meta e sequência no dashboard; e acrescentar conquistas de meta batida e sequência de 3/7 dias, mantendo o pagamento único.
+Motivo: `stats` já agrega total de respostas, acertos, dias e materiais, e `attempts` guarda o histórico completo. A próxima entrega deve criar uma tela de progresso acessível pela navegação, com totais, precisão, desempenho por disciplina/material, meta e sequência, conquistas completas e tentativas recentes. A tela deve usar apenas dados reais do IndexedDB, tratar o estado vazio e manter o layout responsivo. O ranking local fica para REQ-018.

@@ -208,9 +208,15 @@ export function localDayKey(date = new Date()) {
  * Registra uma resposta de forma atômica: sessão, progresso da questão,
  * tentativa e estatísticas agregadas.
  *
- * @param {{session: object, question: object, answer: object, schedule?: object|null}} payload
+ * @param {{session: object, question: object, answer: object, schedule?: object|null, dailyGoal?: number}} payload
  */
-export async function recordAnswer({ session, question, answer, schedule = null }) {
+export async function recordAnswer({
+  session,
+  question,
+  answer,
+  schedule = null,
+  dailyGoal = 20,
+}) {
   const db = await openDatabase();
   const sessionSnapshot = structuredClone(session);
   sessionSnapshot.status = sessionSnapshot.finishedAt ? "completed" : "active";
@@ -222,6 +228,10 @@ export async function recordAnswer({ session, question, answer, schedule = null 
   let savedGamification = null;
   let xpGain = 0;
   let newAchievements = [];
+  let statsSnapshot = null;
+  let gamificationSnapshot = null;
+  let gamificationReady = false;
+  let gamificationApplied = false;
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["sessions", "progress", "attempts", "meta"], "readwrite");
@@ -229,6 +239,26 @@ export async function recordAnswer({ session, question, answer, schedule = null 
     const progressStore = tx.objectStore("progress");
     const attemptsStore = tx.objectStore("attempts");
     const metaStore = tx.objectStore("meta");
+
+    const applyGamification = () => {
+      if (gamificationApplied || !statsSnapshot || !gamificationReady) return;
+      gamificationApplied = true;
+      const result = applyAnswerRewards(gamificationSnapshot, {
+        correct: Boolean(answer.correct),
+        difficulty: question.difficulty,
+        daily: statsSnapshot.daily,
+        goal: dailyGoal,
+        now: new Date(answeredAt),
+      });
+      savedGamification = result.gamification;
+      xpGain = result.xpGain;
+      newAchievements = result.newAchievements;
+      metaStore.put({
+        key: "gamification",
+        value: result.gamification,
+        updatedAt: result.gamification.updatedAt,
+      });
+    };
 
     sessionsStore.put(sessionSnapshot);
 
@@ -330,23 +360,20 @@ export async function recordAnswer({ session, question, answer, schedule = null 
         },
         updatedAt: new Date().toISOString(),
       });
+      statsSnapshot = {
+        answered: (previous.answered || 0) + 1,
+        correct: (previous.correct || 0) + (answer.correct ? 1 : 0),
+        daily,
+        byMaterial,
+      };
+      applyGamification();
     };
 
     const gamificationRequest = metaStore.get("gamification");
     gamificationRequest.onsuccess = () => {
-      const result = applyAnswerRewards(gamificationRequest.result?.value, {
-        correct: Boolean(answer.correct),
-        difficulty: question.difficulty,
-        now: new Date(answeredAt),
-      });
-      savedGamification = result.gamification;
-      xpGain = result.xpGain;
-      newAchievements = result.newAchievements;
-      metaStore.put({
-        key: "gamification",
-        value: result.gamification,
-        updatedAt: result.gamification.updatedAt,
-      });
+      gamificationSnapshot = gamificationRequest.result?.value ?? null;
+      gamificationReady = true;
+      applyGamification();
     };
 
     tx.oncomplete = () =>

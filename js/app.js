@@ -16,10 +16,17 @@ import {
   getGamification,
   getProgressSummary,
   getSettingsRecord,
+  getStats,
   recordAnswer,
   saveSession,
 } from "./db.js";
-import { createGamification, levelFromXp, listAchievements } from "./gamification.js";
+import {
+  computeStreak,
+  createGamification,
+  dailyProgress,
+  levelFromXp,
+  listAchievements,
+} from "./gamification.js";
 import {
   buildReviewQueue,
   computeSchedule,
@@ -40,6 +47,7 @@ const state = {
   progress: { byPath: {}, byId: {}, byKey: {}, records: [] },
   reviewQueue: { groups: [], counts: { overdue: 0, upcoming: 0 } },
   gamification: createGamification(),
+  stats: { answered: 0, correct: 0, daily: {}, byMaterial: {} },
   lastAnswerSave: null,
   scheduling: null,
   storageWarned: false,
@@ -319,17 +327,20 @@ async function loadPersistedSettings() {
 
 async function refreshProgress() {
   try {
-    const [progress, gamification] = await Promise.all([
+    const [progress, gamification, stats] = await Promise.all([
       getProgressSummary(),
       getGamification(),
+      getStats(),
     ]);
     state.progress = progress;
     state.gamification = gamification;
+    state.stats = stats;
     state.reviewQueue = buildReviewQueue(state.progress.records || []);
   } catch (error) {
     warnStorageOnce(error);
     state.progress = { byPath: {}, byId: {}, byKey: {}, records: [] };
     state.gamification = createGamification();
+    state.stats = { answered: 0, correct: 0, daily: {}, byMaterial: {} };
     state.reviewQueue = { groups: [], counts: { overdue: 0, upcoming: 0 } };
   }
   updateNav();
@@ -512,6 +523,7 @@ function renderHome() {
 
     renderLevelCard(),
     renderAchievementsCard(),
+    renderHabitCard(),
 
     active
       ? h(
@@ -689,6 +701,74 @@ function renderAchievementsCard() {
     unlocked.length === 0
       ? h("p", { class: "hint", text: "Responda questões para desbloquear as primeiras conquistas." })
       : null
+  );
+}
+
+function renderHabitCard() {
+  const settings = getSettings();
+  const goal = dailyProgress(state.stats, settings.dailyGoal);
+  const streak = computeStreak(state.stats?.daily || {});
+  const best = Math.max(streak.best, state.gamification?.bestStreak || 0);
+
+  return h(
+    "section",
+    { class: "card habit-card", "aria-labelledby": "habit-title" },
+    h(
+      "div",
+      { class: "habit-card__head" },
+      h(
+        "div",
+        {},
+        h("span", { class: "eyebrow" }, icon("flame"), "Ritmo diário"),
+        h("h2", { id: "habit-title", text: `Meta: ${plural(goal.target, "questão hoje", "questões hoje")}` }),
+        h("p", {
+          class: "small muted",
+          text: goal.reached
+            ? "Meta de hoje concluída. Continue se quiser, o XP continua contando."
+            : `Faltam ${plural(goal.remaining, "questão", "questões")} para bater a meta.`,
+        })
+      ),
+      h("span", {
+        class: `chip ${goal.reached ? "chip--success" : "chip--neutral"}`,
+        text: `${goal.answered}/${goal.target}`,
+      })
+    ),
+    h(
+      "div",
+      {
+        class: "progress",
+        role: "progressbar",
+        "aria-label": "Progresso da meta diária",
+        "aria-valuemin": "0",
+        "aria-valuemax": "100",
+        "aria-valuenow": String(goal.percent),
+      },
+      h("span", { class: "progress__bar", style: `width:${goal.percent}%` })
+    ),
+    h(
+      "div",
+      { class: "habit-card__stats" },
+      h(
+        "div",
+        {},
+        h("strong", { text: `${streak.current} ${streak.current === 1 ? "dia" : "dias"}` }),
+        h("span", { text: "sequência atual" })
+      ),
+      h(
+        "div",
+        {},
+        h("strong", { text: `${best} ${best === 1 ? "dia" : "dias"}` }),
+        h("span", { text: "recorde" })
+      ),
+      h(
+        "div",
+        {},
+        h("strong", {
+          text: streak.studiedToday ? "sim" : "ainda não",
+        }),
+        h("span", { text: "estudou hoje" })
+      )
+    )
   );
 }
 
@@ -1087,6 +1167,7 @@ function confirmAnswer(question) {
     question,
     answer: session.answers[question.id],
     schedule,
+    dailyGoal: settings.dailyGoal,
   })
     .then(async (result) => {
       await refreshProgress();

@@ -108,6 +108,30 @@ export const ACHIEVEMENTS = Object.freeze([
     xp: 50,
     check: (context) => context.level >= 5,
   },
+  {
+    id: "meta-diaria",
+    title: "Meta do dia",
+    description: "Bata a meta diária configurada.",
+    icon: "target",
+    xp: 20,
+    check: (context) => Boolean(context.goalReached),
+  },
+  {
+    id: "sequencia-3",
+    title: "Três dias seguidos",
+    description: "Estude por 3 dias consecutivos.",
+    icon: "flame",
+    xp: 25,
+    check: (context) => context.bestStreak >= 3,
+  },
+  {
+    id: "sequencia-7",
+    title: "Semana completa",
+    description: "Estude por 7 dias consecutivos.",
+    icon: "flame",
+    xp: 50,
+    check: (context) => context.bestStreak >= 7,
+  },
 ]);
 
 const LEVEL_TITLES = [
@@ -193,6 +217,92 @@ export function levelFromXp(xp) {
   };
 }
 
+export function localDayKey(date = new Date()) {
+  const time = date instanceof Date ? date : new Date(date);
+  const year = time.getFullYear();
+  const month = String(time.getMonth() + 1).padStart(2, "0");
+  const day = String(time.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDayKey(key) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(key || ""));
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function addDays(date, amount) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function dayHasStudy(daily, key) {
+  return (daily?.[key]?.answered || 0) > 0;
+}
+
+/**
+ * Calcula a sequência atual e o recorde a partir de `stats.daily`.
+ * A sequência continua válida no dia seguinte se o último dia com estudo foi
+ * ontem; ela só zera quando um dia inteiro passa sem respostas.
+ */
+export function computeStreak(daily = {}, now = new Date()) {
+  const todayKey = localDayKey(now);
+  const yesterdayKey = localDayKey(addDays(now, -1));
+
+  let cursor = dayHasStudy(daily, todayKey)
+    ? new Date(now)
+    : dayHasStudy(daily, yesterdayKey)
+      ? addDays(now, -1)
+      : null;
+
+  let current = 0;
+  while (cursor && dayHasStudy(daily, localDayKey(cursor))) {
+    current += 1;
+    cursor = addDays(cursor, -1);
+  }
+
+  const activeKeys = Object.keys(daily || {})
+    .filter((key) => dayHasStudy(daily, key) && parseDayKey(key))
+    .sort();
+  let best = 0;
+  let run = 0;
+  let previous = null;
+  for (const key of activeKeys) {
+    if (previous && localDayKey(addDays(parseDayKey(previous), 1)) === key) {
+      run += 1;
+    } else {
+      run = 1;
+    }
+    if (run > best) best = run;
+    previous = key;
+  }
+
+  return { current, best, todayKey, studiedToday: dayHasStudy(daily, todayKey) };
+}
+
+/** Progresso da meta diária para hoje. */
+export function dailyProgress(stats = {}, goal = 20, now = new Date()) {
+  const daily = stats?.daily && typeof stats.daily === "object" ? stats.daily : stats || {};
+  const target = Math.max(1, nonNegative(goal) || 20);
+  const todayKey = localDayKey(now);
+  const today = daily[todayKey] || { answered: 0, correct: 0 };
+  const answered = nonNegative(today.answered);
+  const correct = Math.min(nonNegative(today.correct), answered);
+  const percent = Math.min(100, Math.round((answered / target) * 100));
+
+  return {
+    todayKey,
+    answered,
+    correct,
+    target,
+    remaining: Math.max(0, target - answered),
+    percent,
+    reached: answered >= target,
+  };
+}
+
 /**
  * Desbloqueia conquistas pendentes e paga suas recompensas.
  * O laço permite que o XP de uma conquista desbloqueie outra (ex.: nível).
@@ -245,22 +355,37 @@ export function listAchievements(gamification = {}) {
 }
 
 /** XP recebido por uma resposta, já refletido no registro de gamificação. */
-export function applyAnswerRewards(current, { correct, difficulty, now = new Date() } = {}) {
+export function applyAnswerRewards(
+  current,
+  { correct, difficulty, daily = {}, goal = 20, now = new Date() } = {}
+) {
   const gamification = normalizeGamification(current);
   const xpGain = answerXp({ correct: Boolean(correct), difficulty });
+  const streak = computeStreak(daily, now);
+  const goalProgress = dailyProgress({ daily }, goal, now);
   const withAnswer = {
     ...gamification,
     xp: gamification.xp + xpGain,
     answered: gamification.answered + 1,
     correct: gamification.correct + (correct ? 1 : 0),
+    bestStreak: Math.max(gamification.bestStreak, streak.current, streak.best),
     updatedAt: now instanceof Date ? now.toISOString() : new Date(now).toISOString(),
   };
-  const result = reconcileAchievements(withAnswer, gamificationContext(withAnswer), now);
+  const result = reconcileAchievements(
+    withAnswer,
+    gamificationContext(withAnswer, {
+      goalReached: goalProgress.reached,
+      bestStreak: withAnswer.bestStreak,
+    }),
+    now
+  );
   return {
     gamification: result.gamification,
     xpGain: result.gamification.xp - gamification.xp,
     answerXp: xpGain,
     newAchievements: result.newAchievements,
+    streak,
+    goal: goalProgress,
   };
 }
 
