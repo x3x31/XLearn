@@ -649,39 +649,85 @@ button:disabled {
   grid-template-columns: repeat(4, 1fr);
 }
 
-.subject-list {
-  display: grid;
-  gap: 12px;
-  margin-top: 16px;
+.ranking-group-title {
+  margin: 20px 0 8px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.subject-row {
-  padding: 12px;
+.ranking-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ranking-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface-2);
 }
 
-.subject-row__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.subject-row__head strong {
-  font-size: 0.88rem;
-}
-
-.subject-row__head span {
+.ranking-row__position {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surface-3);
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
-.progress--sm {
-  height: 8px;
-  margin-top: 8px;
+.ranking-row.is-podium .ranking-row__position {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.ranking-row__body {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ranking-row__body strong {
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.ranking-row__body span {
+  color: var(--muted);
+  font-size: 0.73rem;
+  overflow-wrap: anywhere;
+}
+
+.ranking-row__score {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 1px;
+  text-align: right;
+}
+
+.ranking-row__score strong {
+  font-size: 0.92rem;
+}
+
+.ranking-row__score small {
+  color: var(--muted);
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .achievement-grid {
@@ -1869,6 +1915,16 @@ button:disabled {
 
   .achievement-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ranking-row {
+    gap: 8px;
+    padding: 9px 10px;
+  }
+
+  .ranking-row__position {
+    width: 30px;
+    height: 30px;
   }
 
   .score-ring {

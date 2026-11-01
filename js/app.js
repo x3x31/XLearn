@@ -35,6 +35,7 @@ import {
   formatIntervalMinutes,
   manualSchedule,
 } from "./srs.js";
+import { buildRanking, RANKING_DISCLOSURE } from "./ranking.js";
 
 const app = document.getElementById("app");
 
@@ -74,6 +75,7 @@ const ICONS = {
   flame: '<path d="M12 3c1 3.5-1.5 5-1.5 7.5A2.5 2.5 0 0 0 13 13c2 0 3-1.5 3-3 2 2 3 4 3 6a7 7 0 0 1-14 0c0-4 3-6 7-13z"/>',
   chart: '<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
   award: '<circle cx="12" cy="8" r="5"/><path d="M8.5 12.5 7 21l5-3 5 3-1.5-8.5"/>',
+  trophy: '<path d="M8 4h8v4a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 3"/><path d="M16 6h3a3 3 0 0 1-3 3"/><path d="M12 12v4"/><path d="M9 20h6"/><path d="M10 16h4l1 4H9z"/>',
   lock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
 };
@@ -965,30 +967,43 @@ function renderReviews() {
   ];
 }
 
-function subjectPerformance() {
-  const map = new Map();
-  for (const entry of state.entries) {
-    const materialStats = state.stats?.byMaterial?.[entry.path];
-    if (!materialStats?.answered) continue;
-    const subject = entry.subject || "Geral";
-    const item = map.get(subject) || { subject, answered: 0, correct: 0 };
-    item.answered += materialStats.answered;
-    item.correct += materialStats.correct;
-    map.set(subject, item);
-  }
-  return [...map.values()]
-    .map((item) => ({
-      ...item,
-      accuracy: item.answered > 0 ? Math.round((item.correct / item.answered) * 100) : 0,
-    }))
-    .sort((a, b) => b.answered - a.answered || a.subject.localeCompare(b.subject));
+function renderRankingList(items, label) {
+  return h(
+    "ol",
+    { class: "ranking-list", "aria-label": label },
+    ...items.map((item) =>
+      h(
+        "li",
+        { class: `ranking-row${item.position <= 3 ? " is-podium" : ""}` },
+        h("span", {
+          class: "ranking-row__position",
+          text: `${item.position}º`,
+          "aria-label": `${item.position}º lugar`,
+        }),
+        h(
+          "div",
+          { class: "ranking-row__body" },
+          h("strong", { text: item.title }),
+          h("span", {
+            text: `${item.subtitle ? `${item.subtitle} · ` : ""}${plural(item.answered, "questão", "questões")} · ${item.accuracy}% de acerto`,
+          })
+        ),
+        h(
+          "span",
+          { class: "ranking-row__score" },
+          h("strong", { text: `${item.score}%` }),
+          h("small", { text: "índice" })
+        )
+      )
+    )
+  );
 }
 
 function renderProgress() {
   const stats = state.stats || { answered: 0, correct: 0, daily: {}, byMaterial: {} };
   const gamification = state.gamification || createGamification();
   const accuracy = stats.answered > 0 ? Math.round((stats.correct / stats.answered) * 100) : 0;
-  const subjects = subjectPerformance();
+  const ranking = buildRanking(state.entries, stats);
   const achievements = listAchievements(gamification);
   const unlocked = achievements
     .filter((item) => item.unlockedAt)
@@ -1040,50 +1055,30 @@ function renderProgress() {
 
     h(
       "section",
-      { class: "card", "aria-labelledby": "subjects-title" },
+      { class: "card ranking-card", "aria-labelledby": "ranking-title" },
       h(
         "div",
         { class: "section-head" },
         h(
           "div",
           {},
-          h("span", { class: "eyebrow" }, icon("book"), "Por disciplina"),
-          h("h2", { id: "subjects-title", text: "Desempenho por disciplina" })
+          h("span", { class: "eyebrow" }, icon("trophy"), "Ranking local"),
+          h("h2", { id: "ranking-title", text: "Seu desempenho por posição" })
         ),
-        h("span", { class: "chip chip--neutral", text: `${subjects.length} com estudo` })
+        h("span", { class: "chip chip--neutral", text: "somente este dispositivo" })
       ),
-      subjects.length === 0
-        ? h("p", { class: "hint", text: "Ainda não há respostas para calcular o desempenho por disciplina." })
-        : h(
-            "div",
-            { class: "subject-list" },
-            ...subjects.map((subject) =>
-              h(
-                "div",
-                { class: "subject-row" },
-                h(
-                  "div",
-                  { class: "subject-row__head" },
-                  h("strong", { text: subject.subject }),
-                  h("span", {
-                    text: `${plural(subject.answered, "questão", "questões")} · ${subject.accuracy}% de acerto`,
-                  })
-                ),
-                h(
-                  "div",
-                  {
-                    class: "progress progress--sm",
-                    role: "progressbar",
-                    "aria-label": `Precisão em ${subject.subject}`,
-                    "aria-valuemin": "0",
-                    "aria-valuemax": "100",
-                    "aria-valuenow": String(subject.accuracy),
-                  },
-                  h("span", { class: "progress__bar", style: `width:${subject.accuracy}%` })
-                )
-              )
-            )
-          )
+      h("p", { class: "hint", text: RANKING_DISCLOSURE }),
+      ranking.subjects.length === 0
+        ? h("p", {
+            class: "hint",
+            text: "Ainda não há respostas para montar o ranking. Estude uma questão para ver provas e disciplinas classificadas.",
+          })
+        : [
+            h("h3", { class: "ranking-group-title", text: "Disciplinas" }),
+            renderRankingList(ranking.subjects, "Ranking local por disciplina"),
+            h("h3", { class: "ranking-group-title", text: "Provas" }),
+            renderRankingList(ranking.materials, "Ranking local por prova"),
+          ]
     ),
 
     h(
