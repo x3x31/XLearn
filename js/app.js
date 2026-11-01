@@ -11,12 +11,15 @@ import { shuffle, seededRandom, hashString } from "./parser.js";
 import { getSettings, applyVisualSettings, normalizeSettings, setSettings, MANUAL_INTERVALS } from "./settings.js";
 import {
   applyReviewSchedule,
+  awardSessionCompletion,
   getActiveSession,
+  getGamification,
   getProgressSummary,
   getSettingsRecord,
   recordAnswer,
   saveSession,
 } from "./db.js";
+import { createGamification, levelFromXp } from "./gamification.js";
 import {
   buildReviewQueue,
   computeSchedule,
@@ -36,6 +39,7 @@ const state = {
   sessionMaterial: null,
   progress: { byPath: {}, byId: {}, byKey: {}, records: [] },
   reviewQueue: { groups: [], counts: { overdue: 0, upcoming: 0 } },
+  gamification: createGamification(),
   lastAnswerSave: null,
   scheduling: null,
   storageWarned: false,
@@ -307,11 +311,17 @@ async function loadPersistedSettings() {
 
 async function refreshProgress() {
   try {
-    state.progress = await getProgressSummary();
+    const [progress, gamification] = await Promise.all([
+      getProgressSummary(),
+      getGamification(),
+    ]);
+    state.progress = progress;
+    state.gamification = gamification;
     state.reviewQueue = buildReviewQueue(state.progress.records || []);
   } catch (error) {
     warnStorageOnce(error);
     state.progress = { byPath: {}, byId: {}, byKey: {}, records: [] };
+    state.gamification = createGamification();
     state.reviewQueue = { groups: [], counts: { overdue: 0, upcoming: 0 } };
   }
   updateNav();
@@ -344,6 +354,11 @@ async function restoreActiveSession() {
       active.finishedAt = new Date().toISOString();
       active.updatedAt = active.finishedAt;
       await persistSession(active);
+      try {
+        await awardSessionCompletion(active);
+      } catch (error) {
+        warnStorageOnce(error);
+      }
       if (currentRoute() === "sessao") navigate("resumo");
     }
   } catch (error) {
@@ -487,6 +502,8 @@ function renderHome() {
       )
     ),
 
+    renderLevelCard(),
+
     active
       ? h(
           "section",
@@ -559,6 +576,56 @@ function renderHome() {
       "a ordem das alternativas é sorteada em cada sessão, mas as letras A–D permanecem as originais do gabarito. A correção usa o identificador da alternativa, nunca a posição na tela."
     ),
   ];
+}
+
+function renderLevelCard() {
+  const gamification = state.gamification || createGamification();
+  const level = levelFromXp(gamification.xp);
+  const accuracy =
+    gamification.answered > 0
+      ? Math.round((gamification.correct / gamification.answered) * 100)
+      : 0;
+  const percent = Math.round(level.progress * 100);
+
+  return h(
+    "section",
+    { class: "card level-card", "aria-labelledby": "level-title" },
+    h(
+      "div",
+      { class: "level-card__head" },
+      h(
+        "div",
+        {},
+        h("span", { class: "eyebrow" }, icon("sparkles"), "Seu progresso"),
+        h("h2", { id: "level-title", text: `Nível ${level.level} · ${level.title}` }),
+        h("p", { class: "small muted", text: `${gamification.xp} XP acumulados` })
+      ),
+      h("span", { class: "level-card__badge", text: String(level.level), "aria-label": `Nível ${level.level}` })
+    ),
+    h(
+      "div",
+      {
+        class: "progress",
+        role: "progressbar",
+        "aria-label": "Progresso para o próximo nível",
+        "aria-valuemin": "0",
+        "aria-valuemax": "100",
+        "aria-valuenow": String(percent),
+      },
+      h("span", { class: "progress__bar", style: `width:${percent}%` })
+    ),
+    h("p", {
+      class: "hint",
+      text: `Faltam ${level.xpToNext} XP para o nível ${level.level + 1}.`,
+    }),
+    h(
+      "div",
+      { class: "level-card__stats" },
+      h("div", {}, h("strong", { text: String(gamification.answered) }), h("span", { text: "respondidas" })),
+      h("div", {}, h("strong", { text: `${accuracy}%` }), h("span", { text: "precisão" })),
+      h("div", {}, h("strong", { text: String(gamification.sessionsCompleted) }), h("span", { text: "sessões" }))
+    )
+  );
 }
 
 function renderStudy() {
@@ -1002,13 +1069,22 @@ async function scheduleReview(question, minutes) {
   }
 }
 
-function goToNextQuestion() {
+async function goToNextQuestion() {
   const session = state.session;
   if (!session) return;
   if (session.index + 1 >= session.questionIds.length) {
     session.finishedAt = new Date().toISOString();
     session.updatedAt = session.finishedAt;
-    persistSession(session);
+    await persistSession(session);
+    try {
+      const award = await awardSessionCompletion(session);
+      if (award?.xpGain > 0) {
+        toast(`Sessão concluída: +${award.xpGain} XP.`, "success");
+      }
+    } catch (error) {
+      warnStorageOnce(error);
+    }
+    await refreshProgress();
     navigate("resumo");
     return;
   }

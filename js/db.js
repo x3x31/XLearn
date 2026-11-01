@@ -2,13 +2,19 @@
  * db.js — persistência local do XLearn em IndexedDB.
  *
  * Stores:
- *   meta      { key, value, updatedAt }        configurações, estatísticas agregadas
+ *   meta      { key, value, updatedAt }        configurações, estatísticas agregadas e gamificação
  *   progress  { key, materialId, questionId }  domínio por questão + histórico curto
  *   sessions  { id, status, ... }              sessões completas, retomáveis
  *   attempts  { key, sessionId, ... }          histórico completo de respostas
  *
  * Nenhum dado de progresso é gravado apenas no cache HTTP.
  */
+
+import {
+  applyAnswerRewards,
+  applySessionRewards,
+  normalizeGamification,
+} from "./gamification.js";
 
 const DB_NAME = "xlearn";
 const DB_VERSION = 1;
@@ -119,6 +125,11 @@ export async function getStats() {
   );
 }
 
+/** Lê a gamificação acumulada, sempre em formato completo. */
+export async function getGamification() {
+  return normalizeGamification(await getMeta("gamification"));
+}
+
 export function progressKey(materialId, questionId) {
   return `${materialId}::${questionId}`;
 }
@@ -208,6 +219,8 @@ export async function recordAnswer({ session, question, answer, schedule = null 
   const pKey = progressKey(session.materialId, question.id);
   const dayKey = localDayKey(new Date(answeredAt));
   let savedProgress = null;
+  let savedGamification = null;
+  let xpGain = 0;
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["sessions", "progress", "attempts", "meta"], "readwrite");
@@ -318,9 +331,70 @@ export async function recordAnswer({ session, question, answer, schedule = null 
       });
     };
 
-    tx.oncomplete = () => resolve({ attempt, progressKey: pKey, progress: savedProgress });
+    const gamificationRequest = metaStore.get("gamification");
+    gamificationRequest.onsuccess = () => {
+      const result = applyAnswerRewards(gamificationRequest.result?.value, {
+        correct: Boolean(answer.correct),
+        difficulty: question.difficulty,
+        now: new Date(answeredAt),
+      });
+      savedGamification = result.gamification;
+      xpGain = result.xpGain;
+      metaStore.put({
+        key: "gamification",
+        value: result.gamification,
+        updatedAt: result.gamification.updatedAt,
+      });
+    };
+
+    tx.oncomplete = () =>
+      resolve({
+        attempt,
+        progressKey: pKey,
+        progress: savedProgress,
+        gamification: savedGamification,
+        xpGain,
+      });
     tx.onerror = () => reject(tx.error || new Error("Falha ao registrar a resposta."));
     tx.onabort = () => reject(tx.error || new Error("Registro da resposta cancelado."));
+  });
+}
+
+/**
+ * Paga o bônus de conclusão uma única vez por sessão.
+ * Deve ser chamado quando a sessão recebe `finishedAt`.
+ */
+export async function awardSessionCompletion(session, { now = new Date() } = {}) {
+  const db = await openDatabase();
+  const total = Array.isArray(session?.questionIds) ? session.questionIds.length : 0;
+  const answers = session?.answers && typeof session.answers === "object" ? session.answers : {};
+  const correct = Object.values(answers).filter((answer) => answer?.correct).length;
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("meta", "readwrite");
+    const store = tx.objectStore("meta");
+    const request = store.get("gamification");
+    let result = null;
+
+    request.onsuccess = () => {
+      result = applySessionRewards(request.result?.value, {
+        sessionId: session?.id,
+        correct,
+        total,
+        now,
+      });
+      if (!result.alreadyAwarded) {
+        store.put({
+          key: "gamification",
+          value: result.gamification,
+          updatedAt: result.gamification.updatedAt,
+        });
+      }
+    };
+
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => reject(tx.error || new Error("Falha ao premiar a sessão."));
+    tx.onabort = () => reject(tx.error || new Error("Premiação da sessão cancelada."));
   });
 }
 
