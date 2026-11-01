@@ -412,6 +412,10 @@ async function restoreActiveSession() {
 async function initialize() {
   await loadPersistedSettings();
   applyVisualSettings(getSettings());
+  const colorScheme = window.matchMedia?.("(prefers-color-scheme: light)");
+  colorScheme?.addEventListener?.("change", () => {
+    if (getSettings().theme === "system") applyVisualSettings(getSettings());
+  });
   await loadCatalog({ quiet: true });
   await restoreActiveSession();
   await refreshProgress();
@@ -1129,6 +1133,64 @@ function renderSettings() {
     ),
 
     h(
+      "section",
+      { class: "card", "aria-labelledby": "appearance-settings-title" },
+      h(
+        "div",
+        { class: "section-head" },
+        h(
+          "div",
+          {},
+          h("span", { class: "eyebrow" }, icon("sparkles"), "Aparência"),
+          h("h2", { id: "appearance-settings-title", text: "Tema e leitura" })
+        ),
+        h("span", { class: "chip chip--neutral", text: "aplicado ao salvar" })
+      ),
+      h(
+        "div",
+        { class: "field-grid" },
+        h(
+          "label",
+          { class: "field" },
+          h("span", { text: "Tema" }),
+          h(
+            "select",
+            { name: "theme" },
+            h("option", { value: "system", selected: settings.theme === "system", text: "Seguir o sistema" }),
+            h("option", { value: "dark", selected: settings.theme === "dark", text: "Escuro" }),
+            h("option", { value: "light", selected: settings.theme === "light", text: "Claro" })
+          ),
+          h("small", { text: "O tema do sistema acompanha a preferência do dispositivo." })
+        ),
+        h(
+          "label",
+          { class: "field" },
+          h("span", { text: "Tamanho do texto" }),
+          h("input", {
+            type: "range",
+            name: "fontSize",
+            min: "14",
+            max: "22",
+            step: "1",
+            value: String(settings.fontSize),
+          }),
+          h("small", { text: `De 14 a 22 px. Atual: ${settings.fontSize} px.` })
+        )
+      ),
+      h(
+        "label",
+        { class: "check-field" },
+        h("input", { type: "checkbox", name: "animations", checked: settings.animations }),
+        h(
+          "span",
+          {},
+          h("strong", { text: "Animações e transições" }),
+          h("small", { text: "Desative para uma interface mais estática; o respeito à preferência do sistema continua ativo." })
+        )
+      )
+    ),
+
+    h(
       "div",
       { class: "settings-actions" },
       h("button", { class: "btn btn--primary", type: "submit" }, icon("check"), "Salvar configurações"),
@@ -1172,6 +1234,9 @@ function readSettingsForm(form) {
   const questionOrder = fields.questionOrder.value === "sequential" ? "sequential" : "shuffle";
   const srsEnabled = Boolean(fields.srsEnabled.checked);
   const srsIntervals = [1, 2, 3, 4, 5].map((index) => Number(fields[`srsInterval${index}`].value));
+  const fontSize = Number(fields.fontSize.value);
+  const theme = ["dark", "light", "system"].includes(fields.theme.value) ? fields.theme.value : "system";
+  const animations = Boolean(fields.animations.checked);
 
   if (!Number.isInteger(sessionSize) || sessionSize < 1 || sessionSize > 100) {
     throw new Error("O tamanho da sessão deve ser um número inteiro entre 1 e 100.");
@@ -1189,8 +1254,11 @@ function readSettingsForm(form) {
       throw new Error("Os intervalos de revisão devem ser crescentes.");
     }
   }
+  if (!Number.isInteger(fontSize) || fontSize < 14 || fontSize > 22) {
+    throw new Error("O tamanho do texto deve ser um número inteiro entre 14 e 22 px.");
+  }
 
-  return { sessionSize, dailyGoal, questionOrder, srsEnabled, srsIntervals };
+  return { sessionSize, dailyGoal, questionOrder, srsEnabled, srsIntervals, fontSize, theme, animations };
 }
 
 async function saveSettingsFromForm(form) {
@@ -1203,6 +1271,7 @@ async function saveSettingsFromForm(form) {
   }
   const next = normalizeSettings({ ...getSettings(), ...patch });
   setSettings(next);
+  applyVisualSettings(next);
   try {
     await saveSettingsRecord(next);
     toast("Configurações salvas neste dispositivo.", "success");
@@ -1217,6 +1286,9 @@ function syncSettingsForm(form, settings) {
   form.elements.dailyGoal.value = String(settings.dailyGoal);
   form.elements.questionOrder.value = settings.questionOrder;
   form.elements.srsEnabled.checked = settings.srsEnabled;
+  form.elements.theme.value = settings.theme;
+  form.elements.fontSize.value = String(settings.fontSize);
+  form.elements.animations.checked = settings.animations;
   settings.srsIntervals.forEach((days, index) => {
     const field = form.elements[`srsInterval${index + 1}`];
     if (field) field.value = String(days);

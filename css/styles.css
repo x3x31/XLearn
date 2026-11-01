@@ -689,6 +689,14 @@ button:disabled {
   color: var(--text);
 }
 
+.field input[type="range"] {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--primary);
+}
+
 .field input:hover,
 .field select:hover {
   border-color: var(--primary);
