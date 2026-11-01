@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.4.0` |
+| **Versão atual** | `0.5.0` |
 | **Data da última atualização** | 2026-11-01 |
 
 ---
@@ -66,9 +66,9 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 
 | ID | Nome | Descrição | Prioridade | Status |
 |---|---|---|---|---|
-| REQ-011 | Agendamento automático | Aplicar intervalos 1/3/7/14/30 dias e reduzir domínio no erro. | Alta | PENDENTE |
-| REQ-012 | Intervalo manual | Permitir escolher 10 min, 1 h, 1, 3, 7, 14, 30 dias ou automático após acerto. | Média | PENDENTE |
-| REQ-013 | Fila de revisões | Listar revisões vencidas e futuras, priorizando atrasadas. | Alta | PENDENTE |
+| REQ-011 | Agendamento automático | Aplicar intervalos 1/3/7/14/30 dias e reduzir domínio no erro. | Alta | IMPLEMENTADO |
+| REQ-012 | Intervalo manual | Permitir escolher 10 min, 1 h, 1, 3, 7, 14, 30 dias ou automático após acerto. | Média | IMPLEMENTADO |
+| REQ-013 | Fila de revisões | Listar revisões vencidas e futuras, priorizando atrasadas. | Alta | IMPLEMENTADO |
 
 ### Fase 4 — Gamificação
 
@@ -137,7 +137,7 @@ XLearn/
 └── .git/
 ```
 
-Arquitetura após REQ-004 a REQ-007:
+Arquitetura atual (após REQ-011 a REQ-013):
 
 ```
 XLearn/
@@ -147,12 +147,12 @@ XLearn/
 ├── package.json              # scripts de desenvolvimento; sem dependências de execução
 ├── css/styles.css            # IMPLEMENTADO: temas, layout e componentes
 ├── js/
-│   ├── app.js                # IMPLEMENTADO: rotas, estado de UI, dashboard, quiz e resumo
-│   ├── db.js                 # IMPLEMENTADO: IndexedDB, progresso, sessões, tentativas e estatísticas
+│   ├── app.js                # IMPLEMENTADO: rotas, estado de UI, dashboard, quiz, resumo e revisões
+│   ├── db.js                 # IMPLEMENTADO: IndexedDB, progresso, sessões, tentativas, estatísticas e reagendamento
 │   ├── parser.js             # IMPLEMENTADO: frontmatter + JSON + normalização (puro)
 │   ├── questions.js          # IMPLEMENTADO: manifesto, fetch e cache em memória
-│   ├── settings.js           # IMPLEMENTADO: defaults e aplicação visual (persistência pendente)
-│   ├── srs.js                # (planejado) repetição espaçada (puro)
+│   ├── settings.js           # IMPLEMENTADO: defaults, intervalos manuais e aplicação visual (tela em REQ-019)
+│   ├── srs.js                # IMPLEMENTADO: repetição espaçada e fila de revisões (puro)
 │   └── gamification.js       # (planejado) XP, níveis, conquistas (puro)
 ├── scripts/
 │   └── build-manifest.mjs    # IMPLEMENTADO: geração e validação do manifesto
@@ -249,16 +249,19 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Shuffle | Fisher–Yates com PRNG semeado por `sessionId + questionId`; ordem também persistida na sessão. | Ordem aleatória e estável durante a resposta e após retomada. |
 | Correção | Comparação com `correctId`/`answer_key`, nunca com índice visual. | Garante gabarito correto em qualquer ordem. |
 | Rótulos das alternativas | As letras originais A–D acompanham o texto mesmo fora de ordem. | As explicações dos materiais citam letras; remapear rótulos tornaria os comentários incorretos. A posição visual nunca é usada na correção. |
-| Navegação | SPA com rotas em hash (`#/inicio`, `#/estudar`, `#/sessao`, `#/resumo`). | Compatível com GitHub Pages sem regras de servidor. |
+| Navegação | SPA com rotas em hash (`#/inicio`, `#/estudar`, `#/sessao`, `#/resumo`, `#/revisoes`). | Compatível com GitHub Pages sem regras de servidor. |
 | Renderização segura | Todo texto dinâmico usa `textContent`/nós de texto; `innerHTML` só com ícones constantes. | Evita XSS mesmo que um arquivo de questão contenha HTML. |
 | Sessão persistida | Objeto completo em `sessions`, incluindo índice, respostas e ordem das alternativas; restauração automática da sessão ativa. | Garante continuidade mesmo após fechar o navegador, sem reembaralhar. |
 | Persistência | IndexedDB (`xlearn`) com stores `meta`, `progress`, `sessions`, `attempts`. localStorage apenas para preferência de tema inicial, se necessário. | Requisito do projeto; maior capacidade e consultas por chave. |
 | SRS | Níveis 0–5; acerto avança e usa intervalos 1/3/7/14/30 dias; erro reduz nível e agenda 10 minutos. Intervalos configuráveis. | Simples, auditável e explicitamente não apresentado como validado cientificamente. |
+| Escolha manual de revisão | Após um acerto, o feedback oferece automático ou 10 min, 1 h, 1, 3, 7, 14 e 30 dias; a escolha substitui `dueAt` e grava `manualSchedule`. Retornar ao automático restaura o intervalo original e remove a marcação manual. | Dá controle ao estudante sem alterar o nível de domínio já conquistado. |
+| Fila de revisões | Agrupa o progresso por material, separa vencidas e futuras, ordena vencidas por data e oferece sessão apenas com as questões da fila (limite = tamanho configurado de sessão). | Prioriza o que está atrasado e transforma o agendamento em ação de estudo. |
 | XP | Centralizado em módulo puro, com bônus por dificuldade, sessão concluída e meta diária; conquistas pagam uma única vez. | Evita duplicação e mantém critérios consistentes. |
 | Ranking | Ranking local por material, calculado do progresso real; texto explica que não é global. | Atende ao requisito sem inventar estudantes. |
 | Cache | App shell em cache na instalação; materiais em cache após o primeiro acesso; navegação com fallback para `index.html`. | Compatível com offline e subdiretórios do GitHub Pages. |
 | Versionamento | Um commit funcional por requisito, Conventional Commits, push após cada entrega; hash registrado no commit seguinte. | Rastreabilidade e histórico incremental. |
 | Entrega conjunta REQ-004..007 | Seleção, exibição, embaralhamento e correção entregues juntos. | São inseparáveis para que exista um fluxo utilizável; um commit intermediário sem correção ou sem shuffle seria uma funcionalidade parcial, o que o projeto proíbe. |
+| Entrega conjunta REQ-011..013 | Agendamento automático, escolha manual e fila de revisões entregues juntos. | O agendamento só tem efeito observável na fila; a escolha manual precisa do agendamento para existir. Separar produziria estados inutilizáveis. |
 
 ---
 
@@ -269,7 +272,8 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.1.0 | — | Inspeção inicial e criação do `PROJECT_STATUS.md` | `cacae51` | 2026-11-01 |
 | 0.2.0 | REQ-001, REQ-002, REQ-003 | Gerador de manifesto, manifesto real com 2 materiais/150 questões, parser puro, normalização, validação e carregador via fetch | `c18edd1` | 2026-11-01 |
 | 0.3.0 | REQ-004, REQ-005, REQ-006, REQ-007 | Shell responsivo, dashboard, seleção de provas, sessão com embaralhamento determinístico, confirmação única, feedback completo e resumo | `7912bed` | 2026-11-01 |
-| 0.4.0 | REQ-008, REQ-009, REQ-010 | IndexedDB com meta/progress/sessions/attempts, gravação atômica das respostas, restauração da sessão ativa, histórico e progresso por prova | _a preencher após o commit_ | 2026-11-01 |
+| 0.4.0 | REQ-008, REQ-009, REQ-010 | IndexedDB com meta/progress/sessions/attempts, gravação atômica das respostas, restauração da sessão ativa, histórico e progresso por prova | `ed4f216` | 2026-11-01 |
+| 0.5.0 | REQ-011, REQ-012, REQ-013 | Módulo `srs.js`, agendamento automático 1/3/7/14/30 dias, revisão curta de 10 min no erro, escolha manual após acerto, fila vencidas/futuras, selo na navegação e sessão só de revisões | _a preencher após o commit_ | 2026-11-01 |
 
 ---
 
@@ -286,12 +290,15 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-008 — IndexedDB:** `js/db.js` cria o banco `xlearn` (versão 1) com stores `meta`, `progress`, `sessions` e `attempts`. Cada confirmação é gravada em transação atômica com sessão, progresso da questão (acertos, erros, sequência, histórico curto), tentativa completa e estatísticas agregadas por dia/material.
 - **REQ-009 — Retomada:** a sessão é salva no início, a cada resposta e a cada avanço. Ao abrir o app, a sessão ativa mais recente é restaurada, o material é recarregado, a ordem original das alternativas é reproduzida pelo PRNG semeado e o índice é mantido. Se todas as questões já estavam respondidas, o app abre o resumo.
 - **REQ-010 — Progresso:** o dashboard exibe, por prova, quantas questões já foram respondidas e o percentual de acerto; as tentativas ficam disponíveis em `attempts` para histórico e estatísticas futuras. Configurações salvas são carregadas no boot.
+- **REQ-011 — Agendamento automático:** `js/srs.js` calcula o próximo nível e vencimento sem DOM. Acertos sobem até o nível 5 e usam 1, 3, 7, 14 ou 30 dias; erros descem um nível e agendam nova revisão em 10 minutos. Desativar a repetição espaçada grava a resposta sem data de revisão. O agendamento é salvo atomicamente com a resposta e registrado no histórico da questão.
+- **REQ-012 — Intervalo manual:** no feedback de um acerto, o estudante pode manter o automático ou escolher 10 min, 1 h, 1, 3, 7, 14 ou 30 dias. A alteração é persistida em `progress` com `manualSchedule`, sem reduzir o nível conquistado; voltar ao automático restaura o intervalo automático original e remove a marcação manual.
+- **REQ-013 — Fila de revisões:** a rota `#/revisoes` agrupa por prova, mostra contadores de vencidas e futuras, lista as próximas questões e prioriza as atrasadas ao montar a sessão. O item "Revisões" na navegação exibe um selo com o total vencido, e o dashboard alerta quando há revisões atrasadas.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-010. Prioridade imediata: repetição espaçada (REQ-011 a REQ-013).
+Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-013. Prioridade imediata: gamificação (REQ-014 a REQ-018).
 
 Dependências principais:
 
@@ -310,7 +317,7 @@ Dependências principais:
 | Problema | Impacto | Situação |
 |---|---|---|
 | `README.md` vazio no estado inicial | Falta de instruções de uso | Será resolvido em REQ-028. |
-| SRS ainda não agendado | Progresso não possui revisão automática | Campos `dueAt`/`srsLevel` já existem; REQ-011 os preenche. |
+| Uma única sessão ativa | Iniciar uma nova sessão (normal ou de revisão) substitui a sessão ativa anterior | Comportamento atual do modelo de sessão; respostas já gravadas permanecem no progresso e no histórico. |
 | Materiais fora do padrão JSON não são suportados | Provas em Markdown puro não carregam | Limitação documentada; corpus atual está dentro do padrão. |
 | Manifesto precisa ser regenerado ao adicionar provas | Esquecimento pode ocultar material | O gerador detecta e o README orientará; a validação acusa no console. |
 | Ranking local tem um único perfil de dispositivo | Não representa ranking global | Comunicado na interface; usa apenas dados reais. |
@@ -334,13 +341,17 @@ Dependências principais:
 - Revisão do diff e dos caminhos relativos para GitHub Pages.
 - Persistência testada com IndexedDB em memória (fake-indexeddb) e DOM simulado: resposta gravada, sessão ativa persistida com índice 1, tentativa no histórico, estatística agregada, recarga do app com restauração na questão 2, sessão em andamento no início, progresso "1 de 50" no cartão e mesmo ID de sessão após recarregar.
 - Fluxo completo de 10 questões reexecutado após a integração com IndexedDB, incluindo resumo final.
+- SRS verificado com testes unitários puros: progressão 0→1→3→5, teto de 30 dias, erro com 10 minutos, desativação sem data, agendamento manual e formatação de prazos.
+- Fila de revisões testada com dados controlados: separação vencidas/futuras, ordenação por material com mais atrasadas e material com próxima data.
+- Integração SRS testada com DOM simulado e IndexedDB em memória: resposta correta grava nível 1 e 1 dia; escolha manual de 1 hora persiste `manualSchedule` e vencimento; retorno ao automático restaura 1 dia e remove a marcação; revisão forçada aparece no card, no contador e no selo da navegação; sessão de revisão abre com apenas a questão vencida.
+- Verificação sintática de `js/srs.js`, `js/app.js` e `js/db.js` com `node --check` após a integração.
 
 ### Testes finais pendentes
 
 - Carregar todas as provas e validar metadados.
 - Verificar embaralhamento e correção em todas as questões.
 - Testar persistência, recarga e retomada de sessão.
-- Testar SRS automático e manual, fila e priorização de atrasadas.
+- Reexecutar o SRS automático/manual, a fila e a priorização em todos os materiais na campanha final.
 - Testar XP, níveis, conquistas, meta, sequência, ranking e estatísticas.
 - Testar cada configuração e seu efeito real.
 - Testar exportação, importação inválida e exclusão de dados.
@@ -352,6 +363,6 @@ Dependências principais:
 
 ## L. Próxima tarefa recomendada
 
-**REQ-011, REQ-012 e REQ-013 — repetição espaçada e fila de revisões.**
+**REQ-014 a REQ-018 — gamificação, estatísticas e ranking local.**
 
-Motivo: a persistência e o progresso já existem, e os campos `srsLevel`, `dueAt` e `lastIntervalMinutes` estão preparados. A próxima entrega deve criar `js/srs.js` (módulo puro) com níveis 0–5 e intervalos configuráveis, aplicar o agendamento automático ao confirmar respostas, permitir escolha manual após acertos (10 min a 30 dias ou automático), criar a fila de revisões vencidas/futuras com prioridade para atrasadas e permitir iniciar uma sessão só de revisões. A tela de revisões deve mostrar o que está vencido e o que está agendado.
+Motivo: o progresso e as tentativas já são registrados, e o SRS fornece os dados de domínio. A próxima entrega deve criar `js/gamification.js` (módulo puro) com XP, níveis, bônus de sessão, conquistas sem pagamento duplicado, meta diária, sequência de dias e cálculo de estatísticas; integrar a pontuação ao registro de respostas; criar as telas de estatísticas e ranking local por prova/disciplina deixando explícito que os dados são do dispositivo; e exibir XP, nível, meta, sequência e conquistas no dashboard.

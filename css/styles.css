@@ -344,6 +344,27 @@ button:disabled {
   transform: scale(0.97);
 }
 
+.nav-item__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-item__badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
 /* Hero / dashboard -------------------------------------------------------- */
 
 .hero {
@@ -1157,6 +1178,169 @@ button:disabled {
 .session-banner__text span {
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.session-banner--review {
+  border-color: color-mix(in srgb, var(--warning) 42%, transparent);
+  background: color-mix(in srgb, var(--warning) 9%, transparent);
+}
+
+/* Spaced repetition / reviews -------------------------------------------- */
+
+.review-card {
+  display: grid;
+  gap: 14px;
+}
+
+.review-card__head h2 {
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.review-card__head p {
+  margin-top: 4px;
+}
+
+.review-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.review-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.review-item.is-overdue {
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  background: var(--danger-soft);
+}
+
+.review-item__dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.review-item.is-overdue .review-item__dot {
+  background: var(--danger);
+}
+
+.review-item__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: 0.85rem;
+}
+
+.review-item__text strong {
+  overflow-wrap: anywhere;
+}
+
+.review-item__text span {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.review-item--more {
+  justify-content: center;
+  border-style: dashed;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.review-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.review-card__footer .hint {
+  flex: 1 1 160px;
+}
+
+.schedule {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.schedule__head {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.schedule__head strong {
+  font-size: 0.9rem;
+}
+
+.schedule-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.schedule-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.schedule-btn small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+.schedule-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.schedule-btn.is-selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.schedule-btn.is-selected small {
+  color: inherit;
+}
+
+.schedule-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.schedule > .hint {
+  margin-top: 10px;
 }
 
 .notice {

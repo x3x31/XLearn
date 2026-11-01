@@ -197,9 +197,9 @@ export function localDayKey(date = new Date()) {
  * Registra uma resposta de forma atômica: sessão, progresso da questão,
  * tentativa e estatísticas agregadas.
  *
- * @param {{session: object, question: object, answer: object}} payload
+ * @param {{session: object, question: object, answer: object, schedule?: object|null}} payload
  */
-export async function recordAnswer({ session, question, answer }) {
+export async function recordAnswer({ session, question, answer, schedule = null }) {
   const db = await openDatabase();
   const sessionSnapshot = structuredClone(session);
   sessionSnapshot.status = sessionSnapshot.finishedAt ? "completed" : "active";
@@ -207,6 +207,7 @@ export async function recordAnswer({ session, question, answer }) {
   const answeredAt = answer.answeredAt || new Date().toISOString();
   const pKey = progressKey(session.materialId, question.id);
   const dayKey = localDayKey(new Date(answeredAt));
+  let savedProgress = null;
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["sessions", "progress", "attempts", "meta"], "readwrite");
@@ -245,6 +246,8 @@ export async function recordAnswer({ session, question, answer }) {
         correct: Boolean(answer.correct),
         selectedId: answer.selectedId,
         sessionId: session.id,
+        srsLevel: schedule?.level ?? previous?.srsLevel ?? 0,
+        dueAt: schedule?.dueAt ?? previous?.dueAt ?? null,
       });
 
       const record = {
@@ -262,11 +265,16 @@ export async function recordAnswer({ session, question, answer }) {
         lastResult: Boolean(answer.correct),
         lastSelectedId: answer.selectedId,
         lastAnsweredAt: answeredAt,
-        srsLevel: previous?.srsLevel ?? 0,
-        dueAt: previous?.dueAt ?? null,
-        lastIntervalMinutes: previous?.lastIntervalMinutes ?? null,
+        srsLevel: schedule ? schedule.level : previous?.srsLevel ?? 0,
+        dueAt: schedule ? schedule.dueAt : previous?.dueAt ?? null,
+        lastIntervalMinutes: schedule
+          ? schedule.intervalMinutes
+          : previous?.lastIntervalMinutes ?? null,
+        manualSchedule: schedule ? Boolean(schedule.manual) : previous?.manualSchedule ?? false,
+        srsUpdatedAt: schedule ? answeredAt : previous?.srsUpdatedAt ?? null,
         history: history.slice(-30),
       };
+      savedProgress = record;
       progressStore.put(record);
     };
 
@@ -310,7 +318,7 @@ export async function recordAnswer({ session, question, answer }) {
       });
     };
 
-    tx.oncomplete = () => resolve({ attempt, progressKey: pKey });
+    tx.oncomplete = () => resolve({ attempt, progressKey: pKey, progress: savedProgress });
     tx.onerror = () => reject(tx.error || new Error("Falha ao registrar a resposta."));
     tx.onabort = () => reject(tx.error || new Error("Registro da resposta cancelado."));
   });
@@ -321,7 +329,9 @@ export async function getProgressSummary() {
   const records = await getAllProgress();
   const byPath = {};
   const byId = {};
+  const byKey = {};
   for (const record of records) {
+    byKey[record.key] = record;
     for (const map of [byPath, byId]) {
       const key = map === byPath ? record.materialPath : record.materialId;
       if (!key) continue;
@@ -342,5 +352,38 @@ export async function getProgressSummary() {
       map[key] = item;
     }
   }
-  return { byPath, byId };
+  return { byPath, byId, byKey, records };
+}
+
+/**
+ * Substitui o agendamento automático por uma escolha manual do estudante.
+ * Mantém o nível de domínio e registra a alteração no próprio progresso.
+ */
+export async function applyReviewSchedule(materialId, questionId, schedule) {
+  const db = await openDatabase();
+  let saved = null;
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("progress", "readwrite");
+    const store = tx.objectStore("progress");
+    const request = store.get(progressKey(materialId, questionId));
+    request.onsuccess = () => {
+      const record = request.result;
+      if (!record) {
+        reject(new Error("Progresso da questão não encontrado para reagendar."));
+        tx.abort();
+        return;
+      }
+      record.dueAt = schedule.dueAt;
+      record.lastIntervalMinutes = schedule.intervalMinutes;
+      record.srsLevel = schedule.level ?? record.srsLevel;
+      record.manualSchedule = Boolean(schedule.manual);
+      record.srsUpdatedAt = new Date().toISOString();
+      saved = record;
+      store.put(record);
+    };
+    request.onerror = () => reject(request.error || new Error("Falha ao ler o progresso."));
+    tx.oncomplete = () => resolve(saved);
+    tx.onerror = () => reject(tx.error || new Error("Falha ao reagendar a revisão."));
+    tx.onabort = () => reject(tx.error || new Error("Reagendamento cancelado."));
+  });
 }

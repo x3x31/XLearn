@@ -8,14 +8,22 @@
 
 import { loadManifest, loadMaterial } from "./questions.js";
 import { shuffle, seededRandom, hashString } from "./parser.js";
-import { getSettings, applyVisualSettings, normalizeSettings, setSettings } from "./settings.js";
+import { getSettings, applyVisualSettings, normalizeSettings, setSettings, MANUAL_INTERVALS } from "./settings.js";
 import {
+  applyReviewSchedule,
   getActiveSession,
   getProgressSummary,
   getSettingsRecord,
   recordAnswer,
   saveSession,
 } from "./db.js";
+import {
+  buildReviewQueue,
+  computeSchedule,
+  formatDueLabel,
+  formatIntervalMinutes,
+  manualSchedule,
+} from "./srs.js";
 
 const app = document.getElementById("app");
 
@@ -26,12 +34,15 @@ const state = {
   error: null,
   session: null,
   sessionMaterial: null,
-  progress: { byPath: {}, byId: {} },
+  progress: { byPath: {}, byId: {}, byKey: {}, records: [] },
+  reviewQueue: { groups: [], counts: { overdue: 0, upcoming: 0 } },
+  lastAnswerSave: null,
+  scheduling: null,
   storageWarned: false,
   route: "inicio",
 };
 
-const ROUTES = new Set(["inicio", "estudar", "sessao", "resumo"]);
+const ROUTES = new Set(["inicio", "estudar", "sessao", "resumo", "revisoes"]);
 
 const ICONS = {
   logo: '<path d="M8 7h4l3 5 3-5h4l-5 8 5 8h-4l-3-5-3 5H8l5-8z" fill="currentColor" stroke="none"/>',
@@ -202,6 +213,12 @@ function updateNav() {
   const items = [
     { route: "inicio", label: "Início", icon: "home" },
     { route: "estudar", label: "Provas", icon: "book" },
+    {
+      route: "revisoes",
+      label: "Revisões",
+      icon: "clock",
+      badge: state.reviewQueue?.counts?.overdue || 0,
+    },
   ];
   if (state.session && !state.session.finishedAt) {
     items.push({ route: "sessao", label: "Sessão", icon: "play" });
@@ -214,9 +231,19 @@ function updateNav() {
           class: "nav-item",
           href: `#/${item.route}`,
           "aria-current": state.route === item.route ? "page" : null,
+          "aria-label": item.badge
+            ? `${item.label} (${item.badge} vencidas)`
+            : item.label,
         },
         icon(item.icon),
-        h("span", { text: item.label })
+        h(
+          "span",
+          { class: "nav-item__label" },
+          h("span", { text: item.label }),
+          item.badge
+            ? h("span", { class: "nav-item__badge", text: String(item.badge) })
+            : null
+        )
       )
     )
   );
@@ -281,10 +308,13 @@ async function loadPersistedSettings() {
 async function refreshProgress() {
   try {
     state.progress = await getProgressSummary();
+    state.reviewQueue = buildReviewQueue(state.progress.records || []);
   } catch (error) {
     warnStorageOnce(error);
-    state.progress = { byPath: {}, byId: {} };
+    state.progress = { byPath: {}, byId: {}, byKey: {}, records: [] };
+    state.reviewQueue = { groups: [], counts: { overdue: 0, upcoming: 0 } };
   }
+  updateNav();
 }
 
 async function restoreActiveSession() {
@@ -358,6 +388,9 @@ function render({ focus = false } = {}) {
       break;
     case "resumo":
       content = renderSummary();
+      break;
+    case "revisoes":
+      content = renderReviews();
       break;
     default:
       content = renderHome();
@@ -475,6 +508,29 @@ function renderHome() {
         )
       : null,
 
+    state.reviewQueue?.counts?.overdue > 0
+      ? h(
+          "section",
+          { class: "session-banner session-banner--review", "aria-label": "Revisões vencidas" },
+          h(
+            "div",
+            { class: "session-banner__text" },
+            h("strong", {
+              text: `${plural(state.reviewQueue.counts.overdue, "revisão vencida", "revisões vencidas")}`,
+            }),
+            h("span", {
+              text: `${plural(state.reviewQueue.counts.upcoming, "revisão futura", "revisões futuras")} na fila. Priorize o que já está atrasado.`,
+            })
+          ),
+          h(
+            "a",
+            { class: "btn btn--primary btn--sm", href: "#/revisoes" },
+            icon("clock"),
+            "Revisar"
+          )
+        )
+      : null,
+
     h(
       "section",
       { id: "provas", "aria-labelledby": "provas-title" },
@@ -529,6 +585,183 @@ function renderStudy() {
   ];
 }
 
+function renderReviews() {
+  const queue = state.reviewQueue || { groups: [], counts: { overdue: 0, upcoming: 0 } };
+  const totalTracked = queue.counts.overdue + queue.counts.upcoming;
+
+  const header = h(
+    "div",
+    { class: "section-head" },
+    h(
+      "div",
+      {},
+      h("span", { class: "eyebrow" }, icon("clock"), "Repetição espaçada"),
+      h("h1", { text: "Fila de revisões" }),
+      h("p", {
+        text: "Questões vencidas aparecem primeiro. Revisar no momento certo ajuda a consolidar o conteúdo.",
+      })
+    ),
+    h(
+      "button",
+      {
+        class: "icon-btn",
+        type: "button",
+        title: "Atualizar fila",
+        "aria-label": "Atualizar fila de revisões",
+        onclick: async () => {
+          await refreshProgress();
+          render({ focus: true });
+        },
+      },
+      icon("sparkles")
+    )
+  );
+
+  if (totalTracked === 0) {
+    return [
+      header,
+      h(
+        "div",
+        { class: "empty card" },
+        h("h2", { text: "Nenhuma revisão agendada" }),
+        h("p", {
+          text: "Responda algumas questões para que o XLearn comece a programar revisões automáticas.",
+        }),
+        h(
+          "div",
+          { class: "hero__actions", style: "justify-content:center" },
+          h("a", { class: "btn btn--primary", href: "#/estudar" }, icon("play"), "Estudar agora")
+        )
+      ),
+      h(
+        "div",
+        { class: "notice notice--info" },
+        h("strong", { text: "Como funciona: " }),
+        "acertos avançam o intervalo (1, 3, 7, 14 e 30 dias) e erros programam uma revisão curta de 10 minutos. Os intervalos são configuráveis e o algoritmo não é apresentado como cientificamente validado."
+      ),
+    ];
+  }
+
+  const groups = queue.groups.map((group) => {
+    const entry =
+      state.entries.find((item) => item.path === group.materialPath) ||
+      state.entries.find((item) => item.materialId === group.materialId) ||
+      null;
+    const limit = getSettings().sessionSize;
+    const available = [...group.overdue, ...group.upcoming];
+    const chosen = available.slice(0, Math.max(1, limit));
+    const overdueLabel = plural(group.overdue.length, "vencida", "vencidas");
+    const dueItems = [...group.overdue, ...group.upcoming].slice(0, 4);
+
+    return h(
+      "article",
+      { class: "card review-card" },
+      h(
+        "div",
+        { class: "review-card__head" },
+        h(
+          "div",
+          {},
+          h(
+            "div",
+            { class: "chip-row" },
+            h("span", { class: "chip", text: group.subject || "Geral" }),
+            group.overdue.length > 0
+              ? h("span", { class: "chip chip--danger", text: overdueLabel })
+              : h("span", { class: "chip chip--success", text: "em dia" })
+          ),
+          h("h2", { style: "margin-top:10px", text: group.materialTitle }),
+          h("p", {
+            class: "small muted",
+            text:
+              group.overdue.length > 0
+                ? `${group.overdue.length} para revisar agora · próxima em ${formatDueLabel(group.nextDueAt)}`
+                : `Próxima revisão ${formatDueLabel(group.nextDueAt)}`,
+          })
+        )
+      ),
+      h(
+        "ul",
+        { class: "review-list" },
+        ...dueItems.map((item) => {
+          const isOverdue = group.overdue.includes(item);
+          return h(
+            "li",
+            { class: `review-item${isOverdue ? " is-overdue" : ""}` },
+            h("span", { class: "review-item__dot", "aria-hidden": "true" }),
+            h(
+              "span",
+              { class: "review-item__text" },
+              h("strong", { text: item.topic || "Questão sem assunto" }),
+              h("span", {
+                text: `${isOverdue ? "Vencida" : "Agendada"} ${formatDueLabel(item.dueAt)} · nível ${item.srsLevel}/5`,
+              })
+            )
+          );
+        }),
+        available.length > dueItems.length
+          ? h("li", { class: "review-item review-item--more" }, `+${available.length - dueItems.length} outra(s) questão(ões)`)
+          : null
+      ),
+      h(
+        "div",
+        { class: "review-card__footer" },
+        h(
+          "span",
+          { class: "hint" },
+          `Sessão de até ${chosen.length} ${chosen.length === 1 ? "questão" : "questões"}${group.overdue.length > chosen.length ? " · priorizando atrasadas" : ""}`
+        ),
+        h(
+          "button",
+          {
+            class: "btn btn--primary btn--sm",
+            type: "button",
+            disabled: !entry,
+            onclick: () => startReview(group, chosen),
+          },
+          icon("play"),
+          group.overdue.length > 0 ? "Revisar vencidas" : "Revisar agora"
+        )
+      )
+    );
+  });
+
+  return [
+    header,
+    h(
+      "div",
+      { class: "summary-stats" },
+      h("div", { class: "summary-stat" }, h("strong", { text: String(queue.counts.overdue) }), h("span", { text: "vencidas" })),
+      h("div", { class: "summary-stat" }, h("strong", { text: String(queue.counts.upcoming) }), h("span", { text: "futuras" })),
+      h("div", { class: "summary-stat" }, h("strong", { text: String(queue.groups.length) }), h("span", { text: "provas" }))
+    ),
+    ...groups,
+    h(
+      "div",
+      { class: "notice notice--info" },
+      h("strong", { text: "Sobre o agendamento: " }),
+      "os intervalos automáticos são 1, 3, 7, 14 e 30 dias após acertos consecutivos. Um erro reduz o nível e agenda nova revisão em 10 minutos. Após acertar, você pode escolher outro intervalo no feedback da questão."
+    ),
+  ];
+}
+
+function startReview(group, items) {
+  const entry =
+    state.entries.find((item) => item.path === group.materialPath) ||
+    state.entries.find((item) => item.materialId === group.materialId);
+  if (!entry) {
+    toast("O material desta revisão não está mais disponível no manifesto.", "error");
+    return;
+  }
+  const ids = items.map((item) => item.questionId);
+  if (ids.length === 0) return;
+  startSession(entry, {
+    questionIds: ids,
+    size: ids.length,
+    mode: "revisao",
+    preserveOrder: true,
+  });
+}
 function renderMaterialGrid() {
   if (state.entries.length === 0) {
     return h(
@@ -622,12 +855,12 @@ async function startSession(entry, options = {}) {
     const settings = getSettings();
     let pool = material.questions;
     if (Array.isArray(options.questionIds) && options.questionIds.length > 0) {
-      const wanted = new Set(options.questionIds);
-      pool = pool.filter((question) => wanted.has(question.id));
+      const byId = new Map(material.questions.map((question) => [question.id, question]));
+      pool = options.questionIds.map((id) => byId.get(id)).filter(Boolean);
     }
     if (pool.length === 0) throw new Error("Nenhuma questão disponível para esta sessão.");
 
-    if (settings.questionOrder === "shuffle") {
+    if (!options.preserveOrder && settings.questionOrder === "shuffle") {
       pool = shuffle(pool);
     }
     const requestedSize = Number.isFinite(options.size) ? options.size : settings.sessionSize;
@@ -688,12 +921,26 @@ function confirmAnswer(question) {
     session.pending?.questionId === question.id ? session.pending.alternativeId : null;
   if (!selectedId) return;
 
+  const correct = selectedId === question.correctId;
+  const settings = getSettings();
+  const previous =
+    state.progress?.byKey?.[`${session.materialId}::${question.id}`] || null;
+  const schedule = computeSchedule({
+    level: previous?.srsLevel ?? 0,
+    correct,
+    intervals: settings.srsIntervals,
+    enabled: settings.srsEnabled,
+    now: new Date(),
+  });
+
   session.answers[question.id] = {
     selectedId,
     correctId: question.correctId,
-    correct: selectedId === question.correctId,
+    correct,
     answeredAt: new Date().toISOString(),
     order: alternativeOrder(session, question),
+    schedule,
+    autoSchedule: schedule,
   };
   session.pending = null;
   session.updatedAt = new Date().toISOString();
@@ -704,16 +951,55 @@ function confirmAnswer(question) {
     feedback?.focus({ preventScroll: false });
   });
 
-  recordAnswer({
+  state.lastAnswerSave = recordAnswer({
     session,
     question,
     answer: session.answers[question.id],
+    schedule,
   })
-    .then(async () => {
+    .then(async (result) => {
       await refreshProgress();
       if (state.route === "inicio" || state.route === "estudar") render();
+      return result;
     })
-    .catch(warnStorageOnce);
+    .catch((error) => {
+      warnStorageOnce(error);
+      return null;
+    });
+}
+
+async function scheduleReview(question, minutes) {
+  const session = state.session;
+  const answer = session?.answers?.[question.id];
+  if (!session || !answer) return;
+
+  const target =
+    minutes === "auto"
+      ? answer.autoSchedule
+      : manualSchedule({
+          level: answer.autoSchedule?.level ?? 0,
+          minutes,
+          now: new Date(),
+        });
+  if (!target) return;
+
+  state.scheduling = { questionId: question.id, minutes };
+  render();
+
+  try {
+    if (state.lastAnswerSave) await state.lastAnswerSave;
+    await applyReviewSchedule(session.materialId, question.id, target);
+    answer.schedule = target;
+    session.updatedAt = new Date().toISOString();
+    await persistSession(session);
+    await refreshProgress();
+    toast(`Revisão agendada: ${formatDueLabel(target.dueAt)}.`, "success");
+  } catch (error) {
+    warnStorageOnce(error);
+  } finally {
+    state.scheduling = null;
+    render();
+  }
 }
 
 function goToNextQuestion() {
@@ -889,6 +1175,88 @@ function selectAlternative(button, question, alternativeId) {
   if (confirm) confirm.disabled = false;
 }
 
+function renderScheduleBlock(question, answer) {
+  const settings = getSettings();
+  if (!settings.srsEnabled) {
+    return h(
+      "div",
+      { class: "notice notice--info" },
+      h("strong", { text: "Repetição espaçada desativada: " }),
+      "a resposta foi registrada, mas nenhuma revisão foi agendada."
+    );
+  }
+
+  const schedule = answer.schedule || answer.autoSchedule || null;
+  const saving = state.scheduling?.questionId === question.id;
+  const autoMinutes = answer.autoSchedule?.intervalMinutes;
+  const manualSelected = Boolean(schedule?.manual);
+  const dueText = schedule?.dueAt ? formatDueLabel(schedule.dueAt) : "sem data";
+
+  return h(
+    "div",
+    { class: "schedule" },
+    h(
+      "div",
+      { class: "schedule__head" },
+      h("span", { class: "eyebrow" }, icon("clock"), "Repetição espaçada"),
+      h("strong", {
+        text: answer.correct ? "Quando deseja revisar?" : "Revisão curta programada",
+      }),
+      h("span", {
+        class: "hint",
+        text: schedule?.dueAt
+          ? `Próxima revisão ${dueText}${schedule.level != null ? ` · nível ${schedule.level}/5` : ""}`
+          : "Nenhuma revisão agendada.",
+      })
+    ),
+    answer.correct
+      ? h(
+          "div",
+          { class: "schedule-options", role: "group", "aria-label": "Escolher intervalo de revisão" },
+          h(
+            "button",
+            {
+              class: `schedule-btn${manualSelected ? "" : " is-selected"}`,
+              type: "button",
+              disabled: saving,
+              "aria-pressed": String(!manualSelected),
+              onclick: () => scheduleReview(question, "auto"),
+            },
+            h("span", { text: "Automático" }),
+            h("small", {
+              text: autoMinutes ? formatIntervalMinutes(autoMinutes) : "desativado",
+            })
+          ),
+          ...MANUAL_INTERVALS.map((option) =>
+            h(
+              "button",
+              {
+                class: `schedule-btn${
+                  manualSelected && schedule?.intervalMinutes === option.minutes
+                    ? " is-selected"
+                    : ""
+                }`,
+                type: "button",
+                disabled: saving,
+                "aria-pressed": String(
+                  manualSelected && schedule?.intervalMinutes === option.minutes
+                ),
+                onclick: () => scheduleReview(question, option.minutes),
+              },
+              h("span", { text: option.label }),
+              h("small", { text: "manual" })
+            )
+          )
+        )
+      : h(
+          "p",
+          { class: "hint" },
+          `Uma nova revisão foi agendada ${dueText} para reforçar o conteúdo.`
+        ),
+    saving ? h("p", { class: "hint", role: "status", text: "Salvando agendamento…" }) : null
+  );
+}
+
 function renderFeedback(question, answer) {
   const alternative = question.alternatives.find((item) => item.id === answer.selectedId);
   const correctAlternative = question.alternatives.find((item) => item.id === question.correctId);
@@ -942,6 +1310,7 @@ function renderFeedback(question, answer) {
         h("span", { class: "eyebrow" }, icon("target"), "Resolução"),
         h("p", { class: "prose", style: "margin-top:6px", text: explanation.resolution || correctAlternative?.explanation || "Consulte o comentário das alternativas." })
       ),
+      renderScheduleBlock(question, answer),
       explanation.theoreticalContent
         ? h(
             "details",
