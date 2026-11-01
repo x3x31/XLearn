@@ -19,7 +19,7 @@ import {
   recordAnswer,
   saveSession,
 } from "./db.js";
-import { createGamification, levelFromXp } from "./gamification.js";
+import { createGamification, levelFromXp, listAchievements } from "./gamification.js";
 import {
   buildReviewQueue,
   computeSchedule,
@@ -63,6 +63,8 @@ const ICONS = {
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
   flame: '<path d="M12 3c1 3.5-1.5 5-1.5 7.5A2.5 2.5 0 0 0 13 13c2 0 3-1.5 3-3 2 2 3 4 3 6a7 7 0 0 1-14 0c0-4 3-6 7-13z"/>',
   chart: '<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
+  award: '<circle cx="12" cy="8" r="5"/><path d="M8.5 12.5 7 21l5-3 5 3-1.5-8.5"/>',
+  lock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
 };
 
@@ -179,6 +181,12 @@ function toast(message, variant = "info") {
   });
   document.body.append(node);
   window.setTimeout(() => node.remove(), 4200);
+}
+
+function announceAchievements(achievements) {
+  if (!Array.isArray(achievements) || achievements.length === 0) return;
+  const titles = achievements.map((achievement) => achievement.title).join(", ");
+  toast(`Conquista desbloqueada: ${titles}.`, "success");
 }
 
 /* Boot / shell ------------------------------------------------------------ */
@@ -503,6 +511,7 @@ function renderHome() {
     ),
 
     renderLevelCard(),
+    renderAchievementsCard(),
 
     active
       ? h(
@@ -625,6 +634,61 @@ function renderLevelCard() {
       h("div", {}, h("strong", { text: `${accuracy}%` }), h("span", { text: "precisão" })),
       h("div", {}, h("strong", { text: String(gamification.sessionsCompleted) }), h("span", { text: "sessões" }))
     )
+  );
+}
+
+function renderAchievementsCard() {
+  const all = listAchievements(state.gamification);
+  const unlocked = all
+    .filter((achievement) => achievement.unlockedAt)
+    .sort((a, b) => String(b.unlockedAt).localeCompare(String(a.unlockedAt)));
+  const visible = unlocked.length > 0 ? unlocked.slice(0, 3) : all.slice(0, 3);
+
+  return h(
+    "section",
+    { class: "card achievements-card", "aria-labelledby": "achievements-title" },
+    h(
+      "div",
+      { class: "section-head" },
+      h(
+        "div",
+        {},
+        h("span", { class: "eyebrow" }, icon("award"), "Conquistas"),
+        h("h2", { id: "achievements-title", text: `${unlocked.length} de ${all.length} desbloqueadas` })
+      ),
+      unlocked.length > 0
+        ? h("span", { class: "chip chip--success", text: `+${unlocked.reduce((sum, item) => sum + item.xp, 0)} XP` })
+        : h("span", { class: "chip chip--neutral", text: "comece agora" })
+    ),
+    h(
+      "div",
+      { class: "achievement-mini-grid" },
+      ...visible.map((achievement) =>
+        h(
+          "article",
+          { class: `achievement-mini${achievement.unlockedAt ? "" : " is-locked"}` },
+          h(
+            "span",
+            { class: "achievement-mini__icon", "aria-hidden": "true" },
+            icon(achievement.unlockedAt ? achievement.icon : "lock")
+          ),
+          h(
+            "div",
+            {},
+            h("strong", { text: achievement.title }),
+            h("span", { text: achievement.description }),
+            h("small", {
+              text: achievement.unlockedAt
+                ? `Desbloqueada em ${formatDateTime(achievement.unlockedAt)}`
+                : `Recompensa: ${achievement.xp} XP`,
+            })
+          )
+        )
+      )
+    ),
+    unlocked.length === 0
+      ? h("p", { class: "hint", text: "Responda questões para desbloquear as primeiras conquistas." })
+      : null
   );
 }
 
@@ -1027,6 +1091,7 @@ function confirmAnswer(question) {
     .then(async (result) => {
       await refreshProgress();
       if (state.route === "inicio" || state.route === "estudar") render();
+      announceAchievements(result?.newAchievements);
       return result;
     })
     .catch((error) => {
@@ -1078,9 +1143,12 @@ async function goToNextQuestion() {
     await persistSession(session);
     try {
       const award = await awardSessionCompletion(session);
-      if (award?.xpGain > 0) {
-        toast(`Sessão concluída: +${award.xpGain} XP.`, "success");
+      const parts = [];
+      if (award?.xpGain > 0) parts.push(`Sessão concluída: +${award.xpGain} XP`);
+      if (award?.newAchievements?.length > 0) {
+        parts.push(`conquistas: ${award.newAchievements.map((item) => item.title).join(", ")}`);
       }
+      if (parts.length > 0) toast(`${parts.join(" · ")}.`, "success");
     } catch (error) {
       warnStorageOnce(error);
     }

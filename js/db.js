@@ -221,6 +221,7 @@ export async function recordAnswer({ session, question, answer, schedule = null 
   let savedProgress = null;
   let savedGamification = null;
   let xpGain = 0;
+  let newAchievements = [];
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["sessions", "progress", "attempts", "meta"], "readwrite");
@@ -340,6 +341,7 @@ export async function recordAnswer({ session, question, answer, schedule = null 
       });
       savedGamification = result.gamification;
       xpGain = result.xpGain;
+      newAchievements = result.newAchievements;
       metaStore.put({
         key: "gamification",
         value: result.gamification,
@@ -354,6 +356,7 @@ export async function recordAnswer({ session, question, answer, schedule = null 
         progress: savedProgress,
         gamification: savedGamification,
         xpGain,
+        newAchievements,
       });
     tx.onerror = () => reject(tx.error || new Error("Falha ao registrar a resposta."));
     tx.onabort = () => reject(tx.error || new Error("Registro da resposta cancelado."));

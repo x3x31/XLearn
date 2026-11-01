@@ -23,6 +23,93 @@ export const PERFECT_SESSION_XP = 25;
 export const XP_PER_LEVEL_STEP = 100;
 export const MAX_AWARD_HISTORY = 200;
 
+/**
+ * Conquistas verificáveis a partir dos contadores persistidos.
+ * `check` recebe o contexto consolidado; a recompensa é paga uma única vez.
+ */
+export const ACHIEVEMENTS = Object.freeze([
+  {
+    id: "primeira-resposta",
+    title: "Primeiro passo",
+    description: "Responda sua primeira questão.",
+    icon: "check",
+    xp: 10,
+    check: (context) => context.answered >= 1,
+  },
+  {
+    id: "primeiro-acerto",
+    title: "Primeiro acerto",
+    description: "Acerte pelo menos uma questão.",
+    icon: "target",
+    xp: 10,
+    check: (context) => context.correct >= 1,
+  },
+  {
+    id: "dez-questoes",
+    title: "Ritmo de estudo",
+    description: "Responda 10 questões.",
+    icon: "book",
+    xp: 15,
+    check: (context) => context.answered >= 10,
+  },
+  {
+    id: "cinquenta-questoes",
+    title: "Meio caminho",
+    description: "Responda 50 questões.",
+    icon: "layers",
+    xp: 25,
+    check: (context) => context.answered >= 50,
+  },
+  {
+    id: "cem-questoes",
+    title: "Centurião",
+    description: "Responda 100 questões.",
+    icon: "chart",
+    xp: 50,
+    check: (context) => context.answered >= 100,
+  },
+  {
+    id: "primeira-sessao",
+    title: "Sessão completa",
+    description: "Conclua uma sessão de estudo.",
+    icon: "play",
+    xp: 15,
+    check: (context) => context.sessionsCompleted >= 1,
+  },
+  {
+    id: "cinco-sessoes",
+    title: "Constância",
+    description: "Conclua 5 sessões de estudo.",
+    icon: "flame",
+    xp: 30,
+    check: (context) => context.sessionsCompleted >= 5,
+  },
+  {
+    id: "sessao-perfeita",
+    title: "Gabarito perfeito",
+    description: "Conclua uma sessão acertando todas as questões.",
+    icon: "sparkles",
+    xp: 25,
+    check: (context) => context.perfectSessions >= 1,
+  },
+  {
+    id: "nivel-3",
+    title: "Praticante",
+    description: "Alcance o nível 3.",
+    icon: "chart",
+    xp: 25,
+    check: (context) => context.level >= 3,
+  },
+  {
+    id: "nivel-5",
+    title: "Avançado",
+    description: "Alcance o nível 5.",
+    icon: "sparkles",
+    xp: 50,
+    check: (context) => context.level >= 5,
+  },
+]);
+
 const LEVEL_TITLES = [
   "Iniciante",
   "Aprendiz",
@@ -106,18 +193,75 @@ export function levelFromXp(xp) {
   };
 }
 
+/**
+ * Desbloqueia conquistas pendentes e paga suas recompensas.
+ * O laço permite que o XP de uma conquista desbloqueie outra (ex.: nível).
+ */
+function reconcileAchievements(gamification, context, now) {
+  const achievements = { ...gamification.achievements };
+  const unlockedAt = now instanceof Date ? now.toISOString() : new Date(now).toISOString();
+  const newAchievements = [];
+  let xp = gamification.xp;
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    const level = levelFromXp(xp).level;
+    for (const achievement of ACHIEVEMENTS) {
+      if (achievements[achievement.id]) continue;
+      if (achievement.check({ ...context, xp, level })) {
+        achievements[achievement.id] = unlockedAt;
+        xp += achievement.xp;
+        newAchievements.push({ ...achievement, unlockedAt });
+        changed = true;
+      }
+    }
+  }
+
+  return {
+    gamification: { ...gamification, xp, achievements },
+    newAchievements,
+  };
+}
+
+function gamificationContext(gamification, extra = {}) {
+  return {
+    answered: gamification.answered,
+    correct: gamification.correct,
+    sessionsCompleted: gamification.sessionsCompleted,
+    perfectSessions: gamification.perfectSessions,
+    bestStreak: gamification.bestStreak,
+    ...extra,
+  };
+}
+
+/** Lista todas as conquistas com o estado de desbloqueio atual. */
+export function listAchievements(gamification = {}) {
+  const normalized = normalizeGamification(gamification);
+  return ACHIEVEMENTS.map((achievement) => ({
+    ...achievement,
+    unlockedAt: normalized.achievements[achievement.id] || null,
+  }));
+}
+
 /** XP recebido por uma resposta, já refletido no registro de gamificação. */
 export function applyAnswerRewards(current, { correct, difficulty, now = new Date() } = {}) {
   const gamification = normalizeGamification(current);
   const xpGain = answerXp({ correct: Boolean(correct), difficulty });
-  const next = {
+  const withAnswer = {
     ...gamification,
     xp: gamification.xp + xpGain,
     answered: gamification.answered + 1,
     correct: gamification.correct + (correct ? 1 : 0),
     updatedAt: now instanceof Date ? now.toISOString() : new Date(now).toISOString(),
   };
-  return { gamification: next, xpGain };
+  const result = reconcileAchievements(withAnswer, gamificationContext(withAnswer), now);
+  return {
+    gamification: result.gamification,
+    xpGain: result.gamification.xp - gamification.xp,
+    answerXp: xpGain,
+    newAchievements: result.newAchievements,
+  };
 }
 
 /**
@@ -137,7 +281,7 @@ export function applySessionRewards(
   }
 
   const timestamp = now instanceof Date ? now.toISOString() : new Date(now).toISOString();
-  const xpGain = sessionXp({ correct, total });
+  const baseXp = sessionXp({ correct, total });
   const perfect = total > 0 && correct >= total;
   const awardedSessions = {
     ...gamification.awardedSessions,
@@ -148,16 +292,21 @@ export function applySessionRewards(
     .slice(0, MAX_AWARD_HISTORY);
   const pruned = Object.fromEntries(recent);
 
+  const withSession = {
+    ...gamification,
+    xp: gamification.xp + baseXp,
+    sessionsCompleted: gamification.sessionsCompleted + 1,
+    perfectSessions: gamification.perfectSessions + (perfect ? 1 : 0),
+    awardedSessions: pruned,
+    updatedAt: timestamp,
+  };
+  const result = reconcileAchievements(withSession, gamificationContext(withSession), now);
+
   return {
-    gamification: {
-      ...gamification,
-      xp: gamification.xp + xpGain,
-      sessionsCompleted: gamification.sessionsCompleted + 1,
-      perfectSessions: gamification.perfectSessions + (perfect ? 1 : 0),
-      awardedSessions: pruned,
-      updatedAt: timestamp,
-    },
-    xpGain,
+    gamification: result.gamification,
+    xpGain: result.gamification.xp - gamification.xp,
+    baseXp,
     alreadyAwarded: false,
+    newAchievements: result.newAchievements,
   };
 }

@@ -522,6 +522,81 @@ button:disabled {
   letter-spacing: 0.05em;
 }
 
+/* Achievements ------------------------------------------------------------ */
+
+.achievements-card .section-head {
+  align-items: center;
+}
+
+.achievements-card .section-head h2 {
+  margin-top: 6px;
+  font-size: 1.02rem;
+}
+
+.achievement-mini-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.achievement-mini {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.achievement-mini.is-locked {
+  opacity: 0.72;
+}
+
+.achievement-mini__icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.achievement-mini.is-locked .achievement-mini__icon {
+  background: var(--surface-3);
+  color: var(--muted);
+}
+
+.achievement-mini__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.achievement-mini strong {
+  display: block;
+  font-size: 0.88rem;
+}
+
+.achievement-mini span {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+}
+
+.achievement-mini small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.achievements-card > .hint {
+  margin-top: 12px;
+}
+
 /* Cards ------------------------------------------------------------------- */
 
 .card {
