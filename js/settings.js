@@ -1,8 +1,8 @@
 /**
  * settings.js — preferências do XLearn.
  *
- * Os valores padrão ficam centralizados aqui. A persistência em IndexedDB
- * será conectada em REQ-019; até lá, o app usa esta instância em memória.
+ * Os valores padrão ficam centralizados aqui. O app carrega e grava o objeto
+ * completo no store meta do IndexedDB; esta instância mantém o estado em memória.
  */
 
 export const MANUAL_INTERVALS = [

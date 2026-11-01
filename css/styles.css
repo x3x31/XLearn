@@ -228,6 +228,17 @@ button:disabled {
   color: var(--muted);
 }
 
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar__actions .icon-btn {
+  width: 38px;
+  height: 38px;
+}
+
 .topbar__badge {
   display: inline-flex;
   align-items: center;
@@ -641,6 +652,114 @@ button:disabled {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* Settings --------------------------------------------------------------- */
+
+.settings-form {
+  display: grid;
+  gap: 22px;
+}
+
+.field-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field > span {
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.field input:hover,
+.field select:hover {
+  border-color: var(--primary);
+}
+
+.field small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.field--compact > span {
+  font-size: 0.68rem;
+}
+
+.check-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.check-field input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  accent-color: var(--primary);
+}
+
+.check-field span {
+  display: grid;
+  gap: 3px;
+}
+
+.check-field strong {
+  font-size: 0.86rem;
+}
+
+.check-field small {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.fieldset {
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.fieldset legend {
+  margin-bottom: 8px;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.interval-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  gap: 8px;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 /* Statistics / history ---------------------------------------------------- */

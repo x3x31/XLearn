@@ -20,6 +20,7 @@ import {
   listAttempts,
   recordAnswer,
   saveSession,
+  saveSettingsRecord,
 } from "./db.js";
 import {
   computeStreak,
@@ -57,7 +58,7 @@ const state = {
   route: "inicio",
 };
 
-const ROUTES = new Set(["inicio", "estudar", "sessao", "resumo", "revisoes", "progresso"]);
+const ROUTES = new Set(["inicio", "estudar", "sessao", "resumo", "revisoes", "progresso", "config"]);
 
 const ICONS = {
   logo: '<path d="M8 7h4l3 5 3-5h4l-5 8 5 8h-4l-3-5-3 5H8l5-8z" fill="currentColor" stroke="none"/>',
@@ -217,10 +218,25 @@ function buildShell() {
         h("span", {}, "XLearn", h("small", { text: "aprender praticando" }))
       ),
       h(
-        "span",
-        { class: "topbar__badge", "data-role": "topbar-badge" },
-        h("span", { class: "dot", "aria-hidden": "true" }),
-        h("span", { text: "Estudo local" })
+        "div",
+        { class: "topbar__actions" },
+        h(
+          "span",
+          { class: "topbar__badge", "data-role": "topbar-badge" },
+          h("span", { class: "dot", "aria-hidden": "true" }),
+          h("span", { text: "Estudo local" })
+        ),
+        h(
+          "a",
+          {
+            class: "icon-btn",
+            href: "#/config",
+            "data-role": "settings-link",
+            "aria-label": "Configurações",
+            title: "Configurações",
+          },
+          icon("settings")
+        )
       )
     )
   );
@@ -437,6 +453,9 @@ function render({ focus = false } = {}) {
     case "progresso":
       content = renderProgress();
       break;
+    case "config":
+      content = renderSettings();
+      break;
     default:
       content = renderHome();
   }
@@ -444,6 +463,11 @@ function render({ focus = false } = {}) {
   main.replaceChildren(...content);
   updateNav();
   updateBadge();
+  const settingsLink = document.querySelector('[data-role="settings-link"]');
+  if (settingsLink) {
+    if (state.route === "config") settingsLink.setAttribute("aria-current", "page");
+    else settingsLink.removeAttribute("aria-current");
+  }
   if (focus) {
     window.scrollTo({ top: 0, behavior: "auto" });
     main.focus({ preventScroll: true });
@@ -965,6 +989,238 @@ function renderReviews() {
       "os intervalos automáticos são 1, 3, 7, 14 e 30 dias após acertos consecutivos. Um erro reduz o nível e agenda nova revisão em 10 minutos. Após acertar, você pode escolher outro intervalo no feedback da questão."
     ),
   ];
+}
+
+function renderSettings() {
+  const settings = getSettings();
+
+  const form = h(
+    "form",
+    { class: "settings-form", id: "settings-form", autocomplete: "off" },
+    h(
+      "section",
+      { class: "card", "aria-labelledby": "study-settings-title" },
+      h(
+        "div",
+        { class: "section-head" },
+        h(
+          "div",
+          {},
+          h("span", { class: "eyebrow" }, icon("play"), "Sessão de estudo"),
+          h("h2", { id: "study-settings-title", text: "Como você estuda" })
+        ),
+        h("span", { class: "chip chip--neutral", text: "vale para a próxima sessão" })
+      ),
+      h(
+        "div",
+        { class: "field-grid" },
+        h(
+          "label",
+          { class: "field" },
+          h("span", { text: "Questões por sessão" }),
+          h("input", {
+            type: "number",
+            name: "sessionSize",
+            min: "1",
+            max: "100",
+            step: "1",
+            inputmode: "numeric",
+            value: String(settings.sessionSize),
+            required: true,
+          }),
+          h("small", { text: "Entre 1 e 100 questões." })
+        ),
+        h(
+          "label",
+          { class: "field" },
+          h("span", { text: "Meta diária" }),
+          h("input", {
+            type: "number",
+            name: "dailyGoal",
+            min: "1",
+            max: "500",
+            step: "1",
+            inputmode: "numeric",
+            value: String(settings.dailyGoal),
+            required: true,
+          }),
+          h("small", { text: "Quantidade de questões para concluir o dia." })
+        ),
+        h(
+          "label",
+          { class: "field" },
+          h("span", { text: "Ordem das questões" }),
+          h(
+            "select",
+            { name: "questionOrder" },
+            h("option", {
+              value: "shuffle",
+              selected: settings.questionOrder === "shuffle",
+              text: "Aleatória (recomendada)",
+            }),
+            h("option", {
+              value: "sequential",
+              selected: settings.questionOrder === "sequential",
+              text: "Sequencial, como no material",
+            })
+          ),
+          h("small", { text: "As alternativas continuam sempre embaralhadas." })
+        )
+      )
+    ),
+
+    h(
+      "section",
+      { class: "card", "aria-labelledby": "srs-settings-title" },
+      h(
+        "div",
+        { class: "section-head" },
+        h(
+          "div",
+          {},
+          h("span", { class: "eyebrow" }, icon("clock"), "Repetição espaçada"),
+          h("h2", { id: "srs-settings-title", text: "Quando revisar" })
+        ),
+        h("span", {
+          class: `chip ${settings.srsEnabled ? "chip--success" : "chip--neutral"}`,
+          text: settings.srsEnabled ? "ativa" : "desativada",
+        })
+      ),
+      h(
+        "label",
+        { class: "check-field" },
+        h("input", { type: "checkbox", name: "srsEnabled", checked: settings.srsEnabled }),
+        h(
+          "span",
+          {},
+          h("strong", { text: "Ativar revisões automáticas" }),
+          h("small", {
+            text: "Um erro agenda nova revisão em 10 minutos. Acertos seguem os intervalos abaixo.",
+          })
+        )
+      ),
+      h(
+        "fieldset",
+        { class: "fieldset" },
+        h("legend", { text: "Intervalos após cada acerto (em dias)" }),
+        h(
+          "div",
+          { class: "interval-grid" },
+          ...settings.srsIntervals.map((days, index) =>
+            h(
+              "label",
+              { class: "field field--compact" },
+              h("span", { text: `${index + 1}º acerto` }),
+              h("input", {
+                type: "number",
+                name: `srsInterval${index + 1}`,
+                min: "1",
+                max: "365",
+                step: "1",
+                inputmode: "numeric",
+                value: String(days),
+                required: true,
+              })
+            )
+          )
+        ),
+        h("p", { class: "hint", text: "Os cinco valores devem ser dias inteiros e crescentes, até 365." })
+      )
+    ),
+
+    h(
+      "div",
+      { class: "settings-actions" },
+      h("button", { class: "btn btn--primary", type: "submit" }, icon("check"), "Salvar configurações"),
+      h("a", { class: "btn btn--ghost", href: "#/inicio" }, "Voltar ao início")
+    )
+  );
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await saveSettingsFromForm(form);
+  });
+
+  return [
+    h(
+      "div",
+      { class: "section-head" },
+      h(
+        "div",
+        {},
+        h("span", { class: "eyebrow" }, icon("settings"), "Configurações"),
+        h("h1", { text: "Ajustes de estudo" }),
+        h("p", {
+          text: "As mudanças são salvas neste dispositivo e passam a valer nas próximas sessões e respostas.",
+        })
+      ),
+      h("span", { class: "chip chip--neutral", text: "100% local" })
+    ),
+    form,
+    h(
+      "p",
+      { class: "hint" },
+      "A meta diária e os intervalos alteram o cálculo de XP, conquistas e revisões. O histórico já registrado não é reescrito."
+    ),
+  ];
+}
+
+function readSettingsForm(form) {
+  const fields = form.elements;
+  const sessionSize = Number(fields.sessionSize.value);
+  const dailyGoal = Number(fields.dailyGoal.value);
+  const questionOrder = fields.questionOrder.value === "sequential" ? "sequential" : "shuffle";
+  const srsEnabled = Boolean(fields.srsEnabled.checked);
+  const srsIntervals = [1, 2, 3, 4, 5].map((index) => Number(fields[`srsInterval${index}`].value));
+
+  if (!Number.isInteger(sessionSize) || sessionSize < 1 || sessionSize > 100) {
+    throw new Error("O tamanho da sessão deve ser um número inteiro entre 1 e 100.");
+  }
+  if (!Number.isInteger(dailyGoal) || dailyGoal < 1 || dailyGoal > 500) {
+    throw new Error("A meta diária deve ser um número inteiro entre 1 e 500.");
+  }
+  for (const days of srsIntervals) {
+    if (!Number.isInteger(days) || days < 1 || days > 365) {
+      throw new Error("Cada intervalo deve ser um número inteiro de dias entre 1 e 365.");
+    }
+  }
+  for (let index = 1; index < srsIntervals.length; index += 1) {
+    if (srsIntervals[index] <= srsIntervals[index - 1]) {
+      throw new Error("Os intervalos de revisão devem ser crescentes.");
+    }
+  }
+
+  return { sessionSize, dailyGoal, questionOrder, srsEnabled, srsIntervals };
+}
+
+async function saveSettingsFromForm(form) {
+  let patch;
+  try {
+    patch = readSettingsForm(form);
+  } catch (error) {
+    toast(error.message, "error");
+    return;
+  }
+  const next = normalizeSettings({ ...getSettings(), ...patch });
+  setSettings(next);
+  try {
+    await saveSettingsRecord(next);
+    toast("Configurações salvas neste dispositivo.", "success");
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+  syncSettingsForm(form, next);
+}
+
+function syncSettingsForm(form, settings) {
+  form.elements.sessionSize.value = String(settings.sessionSize);
+  form.elements.dailyGoal.value = String(settings.dailyGoal);
+  form.elements.questionOrder.value = settings.questionOrder;
+  form.elements.srsEnabled.checked = settings.srsEnabled;
+  settings.srsIntervals.forEach((days, index) => {
+    const field = form.elements[`srsInterval${index + 1}`];
+    if (field) field.value = String(days);
+  });
 }
 
 function renderRankingList(items, label) {
