@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.2.0` |
+| **Versão atual** | `0.3.0` |
 | **Data da última atualização** | 2026-11-01 |
 
 ---
@@ -49,10 +49,10 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 | REQ-001 | Manifesto e descoberta de provas | Gerar `questoes/manifest.json` a partir dos `.md` encontrados, com metadados, contagem, hash e diagnóstico. | Alta | IMPLEMENTADO |
 | REQ-002 | Interpretador de questões | Interpretar frontmatter e blocos JSON, validar estrutura e normalizar questões sem `eval` nem HTML arbitrário. | Alta | IMPLEMENTADO |
 | REQ-003 | Carregamento e validação | Carregar manifesto e materiais via `fetch`, tratar falhas por arquivo e continuar os demais. | Alta | IMPLEMENTADO |
-| REQ-004 | Seleção de provas | Listar provas reais do manifesto e permitir iniciar sessão. | Alta | PENDENTE |
-| REQ-005 | Exibição de questões | Exibir enunciado, progresso da sessão e alternativas em ordem estável durante a resposta. | Alta | PENDENTE |
-| REQ-006 | Embaralhamento de alternativas | Embaralhar com Fisher–Yates, preservando identificadores e o gabarito original; ordem persistida por sessão. | Alta | PENDENTE |
-| REQ-007 | Correção e feedback | Corrigir pelo identificador da alternativa, impedir dupla resposta e exibir gabarito e explicação. | Alta | PENDENTE |
+| REQ-004 | Seleção de provas | Listar provas reais do manifesto e permitir iniciar sessão. | Alta | IMPLEMENTADO |
+| REQ-005 | Exibição de questões | Exibir enunciado, progresso da sessão e alternativas em ordem estável durante a resposta. | Alta | IMPLEMENTADO |
+| REQ-006 | Embaralhamento de alternativas | Embaralhar com Fisher–Yates, preservando identificadores e o gabarito original; ordem persistida por sessão. | Alta | IMPLEMENTADO |
+| REQ-007 | Correção e feedback | Corrigir pelo identificador da alternativa, impedir dupla resposta e exibir gabarito e explicação. | Alta | IMPLEMENTADO |
 
 ### Fase 2 — Persistência e continuidade
 
@@ -137,23 +137,23 @@ XLearn/
 └── .git/
 ```
 
-Arquitetura após REQ-001 a REQ-003:
+Arquitetura após REQ-004 a REQ-007:
 
 ```
 XLearn/
-├── index.html                # (planejado) shell da SPA
+├── index.html                # IMPLEMENTADO: shell da SPA e fallback noscript
 ├── manifest.webmanifest      # (planejado) manifesto PWA
 ├── service-worker.js         # (planejado) cache e offline
 ├── package.json              # scripts de desenvolvimento; sem dependências de execução
-├── css/styles.css            # (planejado) temas, layout e componentes
+├── css/styles.css            # IMPLEMENTADO: temas, layout e componentes
 ├── js/
-│   ├── app.js                # (planejado) rotas, estado de UI e telas
+│   ├── app.js                # IMPLEMENTADO: rotas, estado de UI, dashboard, quiz e resumo
 │   ├── db.js                 # (planejado) IndexedDB e operações de dados
 │   ├── parser.js             # IMPLEMENTADO: frontmatter + JSON + normalização (puro)
 │   ├── questions.js          # IMPLEMENTADO: manifesto, fetch e cache em memória
+│   ├── settings.js           # IMPLEMENTADO: defaults e aplicação visual (persistência pendente)
 │   ├── srs.js                # (planejado) repetição espaçada (puro)
-│   ├── gamification.js       # (planejado) XP, níveis, conquistas (puro)
-│   └── settings.js           # (planejado) defaults e aplicação de preferências
+│   └── gamification.js       # (planejado) XP, níveis, conquistas (puro)
 ├── scripts/
 │   └── build-manifest.mjs    # IMPLEMENTADO: geração e validação do manifesto
 ├── icons/                    # (planejado) ícones PWA
@@ -248,6 +248,10 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Estrutura da questão | Objeto normalizado com `id`, `materialId`, `text`, alternativas com `id` estável, `correctId` e explicações. | Desacopla apresentação de dados e mantém o gabarito independente da posição. |
 | Shuffle | Fisher–Yates com PRNG semeado por `sessionId + questionId`; ordem também persistida na sessão. | Ordem aleatória e estável durante a resposta e após retomada. |
 | Correção | Comparação com `correctId`/`answer_key`, nunca com índice visual. | Garante gabarito correto em qualquer ordem. |
+| Rótulos das alternativas | As letras originais A–D acompanham o texto mesmo fora de ordem. | As explicações dos materiais citam letras; remapear rótulos tornaria os comentários incorretos. A posição visual nunca é usada na correção. |
+| Navegação | SPA com rotas em hash (`#/inicio`, `#/estudar`, `#/sessao`, `#/resumo`). | Compatível com GitHub Pages sem regras de servidor. |
+| Renderização segura | Todo texto dinâmico usa `textContent`/nós de texto; `innerHTML` só com ícones constantes. | Evita XSS mesmo que um arquivo de questão contenha HTML. |
+| Sessão em memória (interina) | Sessão guardada no estado da aplicação até REQ-008/009. | Permite entregar o fluxo funcional incrementalmente; a limitação é registrada e corrigida no próximo requisito. |
 | Persistência | IndexedDB (`xlearn`) com stores `meta`, `progress`, `sessions`, `attempts`. localStorage apenas para preferência de tema inicial, se necessário. | Requisito do projeto; maior capacidade e consultas por chave. |
 | SRS | Níveis 0–5; acerto avança e usa intervalos 1/3/7/14/30 dias; erro reduz nível e agenda 10 minutos. Intervalos configuráveis. | Simples, auditável e explicitamente não apresentado como validado cientificamente. |
 | XP | Centralizado em módulo puro, com bônus por dificuldade, sessão concluída e meta diária; conquistas pagam uma única vez. | Evita duplicação e mantém critérios consistentes. |
@@ -263,7 +267,8 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Versão | Requisito | Implementação | Commit | Data |
 |---|---|---|---|---|
 | 0.1.0 | — | Inspeção inicial e criação do `PROJECT_STATUS.md` | `cacae51` | 2026-11-01 |
-| 0.2.0 | REQ-001, REQ-002, REQ-003 | Gerador de manifesto, manifesto real com 2 materiais/150 questões, parser puro, normalização, validação e carregador via fetch | _a preencher após o commit_ | 2026-11-01 |
+| 0.2.0 | REQ-001, REQ-002, REQ-003 | Gerador de manifesto, manifesto real com 2 materiais/150 questões, parser puro, normalização, validação e carregador via fetch | `c18edd1` | 2026-11-01 |
+| 0.3.0 | REQ-004, REQ-005, REQ-006, REQ-007 | Shell responsivo, dashboard, seleção de provas, sessão com embaralhamento determinístico, confirmação única, feedback completo e resumo | _a preencher após o commit_ | 2026-11-01 |
 
 ---
 
@@ -272,12 +277,17 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-001 — Manifesto:** `scripts/build-manifest.mjs` varre `questoes/` recursivamente, ignora `manifest.json`/`README.md`, interpreta cada material, calcula SHA-256 e metadados, detecta IDs duplicados e gera `questoes/manifest.json`. Modo `--check` valida sem gravar. `npm run build:manifest` e `npm run check` disponíveis.
 - **REQ-002 — Interpretador:** `js/parser.js` lê frontmatter YAML simples e blocos ```json, normaliza questões, valida alternativas, gabarito e campos obrigatórios, e reporta diagnósticos sem interromper o material. Inclui `shuffle` Fisher–Yates, PRNG semeado e hash de string.
 - **REQ-003 — Carregamento:** `js/questions.js` carrega o manifesto, valida caminhos e duplicatas, resolve URLs relativas à raiz do projeto, mantém cache em memória e continua carregando os demais materiais quando um falha.
+- **REQ-004 — Seleção de provas:** dashboard e tela de provas listam os materiais válidos do manifesto com disciplina, banca, assunto e quantidade real de questões; o botão "Estudar" carrega o material e inicia a sessão.
+- **REQ-005 — Exibição de questões:** tela de resolução com progresso, posição da questão, metadados, enunciado e alternativas; sessão em memória pode ser retomada ao voltar ao início.
+- **REQ-006 — Embaralhamento:** Fisher–Yates com PRNG semeado por `sessionId + questionId`; a ordem é guardada em `session.orders`, as letras originais A–D acompanham cada alternativa e o gabarito é corrigido por identificador.
+- **REQ-007 — Correção e feedback:** confirmação explícita, bloqueio de resposta duplicada, destaque da correta e da marcada, resolução, aula completa, abordagem da banca, dica, resumo e comentário individual das alternativas. Resumo final com aproveitamento, duração, acertos/erros e revisão dos erros.
+- **Interface:** `index.html` e `css/styles.css` com temas escuro/claro por variáveis, layout responsivo, navegação inferior, foco visível, `prefers-reduced-motion` e componentes de acessibilidade.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-003. Prioridade imediata: REQ-004 a REQ-007 (seleção, exibição, embaralhamento, correção e feedback).
+Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-007. Prioridade imediata: REQ-008 (IndexedDB) e REQ-009 (retomada de sessão após recarregar).
 
 Dependências principais:
 
@@ -296,6 +306,7 @@ Dependências principais:
 | Problema | Impacto | Situação |
 |---|---|---|
 | `README.md` vazio no estado inicial | Falta de instruções de uso | Será resolvido em REQ-028. |
+| Sessão atual ainda não é persistida | Recarregar a página perde a sessão em andamento | Será resolvido em REQ-008/REQ-009; a interface informa a limitação temporária. |
 | Materiais fora do padrão JSON não são suportados | Provas em Markdown puro não carregam | Limitação documentada; corpus atual está dentro do padrão. |
 | Manifesto precisa ser regenerado ao adicionar provas | Esquecimento pode ocultar material | O gerador detecta e o README orientará; a validação acusa no console. |
 | Ranking local tem um único perfil de dispositivo | Não representa ranking global | Comunicado na interface; usa apenas dados reais. |
@@ -313,6 +324,10 @@ Dependências principais:
 - Parser reexecutado em Node sobre os dois materiais: 50 e 100 questões válidas.
 - Shuffle semeado testado nas duas provas: 4 alternativas preservadas, gabarito presente e identificadores únicos.
 - Importação cruzada entre `js/parser.js` (navegador) e `scripts/build-manifest.mjs` (Node) executada sem erro.
+- Verificação sintática de todos os arquivos JS e do script Node (`node --check`).
+- Servidor estático local: `index.html`, `css/styles.css`, `js/app.js`, `questoes/manifest.json` e um material responderam HTTP 200.
+- Teste automatizado de fluxo com DOM simulado (happy-dom, apenas ambiente de desenvolvimento, fora do repositório): dashboard com 2 provas/150 questões; início de sessão; 4 alternativas sem duplicação; confirmação desabilitada antes da seleção; feedback após confirmar; avanço para a questão 2; retomada em memória ao voltar ao início; conclusão das 10 questões; resumo com anel e 10 resultados. Todos os passos passaram.
+- Revisão do diff e dos caminhos relativos para GitHub Pages.
 
 ### Testes finais pendentes
 
@@ -331,6 +346,6 @@ Dependências principais:
 
 ## L. Próxima tarefa recomendada
 
-**REQ-004 a REQ-007 — fluxo mínimo de estudo.**
+**REQ-008 e REQ-009 — persistência IndexedDB e retomada de sessão.**
 
-Motivo: o manifesto, o parser e o carregador já estão prontos. A próxima entrega deve tornar o aplicativo utilizável: shell da SPA, dashboard/seleção de provas, tela de resolução, embaralhamento Fisher–Yates por sessão, confirmação única e feedback com gabarito/explicação. Esses quatro requisitos são tecnicamente inseparáveis para um fluxo utilizável e serão documentados em um único commit funcional, com a justificativa registrada. Persistência virá em seguida (REQ-008 e REQ-009).
+Motivo: o fluxo de estudo já funciona, mas a sessão vive apenas em memória. A próxima entrega deve criar `js/db.js` com os stores `meta`, `progress`, `sessions` e `attempts`, salvar cada confirmação e o estado da sessão, restaurar automaticamente a sessão ativa ao recarregar e registrar o histórico/progresso por questão e por prova (REQ-010). A interface passará a exibir "Continuar sessão" mesmo após fechar o navegador.
