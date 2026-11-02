@@ -298,7 +298,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.15.0 | REQ-023 | Manifesto web instalável com escopo relativo, ícones PNG 192/512, maskable com margem segura, Apple Touch opaco, geração sem dependências e vínculo no HTML | `3bdbd60` | 2026-11-01 |
 | 0.16.0 | REQ-024 | Service worker com app shell pré-cacheado, manifesto e materiais acessados em runtime, fallback offline, limpeza de versões antigas, escopo relativo e aviso de atualização sem recarregar forçado | `695046a` | 2026-11-01 |
 | 0.16.1 | — | Correção de publicação: `.nojekyll` impede o Jekyll de converter os materiais Markdown, que respondiam 404 no GitHub Pages | `facf70d` | 2026-11-02 |
-| 0.17.0 | REQ-025 | Indicador online/offline no topo, aviso de contingência com o que continua disponível, anúncio acessível, reconexão com toast e resposta salva localmente enquanto offline | _a preencher após o commit_ | 2026-11-02 |
+| 0.17.0 | REQ-025 | Indicador online/offline no topo, aviso de contingência com o que continua disponível, anúncio acessível, reconexão com toast e resposta salva localmente enquanto offline | `eeff2aa` | 2026-11-02 |
 
 ---
 
