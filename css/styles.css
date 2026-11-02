@@ -785,6 +785,10 @@ button:disabled {
   background: var(--surface-2);
 }
 
+.import-confirm--danger {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+
 .import-confirm h3 {
   font-size: 0.95rem;
 }

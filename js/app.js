@@ -12,6 +12,7 @@ import { getSettings, applyVisualSettings, normalizeSettings, setSettings, MANUA
 import {
   applyReviewSchedule,
   awardSessionCompletion,
+  clearProgressData,
   exportDatabase,
   getActiveSession,
   getGamification,
@@ -40,6 +41,7 @@ import {
 } from "./srs.js";
 import { buildRanking, RANKING_DISCLOSURE } from "./ranking.js";
 import { createBackup, validateBackup } from "./backup.js";
+import { clearAppCaches } from "./storage.js";
 
 const app = document.getElementById("app");
 
@@ -56,6 +58,7 @@ const state = {
   stats: { answered: 0, correct: 0, daily: {}, byMaterial: {} },
   recentAttempts: [],
   pendingImport: null,
+  pendingReset: false,
   lastAnswerSave: null,
   scheduling: null,
   storageWarned: false,
@@ -83,6 +86,7 @@ const ICONS = {
   trophy: '<path d="M8 4h8v4a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 3"/><path d="M16 6h3a3 3 0 0 1-3 3"/><path d="M12 12v4"/><path d="M9 20h6"/><path d="M10 16h4l1 4H9z"/>',
   download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
   upload: '<path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/>',
+  trash: '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/>',
   lock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
 };
@@ -1300,6 +1304,94 @@ function renderSettings() {
     ),
 
     h(
+      "section",
+      { class: "card", "aria-labelledby": "storage-settings-title" },
+      h(
+        "div",
+        { class: "section-head" },
+        h(
+          "div",
+          {},
+          h("span", { class: "eyebrow" }, icon("lock"), "Armazenamento local"),
+          h("h2", { id: "storage-settings-title", text: "Cache e progresso" })
+        ),
+        h("span", { class: "chip chip--neutral", text: "somente este dispositivo" })
+      ),
+      h("p", {
+        class: "hint",
+        text: "As duas ações abaixo são independentes: limpar o cache não apaga respostas, e apagar o progresso não altera suas configurações de estudo e aparência.",
+      }),
+      h(
+        "div",
+        { class: "data-actions" },
+        h(
+          "button",
+          { class: "btn btn--ghost", type: "button", "data-role": "clear-cache", onclick: clearCache },
+          icon("layers"),
+          "Limpar cache do app"
+        ),
+        h(
+          "button",
+          {
+            class: "btn btn--danger",
+            type: "button",
+            "data-role": "reset-progress",
+            onclick: requestProgressReset,
+          },
+          icon("trash"),
+          "Apagar progresso"
+        )
+      ),
+      h("p", {
+        class: "hint",
+        text: "Limpar o cache remove apenas arquivos baixados (HTML, CSS, JS e questões). Seu progresso, XP e histórico continuam salvos no navegador.",
+      }),
+      state.pendingReset
+        ? h(
+            "div",
+            {
+              class: "import-confirm import-confirm--danger",
+              role: "region",
+              "aria-labelledby": "reset-confirm-title",
+            },
+            h("h3", { id: "reset-confirm-title", tabindex: "-1", text: "Apagar todo o progresso?" }),
+            h("p", {
+              text: "Serão apagados respostas, sessões, tentativas, XP, níveis, conquistas, meta diária e sequência. Esta ação não pode ser desfeita.",
+            }),
+            h("p", {
+              class: "hint",
+              text: "Configurações de estudo e aparência são mantidas. Se quiser guardar o histórico, exporte um backup antes de continuar.",
+            }),
+            h(
+              "div",
+              { class: "settings-actions" },
+              h(
+                "button",
+                {
+                  class: "btn btn--danger",
+                  type: "button",
+                  "data-role": "confirm-reset",
+                  onclick: confirmProgressReset,
+                },
+                icon("trash"),
+                "Apagar definitivamente"
+              ),
+              h(
+                "button",
+                {
+                  class: "btn btn--ghost",
+                  type: "button",
+                  "data-role": "cancel-reset",
+                  onclick: cancelProgressReset,
+                },
+                "Cancelar"
+              )
+            )
+          )
+        : null
+    ),
+
+    h(
       "div",
       { class: "settings-actions" },
       h("button", { class: "btn btn--primary", type: "submit" }, icon("check"), "Salvar configurações"),
@@ -1485,6 +1577,58 @@ async function confirmPendingImport() {
     navigate("inicio");
   } catch (error) {
     toast(error.message || "Não foi possível restaurar o backup.", "error");
+  } finally {
+    hideLoadingOverlay();
+    render();
+  }
+}
+
+async function clearCache() {
+  try {
+    const result = await clearAppCaches();
+    if (!result.supported) {
+      toast("Este navegador não expõe a Cache API; nenhum cache foi removido.", "info");
+      return;
+    }
+    if (result.deleted.length === 0) {
+      toast("Nenhum cache do app encontrado. Seu progresso continua intacto.", "info");
+      return;
+    }
+    toast(
+      `${plural(result.deleted.length, "cache do app removido", "caches do app removidos")}. Seu progresso foi mantido.`,
+      "success"
+    );
+  } catch (error) {
+    toast(error.message || "Não foi possível limpar o cache do app.", "error");
+  }
+}
+
+function requestProgressReset() {
+  state.pendingReset = true;
+  render({ focus: true });
+  requestAnimationFrame(() => document.getElementById("reset-confirm-title")?.focus());
+}
+
+function cancelProgressReset() {
+  state.pendingReset = false;
+  render();
+}
+
+async function confirmProgressReset() {
+  state.pendingReset = false;
+  state.pendingImport = null;
+  showLoadingOverlay("Apagando progresso…");
+  try {
+    await clearProgressData();
+    state.session = null;
+    state.sessionMaterial = null;
+    state.lastAnswerSave = null;
+    state.scheduling = null;
+    await refreshProgress();
+    toast("Progresso apagado. Suas configurações foram preservadas.", "success");
+    navigate("inicio");
+  } catch (error) {
+    toast(error.message || "Não foi possível apagar o progresso local.", "error");
   } finally {
     hideLoadingOverlay();
     render();

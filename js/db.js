@@ -158,6 +158,33 @@ export async function importDatabase(data) {
   });
 }
 
+/**
+ * Apaga o progresso de estudo e tudo que deriva dele: questões, sessões,
+ * tentativas, estatísticas diárias e gamificação (XP, conquistas, sequência).
+ * As configurações em `meta/settings` são preservadas.
+ */
+export async function clearProgressData() {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BACKUP_STORES, "readwrite");
+    try {
+      for (const store of ["progress", "sessions", "attempts"]) {
+        tx.objectStore(store).clear();
+      }
+      const meta = tx.objectStore("meta");
+      meta.delete("stats");
+      meta.delete("gamification");
+    } catch (error) {
+      tx.abort();
+      reject(error);
+      return;
+    }
+    tx.oncomplete = () => resolve({ progress: 0, sessions: 0, attempts: 0 });
+    tx.onerror = () => reject(tx.error || new Error("Falha ao apagar o progresso local."));
+    tx.onabort = () => reject(tx.error || new Error("Operação cancelada."));
+  });
+}
+
 /** Lê um valor do store meta. */
 export async function getMeta(key) {
   const record = await readStore("meta", key);
