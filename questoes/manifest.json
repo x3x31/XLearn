@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "generator": "scripts/build-manifest.mjs",
-  "generatedAt": "2026-11-02T07:05:00Z",
+  "generatedAt": "2026-11-02T08:00:00Z",
   "summary": {
-    "materials": 7,
-    "validMaterials": 7,
+    "materials": 8,
+    "validMaterials": 8,
     "invalidMaterials": 0,
-    "questions": 650,
+    "questions": 1050,
     "errors": 0,
-    "warnings": 1
+    "warnings": 2
   },
   "files": [
     {
@@ -130,6 +130,25 @@
       "errors": [],
       "warnings": [
         "As questões originais não foram comparadas com gabaritos oficiais, ausentes do corpus."
+      ]
+    },
+    {
+      "path": "questoes/ESTUDO_LINGUAGENS_DE_PROGRAMACAO_COMPERVE_400_QUESTOES.md",
+      "file": "ESTUDO_LINGUAGENS_DE_PROGRAMACAO_COMPERVE_400_QUESTOES.md",
+      "title": "Linguagens de Programação — 400 questões no estilo COMPERVE",
+      "materialId": "MAT-LP-COMPERVE-400",
+      "bank": "COMPERVE",
+      "subject": "Linguagens de Programação",
+      "topic": "Java; JavaScript (ECMAScript 2020); TypeScript 5.4; Node.js 20.14; React 18; React Native 0.74; NestJS 10.3.9",
+      "language": "pt-BR",
+      "questionCount": 400,
+      "declaredQuestions": 400,
+      "sizeBytes": 1873393,
+      "sha256": "c23242f1722c7ea498cabb95555be80efc58c54fedbe04b0a10f0954234d8c6a",
+      "valid": true,
+      "errors": [],
+      "warnings": [
+        "As questões originais foram extraídas de caderno sem gabarito oficial anexado ao corpus; respostas conferidas tecnicamente, mas não confrontadas com gabarito oficial."
       ]
     }
   ]
