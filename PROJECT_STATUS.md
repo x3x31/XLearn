@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.12.0` |
+| **Versão atual** | `0.13.0` |
 | **Data da última atualização** | 2026-11-01 |
 
 ---
@@ -86,7 +86,7 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 |---|---|---|---|---|
 | REQ-019 | Configurações de estudo | Ajustar meta diária, tamanho e ordem da sessão, repetição espaçada e intervalos. | Alta | IMPLEMENTADO |
 | REQ-020 | Preferências de interface | Tema claro/escuro/sistema, tamanho do texto e animações. | Média | IMPLEMENTADO |
-| REQ-021 | Exportação e importação | Exportar JSON, validar backup e restaurar dados com confirmação. | Alta | PENDENTE |
+| REQ-021 | Exportação e importação | Exportar JSON, validar backup e restaurar dados com confirmação. | Alta | IMPLEMENTADO |
 | REQ-022 | Gerenciamento de dados | Limpar cache sem apagar progresso e excluir progresso separadamente. | Média | PENDENTE |
 
 ### Fase 6 — PWA e offline
@@ -137,7 +137,7 @@ XLearn/
 └── .git/
 ```
 
-Arquitetura atual (após REQ-020):
+Arquitetura atual (após REQ-021):
 
 ```
 XLearn/
@@ -147,8 +147,8 @@ XLearn/
 ├── package.json              # scripts de desenvolvimento; sem dependências de execução
 ├── css/styles.css            # IMPLEMENTADO: temas, layout e componentes
 ├── js/
-│   ├── app.js                # IMPLEMENTADO: rotas, estado de UI, dashboard, quiz, resumo, revisões, estatísticas, ranking e configurações
-│   ├── db.js                 # IMPLEMENTADO: IndexedDB, progresso, sessões, tentativas, estatísticas e reagendamento
+│   ├── app.js                # IMPLEMENTADO: rotas, estado de UI, dashboard, quiz, resumo, revisões, estatísticas, ranking, configurações e backup
+│   ├── db.js                 # IMPLEMENTADO: IndexedDB, progresso, sessões, tentativas, estatísticas, reagendamento e backup
 │   ├── parser.js             # IMPLEMENTADO: frontmatter + JSON + normalização (puro)
 │   ├── questions.js          # IMPLEMENTADO: manifesto, fetch e cache em memória
 │   ├── settings.js           # IMPLEMENTADO: defaults, normalização, intervalos manuais e aplicação visual
@@ -264,6 +264,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Configurações de estudo | Rota `#/config` com formulário único para tamanho da sessão (1–100), meta diária (1–500), ordem das questões (aleatória/sequencial), ativação do SRS e cinco intervalos crescentes em dias (1–365). A validação ocorre antes de gravar; o objeto normalizado é salvo em `meta/settings` e aplicado em memória. | Controles simples e auditáveis, com efeito imediato na próxima sessão/resposta e sem alterar retroativamente o histórico. Intervalos inválidos são rejeitados com mensagem clara. |
 | Aparência | Tema `system`/`dark`/`light`, fonte de 14–22 px e animações ligadas/desligadas no mesmo formulário. Ao salvar, `applyVisualSettings` grava `data-theme`, `data-animations` e `--font-size`, atualiza `theme-color` e a preferência do sistema é observada para reaplicar o tema quando ela mudar. | Aplicação imediata sem recarregar, persistência no mesmo objeto de configurações e respeito à preferência do dispositivo. |
 | Ranking | `js/ranking.js` (puro) classifica provas e disciplinas pelo limite inferior do intervalo de confiança de 95% (Wilson), combinando precisão e volume; itens sem respostas são omitidos e a interface informa que é local. | Evita que uma única resposta correta lidere e atende ao requisito sem inventar estudantes ou perfis. |
+| Backup | `js/backup.js` (puro) cria um envelope `xlearn-backup` versão 1 com `app`, `schemaVersion`, `exportedAt`, resumo e os quatro stores. `validateBackup` confere formato, versão, presença das listas, objeto de cada registro e chaves únicas antes de qualquer escrita. `exportDatabase` lê os quatro stores em uma transação; `importDatabase` valida de novo e substitui todos em uma única transação `readwrite`. | Formato identificável e versionado, com restauração atômica e rejeição de arquivos inválidos sem tocar nos dados existentes. |
 | Cache | App shell em cache na instalação; materiais em cache após o primeiro acesso; navegação com fallback para `index.html`. | Compatível com offline e subdiretórios do GitHub Pages. |
 | Versionamento | Um commit funcional por requisito, Conventional Commits, push após cada entrega; hash registrado no commit seguinte. | Rastreabilidade e histórico incremental. |
 | Entrega conjunta REQ-004..007 | Seleção, exibição, embaralhamento e correção entregues juntos. | São inseparáveis para que exista um fluxo utilizável; um commit intermediário sem correção ou sem shuffle seria uma funcionalidade parcial, o que o projeto proíbe. |
@@ -287,6 +288,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.10.0 | REQ-018 | Ranking local por prova e disciplina com índice de Wilson, exclusão de itens sem respostas, destaque do pódio e aviso explícito de que não é global | `ec6f46e` | 2026-11-01 |
 | 0.11.0 | REQ-019 | Tela de configurações de estudo com validação e persistência de tamanho/meta/ordem, ativação do SRS e cinco intervalos crescentes | `b9c3bc3` | 2026-11-01 |
 | 0.12.0 | REQ-020 | Tema claro/escuro/sistema, tamanho do texto de 14–22 px, animações configuráveis, aplicação imediata, `theme-color` sincronizado e observação da preferência do sistema | `8736881` + `8215f0b` | 2026-11-01 |
+| 0.13.0 | REQ-021 | Exportação JSON versionada, validação de formato/versão/registros, resumo antes de restaurar, confirmação explícita, substituição atômica dos quatro stores e recarga do estado da interface | _a preencher após o commit_ | 2026-11-01 |
 
 ---
 
@@ -307,18 +309,19 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-012 — Intervalo manual:** no feedback de um acerto, o estudante pode manter o automático ou escolher 10 min, 1 h, 1, 3, 7, 14 ou 30 dias. A alteração é persistida em `progress` com `manualSchedule`, sem reduzir o nível conquistado; voltar ao automático restaura o intervalo automático original e remove a marcação manual.
 - **REQ-013 — Fila de revisões:** a rota `#/revisoes` agrupa por prova, mostra contadores de vencidas e futuras, lista as próximas questões e prioriza as atrasadas ao montar a sessão. O item "Revisões" na navegação exibe um selo com o total vencido, e o dashboard alerta quando há revisões atrasadas.
 - **REQ-014 — XP e níveis:** `js/gamification.js` centraliza as regras: 2 XP por participação no erro; 10 XP + bônus de dificuldade (2/4/6) no acerto; bônus de sessão de 25 XP + até 25 por aproveitamento + 25 se todas corretas. O XP e os contadores são gravados na mesma transação da resposta; a premiação de sessão é paga uma única vez por `sessionId`, inclusive após recarregar. O dashboard exibe nível, título, XP acumulado, barra para o próximo nível, questões respondidas, precisão e sessões concluídas.
-- **REQ-015 — Conquistas:** dez conquistas reais baseadas em primeira resposta, primeiro acerto, 10/50/100 questões, 1/5 sessões, sessão perfeita e níveis 3/5. Cada uma tem recompensa própria de XP, data de desbloqueio e é paga uma única vez. O desbloqueio é resolvido na mesma transação da resposta ou da sessão, pode encadear conquistas (por exemplo, XP de uma conquista que sobe de nível) e é anunciado por toast. O dashboard mostra quantas foram desbloqueadas e as três mais recentes.
+- **REQ-015 — Conquistas:** treze conquistas reais baseadas em primeira resposta, primeiro acerto, 10/50/100 questões, 1/5 sessões, sessão perfeita e níveis 3/5. Cada uma tem recompensa própria de XP, data de desbloqueio e é paga uma única vez. O desbloqueio é resolvido na mesma transação da resposta ou da sessão, pode encadear conquistas (por exemplo, XP de uma conquista que sobe de nível) e é anunciado por toast. O dashboard mostra quantas foram desbloqueadas e as três mais recentes.
 - **REQ-016 — Meta e sequência:** `gamification.js` calcula a meta diária a partir de `settings.dailyGoal` e de `stats.daily`, com questões respondidas, percentual, restante e conclusão. A sequência atual continua válida no dia seguinte ao último estudo e quebra somente após um dia inteiro sem respostas; o recorde histórico é recalculado e persistido. O dashboard mostra meta, barra, sequência atual, recorde e se já houve estudo no dia. Três novas conquistas cobrem meta batida e sequências de 3 e 7 dias.
 - **REQ-017 — Estatísticas:** a rota `#/progresso`, acessível pela navegação inferior, reúne quatro totais (respondidas, acertos, precisão e sessões), o card de nível, o card de meta/sequência, o ranking local, as 13 conquistas em grade (desbloqueadas primeiro) e as 10 tentativas mais recentes com marcada, gabarito, assunto, data e indicação de revisão. Os dados vêm do IndexedDB; cada bloco tem estado vazio e o layout passa a duas colunas no mobile, mantendo os alvos de toque.
 - **REQ-018 — Ranking local:** `js/ranking.js` calcula o limite inferior de confiança de 95% (Wilson) para cada prova e disciplina, ordenando por esse índice, depois por volume, precisão e título. A tela de progresso mostra duas listas (disciplinas e provas) com posição, questões respondidas, precisão e índice; só entram itens com pelo menos uma resposta, o pódio recebe destaque e a interface explica que o ranking é apenas deste dispositivo. Nenhum estudante ou placar fictício é criado.
 - **REQ-019 — Configurações de estudo:** o ícone de engrenagem no topo abre `#/config`. O formulário ajusta questões por sessão, meta diária, ordem das questões, ativação da repetição espaçada e os cinco intervalos automáticos em dias. Os valores são validados (faixas, inteiros e intervalos crescentes), normalizados, aplicados em memória e gravados em `meta/settings`; a próxima sessão já usa tamanho/ordem e a próxima resposta usa meta e SRS atualizados. O histórico existente não é reescrito.
 - **REQ-020 — Preferências de interface:** a seção Aparência de `#/config` oferece tema do sistema/escuro/claro, controle deslizante de fonte (14–22 px, com valor exibido) e chave de animações. Ao salvar, as preferências são persistidas junto às demais, o tema é resolvido (`data-theme`), as animações são reduzidas (`data-animations="off"`), a variável `--font-size` e o `theme-color` são atualizados sem recarregar. Quando o tema é “sistema”, uma mudança na preferência do dispositivo reaplica a aparência.
+- **REQ-021 — Exportação e importação:** a seção Dados de `#/config` gera um arquivo `xlearn-backup-AAAA-MM-DD.json` com configurações, XP, conquistas, progresso, sessões e tentativas. A importação lê o arquivo, limita o tamanho a 25 MB, exige JSON válido e envelope `xlearn-backup` na versão 1, valida todas as listas e chaves antes de escrever e mostra um resumo (tentativas, sessões, questões com progresso, configurações e gamificação). Só após “Substituir dados” os quatro stores são trocados em uma única transação; cancelar ou usar um arquivo inválido mantém os dados atuais. Ao concluir, o app recarrega configurações, aparência, sessão ativa e progresso e volta ao início.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-020. Prioridade imediata: exportação e importação de dados (REQ-021).
+Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-021. Prioridade imediata: gerenciamento de dados (REQ-022).
 
 Dependências principais:
 
@@ -371,6 +374,7 @@ Dependências principais:
 - Meta e sequência testadas com datas controladas: dia sem estudo, primeiro dia, três dias consecutivos, sequência de ontem ainda válida, quebra por intervalo, recorde histórico, meta atingida e percentual. Integração com meta configurada em 1 questão confirmou registro diário, sequência persistida, conquista da meta e card "1/1" no dashboard.
 - Estatísticas testadas com DOM simulado e IndexedDB em memória: estado vazio da rota `#/progresso` com avisos explícitos, item ativo na navegação, duas respostas (uma correta e uma errada) refletidas em 2 respondidas/1 acerto/50%, ranking de disciplinas e provas, duas tentativas com a mais recente primeiro, marcada e gabarito exibidos, 13 conquistas na grade e duas desbloqueadas. Os cinco testes anteriores foram reexecutados após a mudança e continuaram passando.
 - Ranking verificado com testes puros: zero respostas/zero acertos, uma resposta isolada e cinco acertos não superam 80/100, mais evidência eleva o índice, itens sem respostas excluídos, ordenação por prova, agregação de disciplina e posições sequenciais. Integração com DOM e IndexedDB confirmou estado vazio, duas listas, uma prova e uma disciplina reais, precisão de 50%, posição e índice exibidos, além do aviso de ranking local.
+- Exportação e importação testadas com funções puras e integração com DOM/IndexedDB: envelope identificado/versionado, resumo calculado, rejeição de formato desconhecido, versão incompatível, store ausente e chaves duplicadas; exportação real com tentativa e gamificação; botões na tela; arquivo baixado com nome e conteúdo íntegros; importação inválida sem alterar dados; confirmação com resumo; cancelamento preservando os dados; restauração substituindo tentativas/progresso e retorno ao início. A suíte de configurações e aparência foi reexecutada sem regressões.
 - Configurações testadas com normalização pura e integração com DOM/IndexedDB: atalho no topo, formulário com padrões, persistência de tamanho 5/meta 3/ordem sequencial/SRS desativado/intervalos 2-4-6-8-10, aplicação em memória, dashboard atualizado, nova sessão com 5 primeiras questões do material e resposta sem vencimento de revisão. Intervalos fora de ordem foram rejeitados sem alterar o que estava salvo.
 - Aparência testada na mesma integração: fonte 20 px refletida no controle, tema claro aplicado com `data-theme`, animações desligadas com `data-animations="off"`, `--font-size` em 20 px, `theme-color` claro, persistência no IndexedDB e retorno ao tema do sistema resolvido para escuro no ambiente de teste, com `theme-color` escuro.
 
@@ -391,6 +395,6 @@ Dependências principais:
 
 ## L. Próxima tarefa recomendada
 
-**REQ-021 — exportação e importação.**
+**REQ-022 — gerenciamento de dados.**
 
-Motivo: o modelo de dados já está estável em `meta`, `progress`, `sessions` e `attempts`, e o backup precisa preservar configurações, XP, conquistas, histórico e agendamentos. A próxima entrega deve exportar um JSON identificado e versionado, validar estrutura/versão antes de importar, pedir confirmação explícita, restaurar os stores de forma consistente e informar o resultado sem deixar dados parcialmente sobrescritos. A limpeza de cache e a exclusão de progresso ficam para REQ-022.
+Motivo: exportar/importar já está disponível, mas o estudante ainda não consegue limpar o cache sem perder progresso nem excluir o progresso de forma separada. A próxima entrega deve oferecer duas ações distintas e explícitas em `#/config`: limpar apenas caches do app (Cache API/service worker, sem tocar em `meta`, `progress`, `sessions` e `attempts`) e apagar o progresso local (com confirmação, preservando ou recriando as configurações conforme a decisão registrada). Ambas devem informar o resultado e deixar claro o que foi mantido.

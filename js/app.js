@@ -12,11 +12,13 @@ import { getSettings, applyVisualSettings, normalizeSettings, setSettings, MANUA
 import {
   applyReviewSchedule,
   awardSessionCompletion,
+  exportDatabase,
   getActiveSession,
   getGamification,
   getProgressSummary,
   getSettingsRecord,
   getStats,
+  importDatabase,
   listAttempts,
   recordAnswer,
   saveSession,
@@ -37,6 +39,7 @@ import {
   manualSchedule,
 } from "./srs.js";
 import { buildRanking, RANKING_DISCLOSURE } from "./ranking.js";
+import { createBackup, validateBackup } from "./backup.js";
 
 const app = document.getElementById("app");
 
@@ -52,6 +55,7 @@ const state = {
   gamification: createGamification(),
   stats: { answered: 0, correct: 0, daily: {}, byMaterial: {} },
   recentAttempts: [],
+  pendingImport: null,
   lastAnswerSave: null,
   scheduling: null,
   storageWarned: false,
@@ -77,6 +81,8 @@ const ICONS = {
   chart: '<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
   award: '<circle cx="12" cy="8" r="5"/><path d="M8.5 12.5 7 21l5-3 5 3-1.5-8.5"/>',
   trophy: '<path d="M8 4h8v4a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 3"/><path d="M16 6h3a3 3 0 0 1-3 3"/><path d="M12 12v4"/><path d="M9 20h6"/><path d="M10 16h4l1 4H9z"/>',
+  download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
+  upload: '<path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/>',
   lock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
 };
@@ -1198,6 +1204,102 @@ function renderSettings() {
     ),
 
     h(
+      "section",
+      { class: "card", "aria-labelledby": "data-settings-title" },
+      h(
+        "div",
+        { class: "section-head" },
+        h(
+          "div",
+          {},
+          h("span", { class: "eyebrow" }, icon("layers"), "Dados"),
+          h("h2", { id: "data-settings-title", text: "Backup e restauração" })
+        ),
+        h("span", { class: "chip chip--neutral", text: "JSON versionado" })
+      ),
+      h("p", {
+        class: "hint",
+        text: "O backup inclui configurações, estatísticas, XP, conquistas, progresso das questões, sessões e tentativas deste dispositivo.",
+      }),
+      h(
+        "div",
+        { class: "data-actions" },
+        h(
+          "button",
+          { class: "btn btn--ghost", type: "button", "data-role": "export-button", onclick: exportCurrentData },
+          icon("download"),
+          "Exportar backup"
+        ),
+        h(
+          "button",
+          {
+            class: "btn btn--ghost",
+            type: "button",
+            "data-role": "import-button",
+            onclick: () => form.querySelector('[data-role="import-file"]')?.click(),
+          },
+          icon("upload"),
+          "Importar backup"
+        ),
+        h("input", {
+          type: "file",
+          accept: ".json,application/json",
+          hidden: true,
+          "data-role": "import-file",
+          onchange: handleBackupFileChange,
+        })
+      ),
+      h("p", { class: "hint", text: "A importação substitui todos os dados atuais depois da confirmação. Arquivos inválidos são rejeitados sem alterar nada." }),
+      state.pendingImport
+        ? h(
+            "div",
+            { class: "import-confirm", role: "region", "aria-labelledby": "import-confirm-title" },
+            h("h3", { id: "import-confirm-title", tabindex: "-1", text: "Confirmar restauração" }),
+            h("p", {
+              text: `Arquivo: ${state.pendingImport.fileName}. O backup substituirá os dados atuais deste dispositivo.`,
+            }),
+            h(
+              "ul",
+              { class: "import-summary" },
+              h("li", { text: plural(state.pendingImport.summary.attempts, "tentativa registrada", "tentativas registradas") }),
+              h("li", { text: plural(state.pendingImport.summary.sessions, "sessão salva", "sessões salvas") }),
+              h("li", {
+                text: plural(state.pendingImport.summary.progress, "questão com progresso", "questões com progresso"),
+              }),
+              h("li", {
+                text: `${state.pendingImport.summary.hasSettings ? "Configurações incluídas" : "Sem configurações"} · ${
+                  state.pendingImport.summary.hasGamification ? "gamificação incluída" : "sem gamificação"
+                }`,
+              })
+            ),
+            h(
+              "div",
+              { class: "settings-actions" },
+              h(
+                "button",
+                { class: "btn btn--primary", type: "button", "data-role": "confirm-import", onclick: confirmPendingImport },
+                icon("upload"),
+                "Substituir dados"
+              ),
+              h(
+                "button",
+                {
+                  class: "btn btn--ghost",
+                  type: "button",
+                  "data-role": "cancel-import",
+                  onclick: () => {
+                    state.pendingImport = null;
+                    render();
+                  },
+                },
+                "Cancelar"
+              )
+            )
+          )
+        : null
+    ),
+
+    h(
       "div",
       { class: "settings-actions" },
       h("button", { class: "btn btn--primary", type: "submit" }, icon("check"), "Salvar configurações"),
@@ -1306,6 +1408,87 @@ function syncSettingsForm(form, settings) {
     const field = form.elements[`srsInterval${index + 1}`];
     if (field) field.value = String(days);
   });
+}
+
+async function exportCurrentData() {
+  try {
+    const data = await exportDatabase();
+    const backup = createBackup(data);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = h("a", {
+      href: url,
+      download: `xlearn-backup-${new Date().toISOString().slice(0, 10)}.json`,
+    });
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+    toast(
+      `Backup gerado: ${plural(backup.summary.attempts, "tentativa", "tentativas")}, ${plural(
+        backup.summary.sessions,
+        "sessão",
+        "sessões"
+      )} e ${plural(backup.summary.progress, "questão com progresso", "questões com progresso")}.`,
+      "success"
+    );
+  } catch (error) {
+    toast(error.message || "Não foi possível exportar os dados locais.", "error");
+  }
+}
+
+async function handleBackupFileChange(event) {
+  const input = event.currentTarget;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  if (file.size > 25 * 1024 * 1024) {
+    toast("O arquivo é muito grande para um backup do XLearn (limite de 25 MB).", "error");
+    return;
+  }
+  try {
+    const text = await file.text();
+    let raw;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      throw new Error("O arquivo selecionado não contém JSON válido.");
+    }
+    const validation = validateBackup(raw);
+    if (!validation.ok) throw new Error(validation.error);
+    state.pendingImport = {
+      backup: validation.backup,
+      summary: validation.summary,
+      fileName: file.name || "backup.json",
+    };
+    render({ focus: true });
+    requestAnimationFrame(() => document.getElementById("import-confirm-title")?.focus());
+  } catch (error) {
+    toast(error.message || "Não foi possível ler o backup.", "error");
+  }
+}
+
+async function confirmPendingImport() {
+  const pending = state.pendingImport;
+  if (!pending) return;
+  state.pendingImport = null;
+  showLoadingOverlay("Restaurando backup…");
+  try {
+    await importDatabase(pending.backup.data);
+    state.session = null;
+    state.sessionMaterial = null;
+    await loadPersistedSettings();
+    applyVisualSettings(getSettings());
+    await restoreActiveSession();
+    await refreshProgress();
+    toast("Backup restaurado neste dispositivo.", "success");
+    navigate("inicio");
+  } catch (error) {
+    toast(error.message || "Não foi possível restaurar o backup.", "error");
+  } finally {
+    hideLoadingOverlay();
+    render();
+  }
 }
 
 function renderRankingList(items, label) {

@@ -87,6 +87,77 @@ async function readAll(storeName) {
   return requestToPromise(tx.objectStore(storeName).getAll());
 }
 
+const BACKUP_STORES = ["meta", "progress", "sessions", "attempts"];
+const BACKUP_KEY_FIELDS = { meta: "key", progress: "key", sessions: "id", attempts: "key" };
+
+/** Lê os quatro stores em uma única transação para um backup consistente. */
+export async function exportDatabase() {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BACKUP_STORES, "readonly");
+    const data = { meta: [], progress: [], sessions: [], attempts: [] };
+    for (const store of BACKUP_STORES) {
+      const request = tx.objectStore(store).getAll();
+      request.onsuccess = () => {
+        data[store] = request.result || [];
+      };
+      request.onerror = () => reject(request.error || new Error("Falha ao ler os dados locais."));
+    }
+    tx.oncomplete = () => resolve(data);
+    tx.onerror = () => reject(tx.error || new Error("Falha ao exportar os dados locais."));
+    tx.onabort = () => reject(tx.error || new Error("Exportação cancelada."));
+  });
+}
+
+/**
+ * Substitui os quatro stores em uma única transação. A validação prévia evita
+ * arquivos sem chave; se uma escrita falhar, o IndexedDB desfaz tudo.
+ */
+export async function importDatabase(data) {
+  if (!data || typeof data !== "object") {
+    throw new Error("Dados de importação ausentes.");
+  }
+  const clean = {};
+  for (const store of BACKUP_STORES) {
+    const records = data[store];
+    if (!Array.isArray(records)) {
+      throw new Error(`O backup não contém a lista "${store}".`);
+    }
+    const keyField = BACKUP_KEY_FIELDS[store];
+    for (const record of records) {
+      if (!record || typeof record !== "object" || typeof record[keyField] !== "string") {
+        throw new Error(`Registro inválido em "${store}".`);
+      }
+    }
+    clean[store] = records;
+  }
+
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BACKUP_STORES, "readwrite");
+    try {
+      for (const store of BACKUP_STORES) {
+        const target = tx.objectStore(store);
+        target.clear();
+        for (const record of clean[store]) target.put(record);
+      }
+    } catch (error) {
+      tx.abort();
+      reject(error);
+      return;
+    }
+    tx.oncomplete = () =>
+      resolve({
+        meta: clean.meta.length,
+        progress: clean.progress.length,
+        sessions: clean.sessions.length,
+        attempts: clean.attempts.length,
+      });
+    tx.onerror = () => reject(tx.error || new Error("Falha ao restaurar o backup."));
+    tx.onabort = () => reject(tx.error || new Error("Restauração cancelada."));
+  });
+}
+
 /** Lê um valor do store meta. */
 export async function getMeta(key) {
   const record = await readStore("meta", key);

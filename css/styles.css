@@ -770,6 +770,40 @@ button:disabled {
   gap: 10px;
 }
 
+.data-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.import-confirm {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.import-confirm h3 {
+  font-size: 0.95rem;
+}
+
+.import-confirm p {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.import-summary {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 14px;
+  padding-left: 20px;
+  color: var(--text-soft);
+  font-size: 0.79rem;
+}
+
 /* Statistics / history ---------------------------------------------------- */
 
 .summary-stats--four {
