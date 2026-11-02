@@ -293,7 +293,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.12.0 | REQ-020 | Tema claro/escuro/sistema, tamanho do texto de 14–22 px, animações configuráveis, aplicação imediata, `theme-color` sincronizado e observação da preferência do sistema | `8736881` + `8215f0b` | 2026-11-01 |
 | 0.13.0 | REQ-021 | Exportação JSON versionada, validação de formato/versão/registros, resumo antes de restaurar, confirmação explícita, substituição atômica dos quatro stores e recarga do estado da interface | `a3956c1` | 2026-11-01 |
 | 0.14.0 | REQ-022 | Limpeza seletiva dos caches do app sem tocar no IndexedDB e exclusão separada de progresso/sessões/tentativas/estatísticas/gamificação com confirmação e preservação das configurações | `fc093ef` | 2026-11-01 |
-| 0.15.0 | REQ-023 | Manifesto web instalável com escopo relativo, ícones PNG 192/512, maskable com margem segura, Apple Touch opaco, geração sem dependências e vínculo no HTML | _a preencher após o commit_ | 2026-11-01 |
+| 0.15.0 | REQ-023 | Manifesto web instalável com escopo relativo, ícones PNG 192/512, maskable com margem segura, Apple Touch opaco, geração sem dependências e vínculo no HTML | `3bdbd60` | 2026-11-01 |
 
 ---
 
