@@ -88,6 +88,7 @@ const ICONS = {
   upload: '<path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/>',
   trash: '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/>',
   lock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+  wifiOff: '<path d="M2 2l20 20"/><path d="M8.5 8.5A10 10 0 0 1 21 9"/><path d="M5 12.5a10 10 0 0 1 4-2.4"/><path d="M8.5 16a5 5 0 0 1 6-1"/><path d="M12 20h.01"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
 };
 
@@ -232,6 +233,19 @@ function buildShell() {
         { class: "topbar__actions" },
         h(
           "span",
+          {
+            class: "connection-status",
+            "data-role": "connection-status",
+            "data-state": "online",
+            role: "status",
+            "aria-live": "polite",
+            "aria-label": "Conectado à internet",
+          },
+          h("span", { class: "dot", "aria-hidden": "true" }),
+          h("span", { "data-role": "connection-label", text: "Online" })
+        ),
+        h(
+          "span",
           { class: "topbar__badge", "data-role": "topbar-badge" },
           h("span", { class: "dot", "aria-hidden": "true" }),
           h("span", { text: "Estudo local" })
@@ -251,10 +265,51 @@ function buildShell() {
     )
   );
 
+  const offlineBanner = h(
+    "div",
+    {
+      class: "offline-banner",
+      "data-role": "offline-banner",
+      role: "status",
+      "aria-live": "polite",
+      hidden: true,
+    },
+    h(
+      "div",
+      { class: "offline-banner__inner" },
+      icon("wifiOff"),
+      h(
+        "p",
+        {},
+        h("strong", { text: "Você está offline. " }),
+        "Respostas e dados salvos continuam funcionando; materiais ainda não acessados podem não carregar."
+      )
+    )
+  );
   const main = h("main", { class: "view", id: "main", tabindex: "-1" });
   const nav = h("nav", { class: "bottom-nav", "aria-label": "Navegação principal" });
 
-  app.replaceChildren(h("div", { class: "app-shell" }, topbar, main, nav));
+  app.replaceChildren(h("div", { class: "app-shell" }, topbar, offlineBanner, main, nav));
+}
+
+function isOnline() {
+  return typeof navigator === "undefined" || navigator.onLine !== false;
+}
+
+function updateConnectionStatus({ announce = false } = {}) {
+  const online = isOnline();
+  const status = document.querySelector('[data-role="connection-status"]');
+  if (status) {
+    status.dataset.state = online ? "online" : "offline";
+    status.setAttribute("aria-label", online ? "Conectado à internet" : "Sem conexão com a internet");
+    const label = status.querySelector('[data-role="connection-label"]');
+    if (label) label.textContent = online ? "Online" : "Offline";
+  }
+  const banner = document.querySelector('[data-role="offline-banner"]');
+  if (banner) banner.hidden = online;
+  if (announce && online) {
+    toast("Conexão restaurada. Seus dados continuam salvos neste dispositivo.", "success");
+  }
 }
 
 function updateNav() {
@@ -434,6 +489,12 @@ async function initialize() {
 
 function boot() {
   buildShell();
+  updateConnectionStatus();
+  window.addEventListener("offline", () => updateConnectionStatus());
+  window.addEventListener("online", () => updateConnectionStatus({ announce: true }));
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) updateConnectionStatus();
+  });
   state.route = currentRoute();
   window.addEventListener("hashchange", () => {
     state.route = currentRoute();

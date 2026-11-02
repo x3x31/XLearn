@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.16.0` |
+| **Versão atual** | `0.17.0` |
 | **Data da última atualização** | 2026-11-01 |
 
 ---
@@ -95,7 +95,7 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 |---|---|---|---|---|
 | REQ-023 | Manifesto PWA | Manifesto, ícones e instalação em Android. | Alta | IMPLEMENTADO |
 | REQ-024 | Service worker e cache | Cache do app shell, manifesto e materiais acessados; atualização controlada. | Alta | IMPLEMENTADO |
-| REQ-025 | Indicador de conexão | Avisar estado online/offline e contingência. | Média | PENDENTE |
+| REQ-025 | Indicador de conexão | Avisar estado online/offline e contingência. | Média | IMPLEMENTADO |
 
 ### Fase 7 — Qualidade
 
@@ -137,17 +137,18 @@ XLearn/
 └── .git/
 ```
 
-Arquitetura atual (após REQ-024):
+Arquitetura atual (após REQ-025):
 
 ```
 XLearn/
 ├── index.html                # IMPLEMENTADO: shell da SPA e fallback noscript
 ├── manifest.webmanifest      # IMPLEMENTADO: nome, cores, escopo e ícones de instalação
+├── .nojekyll                 # IMPLEMENTADO: evita conversão Jekyll dos .md no GitHub Pages
 ├── service-worker.js         # IMPLEMENTADO: app shell, runtime e atualização versionada
 ├── package.json              # scripts de desenvolvimento; sem dependências de execução
 ├── css/styles.css            # IMPLEMENTADO: temas, layout e componentes
 ├── js/
-│   ├── app.js                # IMPLEMENTADO: rotas, estado de UI, dashboard, quiz, resumo, revisões, estatísticas, ranking, configurações, backup e limpeza
+│   ├── app.js                # IMPLEMENTADO: rotas, estado de UI, dashboard, quiz, resumo, revisões, estatísticas, ranking, configurações, backup, limpeza, PWA e conexão
 │   ├── db.js                 # IMPLEMENTADO: IndexedDB, progresso, sessões, tentativas, estatísticas, reagendamento, backup e exclusão
 │   ├── parser.js             # IMPLEMENTADO: frontmatter + JSON + normalização (puro)
 │   ├── questions.js          # IMPLEMENTADO: manifesto, fetch e cache em memória
@@ -268,7 +269,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Backup | `js/backup.js` (puro) cria um envelope `xlearn-backup` versão 1 com `app`, `schemaVersion`, `exportedAt`, resumo e os quatro stores. `validateBackup` confere formato, versão, presença das listas, objeto de cada registro e chaves únicas antes de qualquer escrita. `exportDatabase` lê os quatro stores em uma transação; `importDatabase` valida de novo e substitui todos em uma única transação `readwrite`. | Formato identificável e versionado, com restauração atômica e rejeição de arquivos inválidos sem tocar nos dados existentes. |
 | Limpeza de dados | `js/storage.js` (puro) remove somente caches cujo nome é `xlearn`, começa com `xlearn-` ou `xlearn:`; sem Cache API, retorna `supported: false`. `clearProgressData` limpa `progress`, `sessions` e `attempts` e apaga `stats`/`gamification` de `meta` na mesma transação, preservando `meta/settings`. As duas ações ficam em cartão próprio de `#/config`, com confirmação inline para a exclusão. | Separa cache de progresso de forma explícita, não interfere em outros apps do mesmo domínio e reinicia XP/estatísticas junto com as respostas para não deixar totais incoerentes. |
 | PWA instalável | `manifest.webmanifest` na raiz declara nome, `lang`, `start_url`/`scope` relativos (`./`), `display: standalone`, cores e três ícones PNG (192, 512 any e 512 maskable), além de Apple Touch 180. `scripts/build-icons.mjs` gera os PNGs sem dependências, com rasterização 4x e margem de segurança no maskable. `index.html` vincula manifesto, ícone Apple e metas móveis. | Instalação em navegadores compatíveis, ícones nítidos e caminhos que funcionam tanto na raiz quanto em subdiretório do GitHub Pages. |
-| Offline | `service-worker.js` usa caches versionadas `xlearn-shell-v1`/`xlearn-runtime-v1`. No install, pré-cacheia o app shell e `questoes/manifest.json`; no activate, remove versões antigas com prefixo `xlearn-` e assume as páginas. Navegação usa rede primeiro com fallback do `index.html`; manifesto/materiais usam rede primeiro com cache de runtime; demais estáticos usam cache primeiro. O app registra o worker em `document.baseURI` com escopo `./` e avisa quando uma nova versão está instalada, sem recarregar à força. | Funciona em subdiretório, mantém o shell consistente por versão, preserva o progresso em IndexedDB e permite atualizar sem interromper uma questão em andamento. Os nomes de cache continuam compatíveis com a limpeza manual. |
+| Offline | `service-worker.js` usa caches versionadas no formato `xlearn-shell-vN`/`xlearn-runtime-vN`. No install, pré-cacheia o app shell e `questoes/manifest.json`; no activate, remove versões antigas com prefixo `xlearn-` e assume as páginas. Navegação usa rede primeiro com fallback do `index.html`; manifesto/materiais usam rede primeiro com cache de runtime; demais estáticos usam cache primeiro. O app registra o worker em `document.baseURI` com escopo `./` e avisa quando uma nova versão está instalada, sem recarregar à força. | Funciona em subdiretório, mantém o shell consistente por versão, preserva o progresso em IndexedDB e permite atualizar sem interromper uma questão em andamento. Os nomes de cache continuam compatíveis com a limpeza manual. |
 | Cache | App shell em cache na instalação; materiais em cache após o primeiro acesso; navegação com fallback para `index.html`. | Compatível com offline e subdiretórios do GitHub Pages. |
 | Versionamento | Um commit funcional por requisito, Conventional Commits, push após cada entrega; hash registrado no commit seguinte. | Rastreabilidade e histórico incremental. |
 | Entrega conjunta REQ-004..007 | Seleção, exibição, embaralhamento e correção entregues juntos. | São inseparáveis para que exista um fluxo utilizável; um commit intermediário sem correção ou sem shuffle seria uma funcionalidade parcial, o que o projeto proíbe. |
@@ -296,6 +297,8 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.14.0 | REQ-022 | Limpeza seletiva dos caches do app sem tocar no IndexedDB e exclusão separada de progresso/sessões/tentativas/estatísticas/gamificação com confirmação e preservação das configurações | `fc093ef` | 2026-11-01 |
 | 0.15.0 | REQ-023 | Manifesto web instalável com escopo relativo, ícones PNG 192/512, maskable com margem segura, Apple Touch opaco, geração sem dependências e vínculo no HTML | `3bdbd60` | 2026-11-01 |
 | 0.16.0 | REQ-024 | Service worker com app shell pré-cacheado, manifesto e materiais acessados em runtime, fallback offline, limpeza de versões antigas, escopo relativo e aviso de atualização sem recarregar forçado | `695046a` | 2026-11-01 |
+| 0.16.1 | — | Correção de publicação: `.nojekyll` impede o Jekyll de converter os materiais Markdown, que respondiam 404 no GitHub Pages | `facf70d` | 2026-11-02 |
+| 0.17.0 | REQ-025 | Indicador online/offline no topo, aviso de contingência com o que continua disponível, anúncio acessível, reconexão com toast e resposta salva localmente enquanto offline | _a preencher após o commit_ | 2026-11-02 |
 
 ---
 
@@ -325,13 +328,14 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-021 — Exportação e importação:** a seção Dados de `#/config` gera um arquivo `xlearn-backup-AAAA-MM-DD.json` com configurações, XP, conquistas, progresso, sessões e tentativas. A importação lê o arquivo, limita o tamanho a 25 MB, exige JSON válido e envelope `xlearn-backup` na versão 1, valida todas as listas e chaves antes de escrever e mostra um resumo (tentativas, sessões, questões com progresso, configurações e gamificação). Só após “Substituir dados” os quatro stores são trocados em uma única transação; cancelar ou usar um arquivo inválido mantém os dados atuais. Ao concluir, o app recarrega configurações, aparência, sessão ativa e progresso e volta ao início.
 - **REQ-022 — Gerenciamento de dados:** o cartão “Armazenamento local” de `#/config` separa duas ações. “Limpar cache do app” remove apenas caches com prefixo `xlearn` (HTML, CSS, JS e questões), informa quando a Cache API não existe ou não há cache e mantém respostas, XP e histórico. “Apagar progresso” abre uma confirmação inline que avisa ser irreversível e lista o que será removido; ao confirmar, apaga `progress`, `sessions`, `attempts`, `stats` e `gamification` em uma transação, preserva `meta/settings`, zera o estado da interface, recarrega o dashboard e volta ao início. Cancelar não altera nada. A próxima resposta recomeça o XP e as estatísticas do zero.
 - **REQ-023 — Base do PWA:** `manifest.webmanifest` identifica o app como “XLearn — aprenda praticando”, em pt-BR, com `start_url` e `scope` em `./`, `display: standalone`, cores `#070b18` e ícones any de 192/512 px mais um maskable de 512 px com o “X” dentro da área segura. `scripts/build-icons.mjs` gera os quatro PNGs (incluindo Apple Touch 180 opaco) sem dependências. O `index.html` aponta para o manifesto e o ícone Apple e declara as metas de instalação móvel; o servidor entrega o manifesto como `application/manifest+json`.
-- **REQ-024 — Service worker e offline:** `service-worker.js` pré-cacheia o app shell e o manifesto na instalação, em cache versionada com prefixo `xlearn`. Navegações tentam a rede e caem para o `index.html` em cache; `questoes/manifest.json` e os arquivos `.md` usam rede primeiro e são guardados após o primeiro acesso; demais estáticos usam cache primeiro. Na ativação, versões antigas do XLearn são removidas e o worker assume as páginas abertas. O app registra o worker com escopo relativo, verifica atualizações e mostra um aviso quando há nova versão instalada, sem recarregar à força nem perder a sessão. A limpeza manual de cache continua encontrando esses nomes.
+- **REQ-024 — Service worker e offline:** `service-worker.js` pré-cacheia o app shell e o manifesto na instalação, em cache versionada com prefixo `xlearn`. Navegações tentam a rede e caem para o `index.html` em cache; `questoes/manifest.json` e os arquivos `.md` usam rede primeiro e são guardados após o primeiro acesso; demais estáticos usam cache primeiro. Na ativação, versões antigas do XLearn são removidas e o worker assume as páginas abertas. O app registra o worker com escopo relativo, verifica atualizações e mostra um aviso quando há nova versão instalada, sem recarregar à força nem perder a sessão. A limpeza manual de cache continua encontrando esses nomes. A versão das caches é incrementada quando o shell muda (atualmente `v2`).
+- **REQ-025 — Indicador de conexão:** o topo mostra “Online” ou “Offline” com `role="status"`, `aria-live="polite"` e rótulo acessível atualizado. Ao ficar offline, uma faixa explica que respostas e dados salvos continuam funcionando e que materiais ainda não acessados podem não carregar. Ao reconectar, a faixa some, o indicador volta a “Online” e um toast confirma que os dados continuam salvos. O estado também é reavaliado quando a página volta a ficar visível.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-024. Prioridade imediata: indicador de conexão e contingência offline (REQ-025).
+Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-025. Prioridade imediata: campanha de acessibilidade e responsividade (REQ-026).
 
 Dependências principais:
 
@@ -384,6 +388,8 @@ Dependências principais:
 - Meta e sequência testadas com datas controladas: dia sem estudo, primeiro dia, três dias consecutivos, sequência de ontem ainda válida, quebra por intervalo, recorde histórico, meta atingida e percentual. Integração com meta configurada em 1 questão confirmou registro diário, sequência persistida, conquista da meta e card "1/1" no dashboard.
 - Estatísticas testadas com DOM simulado e IndexedDB em memória: estado vazio da rota `#/progresso` com avisos explícitos, item ativo na navegação, duas respostas (uma correta e uma errada) refletidas em 2 respondidas/1 acerto/50%, ranking de disciplinas e provas, duas tentativas com a mais recente primeiro, marcada e gabarito exibidos, 13 conquistas na grade e duas desbloqueadas. Os cinco testes anteriores foram reexecutados após a mudança e continuaram passando.
 - Ranking verificado com testes puros: zero respostas/zero acertos, uma resposta isolada e cinco acertos não superam 80/100, mais evidência eleva o índice, itens sem respostas excluídos, ordenação por prova, agregação de disciplina e posições sequenciais. Integração com DOM e IndexedDB confirmou estado vazio, duas listas, uma prova e uma disciplina reais, precisão de 50%, posição e índice exibidos, além do aviso de ranking local.
+- Indicador de conexão testado com DOM simulado e IndexedDB em memória: estado online inicial, atributos de status/aria-live, mudança para offline com faixa de contingência e texto sobre materiais não acessados, resposta salva localmente offline, retorno a online com faixa oculta e toast de reconexão. A suíte do service worker foi reexecutada com a versão de cache `v2`.
+- Publicação no GitHub Pages verificada: sem `.nojekyll`, o Jekyll convertia os `.md` e os dois materiais respondiam 404 em produção; com o arquivo, home, manifesto, os dois materiais, service worker e manifesto PWA respondem 200 no domínio público.
 - Service worker testado em contexto isolado com Cache API e rede simuladas: install pré-cacheou 19 recursos do shell/manifesto e nenhum `.md`; ativação removeu `xlearn-shell-v0` e preservou cache de outro app; navegação offline devolveu o `index.html`; manifesto e material acessados online foram servidos offline; CSS veio do shell; POST e outra origem foram ignorados; recurso ausente respondeu 503; o worker não se auto-cacheia. O registro no app foi testado com DOM simulado: URL e escopo relativos, app carregando normalmente e toast de nova versão sem recarregar.
 - Base PWA verificada com validação estrutural e HTTP: nome/idioma/escopo relativos, `standalone`, cores, ícones 192/512 any e 512 maskable existentes e com dimensões corretas, caminhos relativos, maskable opaco nas bordas, Apple Touch 180 sem transparência, vínculos no `index.html`, manifesto servido como `application/manifest+json` e todos os PNGs servidos como `image/png`. O script de ícones foi executado do zero e regenerou os quatro arquivos.
 - Gerenciamento de dados testado com Cache API simulada e integração real: prefixo `xlearn` removeu três caches e preservou `outra-app`/`xlearninho`; ausência da Cache API retornou `supported: false`; limpar cache pela tela manteve as duas tentativas; confirmação de exclusão exibiu aviso irreversível e lista do conteúdo; cancelar preservou tudo; confirmar apagou tentativas, progresso, sessões, estatísticas e gamificação, manteve a meta configurada em 7, zerou o dashboard, removeu a sessão ativa e voltou ao início. Uma nova resposta após a exclusão recomeçou o XP. As suítes de backup e configurações foram reexecutadas sem regressões.
@@ -408,6 +414,6 @@ Dependências principais:
 
 ## L. Próxima tarefa recomendada
 
-**REQ-025 — indicador de conexão.**
+**REQ-026 — acessibilidade e responsividade.**
 
-Motivo: o app já abre e estuda offline com o que foi acessado, mas não informa claramente quando perdeu a conexão nem o que continua disponível. A próxima entrega deve observar `navigator.onLine` e os eventos `online`/`offline`, exibir um indicador discreto e acessível no shell (sem cobrir a navegação), explicar que dados locais e materiais já acessados continuam funcionando, e atualizar o estado quando a conexão voltar. Não deve inventar sincronização com servidor: o XLearn continua local.
+Motivo: todas as funcionalidades do MVP estão implementadas; falta auditar o conjunto. A próxima entrega deve percorrer as rotas com teclado, verificar foco visível e ordem de tabulação, rótulos/`aria-live`, contraste nos temas claro e escuro, alvos de toque no celular, ausência de rolagem horizontal, leitura em 320 px, respeito a `prefers-reduced-motion` e foco após navegação/feedback. Qualquer correção deve manter o comportamento atual e ser acompanhada de verificação automatizada ou manual documentada.
