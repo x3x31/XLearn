@@ -2606,6 +2606,32 @@ function renderSummary() {
   ];
 }
 
+/* PWA: registro do service worker com escopo relativo -------------------- */
+const SW_URL = new URL("./service-worker.js", document.baseURI);
+
+function registerServiceWorker() {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+  const start = async () => {
+    try {
+      const registration = await navigator.serviceWorker.register(SW_URL, { scope: "./" });
+      registration.addEventListener("updatefound", () => {
+        const worker = registration.installing;
+        if (!worker) return;
+        worker.addEventListener("statechange", () => {
+          if (worker.state === "installed" && navigator.serviceWorker.controller) {
+            toast("Nova versão do XLearn disponível. Atualize a página para aplicar.", "info");
+          }
+        });
+      });
+    } catch (error) {
+      console.warn("Não foi possível registrar o service worker:", error);
+    }
+  };
+  if (document.readyState === "complete") start();
+  else window.addEventListener("load", start, { once: true });
+}
+
 /* Start ------------------------------------------------------------------- */
 
+registerServiceWorker();
 boot();
