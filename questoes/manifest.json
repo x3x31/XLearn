@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "generator": "scripts/build-manifest.mjs",
-  "generatedAt": "2026-11-02T04:48:16.000Z",
+  "generatedAt": "2026-11-02T05:17:34.000Z",
   "summary": {
-    "materials": 3,
-    "validMaterials": 3,
+    "materials": 4,
+    "validMaterials": 4,
     "invalidMaterials": 0,
-    "questions": 250,
+    "questions": 350,
     "errors": 0,
     "warnings": 0
   },
@@ -58,6 +58,23 @@
       "declaredQuestions": 100,
       "sizeBytes": 507370,
       "sha256": "f16e37db348478703f5f858cc2c0cbce030229f4cc97da7c956ddec9977423f7",
+      "valid": true,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "questoes/ESTUDO_ENGENHARIA_DE_SOFTWARE_COMPERVE_100_QUESTOES.md",
+      "file": "ESTUDO_ENGENHARIA_DE_SOFTWARE_COMPERVE_100_QUESTOES.md",
+      "title": "Engenharia de Software — 100 questões no estilo COMPERVE",
+      "materialId": "MAT-ENGSOFT-COMPERVE-001",
+      "bank": "COMPERVE",
+      "subject": "Engenharia de Software",
+      "topic": "Padrões GoF; processos e ciclo de vida; métodos estruturados e orientados a objetos; planejamento; requisitos; análise e projeto; gestão de configuração; testes; qualidade; manutenção; desenvolvimento baseado em componentes; ferramentas CASE; gestão de projetos; Scrum; UML 2.0",
+      "language": "pt-BR",
+      "questionCount": 100,
+      "declaredQuestions": 100,
+      "sizeBytes": 427273,
+      "sha256": "0bc2251e6acb37ed150877527f3a8d1950cb0de8294a2e0c087cd9c9b00d96e4",
       "valid": true,
       "errors": [],
       "warnings": []
