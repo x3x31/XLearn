@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.14.0` |
+| **Versão atual** | `0.15.0` |
 | **Data da última atualização** | 2026-11-01 |
 
 ---
@@ -93,7 +93,7 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 
 | ID | Nome | Descrição | Prioridade | Status |
 |---|---|---|---|---|
-| REQ-023 | Manifesto PWA | Manifesto, ícones e instalação em Android. | Alta | PENDENTE |
+| REQ-023 | Manifesto PWA | Manifesto, ícones e instalação em Android. | Alta | IMPLEMENTADO |
 | REQ-024 | Service worker e cache | Cache do app shell, manifesto e materiais acessados; atualização controlada. | Alta | PENDENTE |
 | REQ-025 | Indicador de conexão | Avisar estado online/offline e contingência. | Média | PENDENTE |
 
@@ -137,12 +137,12 @@ XLearn/
 └── .git/
 ```
 
-Arquitetura atual (após REQ-022):
+Arquitetura atual (após REQ-023):
 
 ```
 XLearn/
 ├── index.html                # IMPLEMENTADO: shell da SPA e fallback noscript
-├── manifest.webmanifest      # (planejado) manifesto PWA
+├── manifest.webmanifest      # IMPLEMENTADO: nome, cores, escopo e ícones de instalação
 ├── service-worker.js         # (planejado) cache e offline
 ├── package.json              # scripts de desenvolvimento; sem dependências de execução
 ├── css/styles.css            # IMPLEMENTADO: temas, layout e componentes
@@ -156,8 +156,9 @@ XLearn/
 │   ├── gamification.js       # IMPLEMENTADO: XP, níveis, conquistas, meta e sequência (puro)
 │   └── ranking.js            # IMPLEMENTADO: ranking local por prova/disciplina com Wilson (puro)
 ├── scripts/
-│   └── build-manifest.mjs    # IMPLEMENTADO: geração e validação do manifesto
-├── icons/                    # (planejado) ícones PWA
+│   ├── build-manifest.mjs    # IMPLEMENTADO: geração e validação do manifesto
+│   └── build-icons.mjs       # IMPLEMENTADO: geração dos PNGs sem dependências
+├── icons/                    # IMPLEMENTADO: PNG 192/512, maskable 512 e Apple Touch 180
 ├── questoes/
 │   ├── manifest.json         # IMPLEMENTADO: gerado, não editar à mão
 │   └── *.md                  # materiais originais preservados
@@ -266,6 +267,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Ranking | `js/ranking.js` (puro) classifica provas e disciplinas pelo limite inferior do intervalo de confiança de 95% (Wilson), combinando precisão e volume; itens sem respostas são omitidos e a interface informa que é local. | Evita que uma única resposta correta lidere e atende ao requisito sem inventar estudantes ou perfis. |
 | Backup | `js/backup.js` (puro) cria um envelope `xlearn-backup` versão 1 com `app`, `schemaVersion`, `exportedAt`, resumo e os quatro stores. `validateBackup` confere formato, versão, presença das listas, objeto de cada registro e chaves únicas antes de qualquer escrita. `exportDatabase` lê os quatro stores em uma transação; `importDatabase` valida de novo e substitui todos em uma única transação `readwrite`. | Formato identificável e versionado, com restauração atômica e rejeição de arquivos inválidos sem tocar nos dados existentes. |
 | Limpeza de dados | `js/storage.js` (puro) remove somente caches cujo nome é `xlearn`, começa com `xlearn-` ou `xlearn:`; sem Cache API, retorna `supported: false`. `clearProgressData` limpa `progress`, `sessions` e `attempts` e apaga `stats`/`gamification` de `meta` na mesma transação, preservando `meta/settings`. As duas ações ficam em cartão próprio de `#/config`, com confirmação inline para a exclusão. | Separa cache de progresso de forma explícita, não interfere em outros apps do mesmo domínio e reinicia XP/estatísticas junto com as respostas para não deixar totais incoerentes. |
+| PWA instalável | `manifest.webmanifest` na raiz declara nome, `lang`, `start_url`/`scope` relativos (`./`), `display: standalone`, cores e três ícones PNG (192, 512 any e 512 maskable), além de Apple Touch 180. `scripts/build-icons.mjs` gera os PNGs sem dependências, com rasterização 4x e margem de segurança no maskable. `index.html` vincula manifesto, ícone Apple e metas móveis. | Instalação em navegadores compatíveis, ícones nítidos e caminhos que funcionam tanto na raiz quanto em subdiretório do GitHub Pages. |
 | Cache | App shell em cache na instalação; materiais em cache após o primeiro acesso; navegação com fallback para `index.html`. | Compatível com offline e subdiretórios do GitHub Pages. |
 | Versionamento | Um commit funcional por requisito, Conventional Commits, push após cada entrega; hash registrado no commit seguinte. | Rastreabilidade e histórico incremental. |
 | Entrega conjunta REQ-004..007 | Seleção, exibição, embaralhamento e correção entregues juntos. | São inseparáveis para que exista um fluxo utilizável; um commit intermediário sem correção ou sem shuffle seria uma funcionalidade parcial, o que o projeto proíbe. |
@@ -291,6 +293,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.12.0 | REQ-020 | Tema claro/escuro/sistema, tamanho do texto de 14–22 px, animações configuráveis, aplicação imediata, `theme-color` sincronizado e observação da preferência do sistema | `8736881` + `8215f0b` | 2026-11-01 |
 | 0.13.0 | REQ-021 | Exportação JSON versionada, validação de formato/versão/registros, resumo antes de restaurar, confirmação explícita, substituição atômica dos quatro stores e recarga do estado da interface | `a3956c1` | 2026-11-01 |
 | 0.14.0 | REQ-022 | Limpeza seletiva dos caches do app sem tocar no IndexedDB e exclusão separada de progresso/sessões/tentativas/estatísticas/gamificação com confirmação e preservação das configurações | `fc093ef` | 2026-11-01 |
+| 0.15.0 | REQ-023 | Manifesto web instalável com escopo relativo, ícones PNG 192/512, maskable com margem segura, Apple Touch opaco, geração sem dependências e vínculo no HTML | _a preencher após o commit_ | 2026-11-01 |
 
 ---
 
@@ -319,12 +322,13 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-020 — Preferências de interface:** a seção Aparência de `#/config` oferece tema do sistema/escuro/claro, controle deslizante de fonte (14–22 px, com valor exibido) e chave de animações. Ao salvar, as preferências são persistidas junto às demais, o tema é resolvido (`data-theme`), as animações são reduzidas (`data-animations="off"`), a variável `--font-size` e o `theme-color` são atualizados sem recarregar. Quando o tema é “sistema”, uma mudança na preferência do dispositivo reaplica a aparência.
 - **REQ-021 — Exportação e importação:** a seção Dados de `#/config` gera um arquivo `xlearn-backup-AAAA-MM-DD.json` com configurações, XP, conquistas, progresso, sessões e tentativas. A importação lê o arquivo, limita o tamanho a 25 MB, exige JSON válido e envelope `xlearn-backup` na versão 1, valida todas as listas e chaves antes de escrever e mostra um resumo (tentativas, sessões, questões com progresso, configurações e gamificação). Só após “Substituir dados” os quatro stores são trocados em uma única transação; cancelar ou usar um arquivo inválido mantém os dados atuais. Ao concluir, o app recarrega configurações, aparência, sessão ativa e progresso e volta ao início.
 - **REQ-022 — Gerenciamento de dados:** o cartão “Armazenamento local” de `#/config` separa duas ações. “Limpar cache do app” remove apenas caches com prefixo `xlearn` (HTML, CSS, JS e questões), informa quando a Cache API não existe ou não há cache e mantém respostas, XP e histórico. “Apagar progresso” abre uma confirmação inline que avisa ser irreversível e lista o que será removido; ao confirmar, apaga `progress`, `sessions`, `attempts`, `stats` e `gamification` em uma transação, preserva `meta/settings`, zera o estado da interface, recarrega o dashboard e volta ao início. Cancelar não altera nada. A próxima resposta recomeça o XP e as estatísticas do zero.
+- **REQ-023 — Base do PWA:** `manifest.webmanifest` identifica o app como “XLearn — aprenda praticando”, em pt-BR, com `start_url` e `scope` em `./`, `display: standalone`, cores `#070b18` e ícones any de 192/512 px mais um maskable de 512 px com o “X” dentro da área segura. `scripts/build-icons.mjs` gera os quatro PNGs (incluindo Apple Touch 180 opaco) sem dependências. O `index.html` aponta para o manifesto e o ícone Apple e declara as metas de instalação móvel; o servidor entrega o manifesto como `application/manifest+json`.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-022. Prioridade imediata: base do PWA com manifesto e ícones (REQ-023).
+Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-023. Prioridade imediata: service worker e funcionamento offline (REQ-024).
 
 Dependências principais:
 
@@ -377,6 +381,7 @@ Dependências principais:
 - Meta e sequência testadas com datas controladas: dia sem estudo, primeiro dia, três dias consecutivos, sequência de ontem ainda válida, quebra por intervalo, recorde histórico, meta atingida e percentual. Integração com meta configurada em 1 questão confirmou registro diário, sequência persistida, conquista da meta e card "1/1" no dashboard.
 - Estatísticas testadas com DOM simulado e IndexedDB em memória: estado vazio da rota `#/progresso` com avisos explícitos, item ativo na navegação, duas respostas (uma correta e uma errada) refletidas em 2 respondidas/1 acerto/50%, ranking de disciplinas e provas, duas tentativas com a mais recente primeiro, marcada e gabarito exibidos, 13 conquistas na grade e duas desbloqueadas. Os cinco testes anteriores foram reexecutados após a mudança e continuaram passando.
 - Ranking verificado com testes puros: zero respostas/zero acertos, uma resposta isolada e cinco acertos não superam 80/100, mais evidência eleva o índice, itens sem respostas excluídos, ordenação por prova, agregação de disciplina e posições sequenciais. Integração com DOM e IndexedDB confirmou estado vazio, duas listas, uma prova e uma disciplina reais, precisão de 50%, posição e índice exibidos, além do aviso de ranking local.
+- Base PWA verificada com validação estrutural e HTTP: nome/idioma/escopo relativos, `standalone`, cores, ícones 192/512 any e 512 maskable existentes e com dimensões corretas, caminhos relativos, maskable opaco nas bordas, Apple Touch 180 sem transparência, vínculos no `index.html`, manifesto servido como `application/manifest+json` e todos os PNGs servidos como `image/png`. O script de ícones foi executado do zero e regenerou os quatro arquivos.
 - Gerenciamento de dados testado com Cache API simulada e integração real: prefixo `xlearn` removeu três caches e preservou `outra-app`/`xlearninho`; ausência da Cache API retornou `supported: false`; limpar cache pela tela manteve as duas tentativas; confirmação de exclusão exibiu aviso irreversível e lista do conteúdo; cancelar preservou tudo; confirmar apagou tentativas, progresso, sessões, estatísticas e gamificação, manteve a meta configurada em 7, zerou o dashboard, removeu a sessão ativa e voltou ao início. Uma nova resposta após a exclusão recomeçou o XP. As suítes de backup e configurações foram reexecutadas sem regressões.
 - Exportação e importação testadas com funções puras e integração com DOM/IndexedDB: envelope identificado/versionado, resumo calculado, rejeição de formato desconhecido, versão incompatível, store ausente e chaves duplicadas; exportação real com tentativa e gamificação; botões na tela; arquivo baixado com nome e conteúdo íntegros; importação inválida sem alterar dados; confirmação com resumo; cancelamento preservando os dados; restauração substituindo tentativas/progresso e retorno ao início. A suíte de configurações e aparência foi reexecutada sem regressões.
 - Configurações testadas com normalização pura e integração com DOM/IndexedDB: atalho no topo, formulário com padrões, persistência de tamanho 5/meta 3/ordem sequencial/SRS desativado/intervalos 2-4-6-8-10, aplicação em memória, dashboard atualizado, nova sessão com 5 primeiras questões do material e resposta sem vencimento de revisão. Intervalos fora de ordem foram rejeitados sem alterar o que estava salvo.
@@ -399,6 +404,6 @@ Dependências principais:
 
 ## L. Próxima tarefa recomendada
 
-**REQ-023 — base do PWA.**
+**REQ-024 — service worker e offline.**
 
-Motivo: o app já funciona como SPA e os dados locais estão sob controle, mas ainda não é instalável nem tem app shell offline. A próxima entrega deve criar `manifest.webmanifest` com nome, cores, `display`, `start_url` e ícones reais (normal e maskable), vinculá-lo em `index.html` e garantir que os caminhos funcionem em subdiretório do GitHub Pages. O service worker e o cache offline ficam para REQ-024; a limpeza já implementada usa o prefixo `xlearn` e continuará válida.
+Motivo: o manifesto e os ícones já permitem instalação, mas o app ainda depende da rede para abrir. A próxima entrega deve registrar um service worker com escopo relativo, pré-cachear o app shell (`index.html`, CSS, módulos JS, manifesto e ícones), aplicar cache-first para estáticos, network-first com fallback de cache para materiais/manifesto e responder navegações com o `index.html` em cache. A limpeza de cache já usa o prefixo `xlearn`, então os nomes dos caches devem segui-lo. A atualização precisa ser segura: uma versão nova assume o controle sem quebrar sessões salvas, e o app deve informar quando estiver pronto para uso offline.

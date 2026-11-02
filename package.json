@@ -5,6 +5,7 @@
   "type": "module",
   "description": "PWA educacional de questões com repetição espaçada e gamificação",
   "scripts": {
+    "build:icons": "node scripts/build-icons.mjs",
     "build:manifest": "node scripts/build-manifest.mjs",
     "check": "node scripts/build-manifest.mjs --check"
   }
