@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "generator": "scripts/build-manifest.mjs",
-  "generatedAt": "2026-11-02T06:05:00Z",
+  "generatedAt": "2026-11-02T07:05:00Z",
   "summary": {
-    "materials": 6,
-    "validMaterials": 6,
+    "materials": 7,
+    "validMaterials": 7,
     "invalidMaterials": 0,
-    "questions": 550,
+    "questions": 650,
     "errors": 0,
-    "warnings": 0
+    "warnings": 1
   },
   "files": [
     {
@@ -112,6 +112,25 @@
       "valid": true,
       "errors": [],
       "warnings": []
+    },
+    {
+      "path": "questoes/ESTUDO_REDES_DE_COMPUTADORES_COMPERVE_100_QUESTOES.md",
+      "file": "ESTUDO_REDES_DE_COMPUTADORES_COMPERVE_100_QUESTOES.md",
+      "title": "Redes de Computadores — 100 questões no estilo COMPERVE",
+      "materialId": "MAT-REDES-COMPERVE-001",
+      "bank": "COMPERVE",
+      "subject": "Redes de Computadores",
+      "topic": "Conceitos básicos, tipos de redes e protocolos de comunicação (HTTP, SSH, IMAP, SMTP, TCP/IP e UDP)",
+      "language": "pt-BR",
+      "questionCount": 100,
+      "declaredQuestions": 100,
+      "sizeBytes": 466402,
+      "sha256": "cf93814c60c759427e0f9bb4f2eb84285a07ba50e9b7f37cc8cc02b129b7fbb9",
+      "valid": true,
+      "errors": [],
+      "warnings": [
+        "As questões originais não foram comparadas com gabaritos oficiais, ausentes do corpus."
+      ]
     }
   ]
 }
