@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.11.0` |
+| **Versão atual** | `0.12.0` |
 | **Data da última atualização** | 2026-11-01 |
 
 ---
@@ -85,7 +85,7 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 | ID | Nome | Descrição | Prioridade | Status |
 |---|---|---|---|---|
 | REQ-019 | Configurações de estudo | Ajustar meta diária, tamanho e ordem da sessão, repetição espaçada e intervalos. | Alta | IMPLEMENTADO |
-| REQ-020 | Preferências de interface | Tema claro/escuro/sistema, tamanho do texto e animações. | Média | PENDENTE |
+| REQ-020 | Preferências de interface | Tema claro/escuro/sistema, tamanho do texto e animações. | Média | IMPLEMENTADO |
 | REQ-021 | Exportação e importação | Exportar JSON, validar backup e restaurar dados com confirmação. | Alta | PENDENTE |
 | REQ-022 | Gerenciamento de dados | Limpar cache sem apagar progresso e excluir progresso separadamente. | Média | PENDENTE |
 
@@ -137,7 +137,7 @@ XLearn/
 └── .git/
 ```
 
-Arquitetura atual (após REQ-019):
+Arquitetura atual (após REQ-020):
 
 ```
 XLearn/
@@ -262,6 +262,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Meta e sequência | Calculadas de `stats.daily` em módulo puro, usando a chave de dia local. A sequência continua válida no dia seguinte ao último estudo e quebra após um dia inteiro sem respostas; o recorde é persistido na gamificação. Meta configurável define o percentual e a conquista diária. | Reflete o uso real no fuso do dispositivo, sem depender de servidor nem inventar dias. |
 | Tela de estatísticas | Rota `#/progresso` lê `getStats`, `getProgressSummary`, `getGamification` e as 10 tentativas mais recentes. Os totais vêm de estatísticas agregadas; o desempenho por disciplina agrupa os materiais pelo campo `subject`; as conquistas são ordenadas por desbloqueio e o histórico mostra marcada, gabarito, assunto, data e se foi revisão. | Uma única tela auditável, sem recalcular regras no DOM nem inventar métricas; o estado vazio é explícito e os dados continuam locais. |
 | Configurações de estudo | Rota `#/config` com formulário único para tamanho da sessão (1–100), meta diária (1–500), ordem das questões (aleatória/sequencial), ativação do SRS e cinco intervalos crescentes em dias (1–365). A validação ocorre antes de gravar; o objeto normalizado é salvo em `meta/settings` e aplicado em memória. | Controles simples e auditáveis, com efeito imediato na próxima sessão/resposta e sem alterar retroativamente o histórico. Intervalos inválidos são rejeitados com mensagem clara. |
+| Aparência | Tema `system`/`dark`/`light`, fonte de 14–22 px e animações ligadas/desligadas no mesmo formulário. Ao salvar, `applyVisualSettings` grava `data-theme`, `data-animations` e `--font-size`, atualiza `theme-color` e a preferência do sistema é observada para reaplicar o tema quando ela mudar. | Aplicação imediata sem recarregar, persistência no mesmo objeto de configurações e respeito à preferência do dispositivo. |
 | Ranking | `js/ranking.js` (puro) classifica provas e disciplinas pelo limite inferior do intervalo de confiança de 95% (Wilson), combinando precisão e volume; itens sem respostas são omitidos e a interface informa que é local. | Evita que uma única resposta correta lidere e atende ao requisito sem inventar estudantes ou perfis. |
 | Cache | App shell em cache na instalação; materiais em cache após o primeiro acesso; navegação com fallback para `index.html`. | Compatível com offline e subdiretórios do GitHub Pages. |
 | Versionamento | Um commit funcional por requisito, Conventional Commits, push após cada entrega; hash registrado no commit seguinte. | Rastreabilidade e histórico incremental. |
@@ -285,6 +286,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.9.0 | REQ-017 | Tela de progresso com totais, precisão, nível, meta/sequência, desempenho por disciplina, grade completa de conquistas, tentativas recentes e estados vazios | `944c71b` | 2026-11-01 |
 | 0.10.0 | REQ-018 | Ranking local por prova e disciplina com índice de Wilson, exclusão de itens sem respostas, destaque do pódio e aviso explícito de que não é global | `ec6f46e` | 2026-11-01 |
 | 0.11.0 | REQ-019 | Tela de configurações de estudo com validação e persistência de tamanho/meta/ordem, ativação do SRS e cinco intervalos crescentes | `b9c3bc3` | 2026-11-01 |
+| 0.12.0 | REQ-020 | Tema claro/escuro/sistema, tamanho do texto de 14–22 px, animações configuráveis, aplicação imediata, `theme-color` sincronizado e observação da preferência do sistema | `8736881` + _a preencher após o commit_ | 2026-11-01 |
 
 ---
 
@@ -310,12 +312,13 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-017 — Estatísticas:** a rota `#/progresso`, acessível pela navegação inferior, reúne quatro totais (respondidas, acertos, precisão e sessões), o card de nível, o card de meta/sequência, o ranking local, as 13 conquistas em grade (desbloqueadas primeiro) e as 10 tentativas mais recentes com marcada, gabarito, assunto, data e indicação de revisão. Os dados vêm do IndexedDB; cada bloco tem estado vazio e o layout passa a duas colunas no mobile, mantendo os alvos de toque.
 - **REQ-018 — Ranking local:** `js/ranking.js` calcula o limite inferior de confiança de 95% (Wilson) para cada prova e disciplina, ordenando por esse índice, depois por volume, precisão e título. A tela de progresso mostra duas listas (disciplinas e provas) com posição, questões respondidas, precisão e índice; só entram itens com pelo menos uma resposta, o pódio recebe destaque e a interface explica que o ranking é apenas deste dispositivo. Nenhum estudante ou placar fictício é criado.
 - **REQ-019 — Configurações de estudo:** o ícone de engrenagem no topo abre `#/config`. O formulário ajusta questões por sessão, meta diária, ordem das questões, ativação da repetição espaçada e os cinco intervalos automáticos em dias. Os valores são validados (faixas, inteiros e intervalos crescentes), normalizados, aplicados em memória e gravados em `meta/settings`; a próxima sessão já usa tamanho/ordem e a próxima resposta usa meta e SRS atualizados. O histórico existente não é reescrito.
+- **REQ-020 — Preferências de interface:** a seção Aparência de `#/config` oferece tema do sistema/escuro/claro, controle deslizante de fonte (14–22 px, com valor exibido) e chave de animações. Ao salvar, as preferências são persistidas junto às demais, o tema é resolvido (`data-theme`), as animações são reduzidas (`data-animations="off"`), a variável `--font-size` e o `theme-color` são atualizados sem recarregar. Quando o tema é “sistema”, uma mudança na preferência do dispositivo reaplica a aparência.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-019. Prioridade imediata: preferências de interface (REQ-020).
+Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-020. Prioridade imediata: exportação e importação de dados (REQ-021).
 
 Dependências principais:
 
@@ -369,6 +372,7 @@ Dependências principais:
 - Estatísticas testadas com DOM simulado e IndexedDB em memória: estado vazio da rota `#/progresso` com avisos explícitos, item ativo na navegação, duas respostas (uma correta e uma errada) refletidas em 2 respondidas/1 acerto/50%, ranking de disciplinas e provas, duas tentativas com a mais recente primeiro, marcada e gabarito exibidos, 13 conquistas na grade e duas desbloqueadas. Os cinco testes anteriores foram reexecutados após a mudança e continuaram passando.
 - Ranking verificado com testes puros: zero respostas/zero acertos, uma resposta isolada e cinco acertos não superam 80/100, mais evidência eleva o índice, itens sem respostas excluídos, ordenação por prova, agregação de disciplina e posições sequenciais. Integração com DOM e IndexedDB confirmou estado vazio, duas listas, uma prova e uma disciplina reais, precisão de 50%, posição e índice exibidos, além do aviso de ranking local.
 - Configurações testadas com normalização pura e integração com DOM/IndexedDB: atalho no topo, formulário com padrões, persistência de tamanho 5/meta 3/ordem sequencial/SRS desativado/intervalos 2-4-6-8-10, aplicação em memória, dashboard atualizado, nova sessão com 5 primeiras questões do material e resposta sem vencimento de revisão. Intervalos fora de ordem foram rejeitados sem alterar o que estava salvo.
+- Aparência testada na mesma integração: fonte 20 px refletida no controle, tema claro aplicado com `data-theme`, animações desligadas com `data-animations="off"`, `--font-size` em 20 px, `theme-color` claro, persistência no IndexedDB e retorno ao tema do sistema resolvido para escuro no ambiente de teste, com `theme-color` escuro.
 
 ### Testes finais pendentes
 
@@ -387,6 +391,6 @@ Dependências principais:
 
 ## L. Próxima tarefa recomendada
 
-**REQ-020 — preferências de interface.**
+**REQ-021 — exportação e importação.**
 
-Motivo: `settings.js` já possui `theme`, `fontSize` e `animations`, e `applyVisualSettings` já aplica tema, tamanho de fonte e redução de animações ao documento. A próxima entrega deve expor esses controles na tela `#/config`, persistir as escolhas e aplicá-las imediatamente, incluindo o tema do sistema e o `theme-color`. Backup, importação e exclusão de dados ficam para REQ-021/022.
+Motivo: o modelo de dados já está estável em `meta`, `progress`, `sessions` e `attempts`, e o backup precisa preservar configurações, XP, conquistas, histórico e agendamentos. A próxima entrega deve exportar um JSON identificado e versionado, validar estrutura/versão antes de importar, pedir confirmação explícita, restaurar os stores de forma consistente e informar o resultado sem deixar dados parcialmente sobrescritos. A limpeza de cache e a exclusão de progresso ficam para REQ-022.

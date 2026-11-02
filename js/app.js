@@ -1173,8 +1173,15 @@ function renderSettings() {
             max: "22",
             step: "1",
             value: String(settings.fontSize),
+            "data-role": "font-size-range",
           }),
-          h("small", { text: `De 14 a 22 px. Atual: ${settings.fontSize} px.` })
+          h(
+            "small",
+            {},
+            "De 14 a 22 px. Atual: ",
+            h("output", { "data-role": "font-size-value", text: `${settings.fontSize} px` }),
+            "."
+          )
         )
       ),
       h(
@@ -1201,6 +1208,10 @@ function renderSettings() {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     await saveSettingsFromForm(form);
+  });
+  form.elements.fontSize?.addEventListener("input", () => {
+    const output = form.querySelector('[data-role="font-size-value"]');
+    if (output) output.textContent = `${form.elements.fontSize.value} px`;
   });
 
   return [
@@ -1288,6 +1299,8 @@ function syncSettingsForm(form, settings) {
   form.elements.srsEnabled.checked = settings.srsEnabled;
   form.elements.theme.value = settings.theme;
   form.elements.fontSize.value = String(settings.fontSize);
+  const fontSizeValue = form.querySelector('[data-role="font-size-value"]');
+  if (fontSizeValue) fontSizeValue.textContent = `${settings.fontSize} px`;
   form.elements.animations.checked = settings.animations;
   settings.srsIntervals.forEach((days, index) => {
     const field = form.elements[`srsInterval${index + 1}`];
