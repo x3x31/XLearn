@@ -16,8 +16,8 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.17.0` |
-| **Data da última atualização** | 2026-11-01 |
+| **Versão atual** | `0.18.0` |
+| **Data da última atualização** | 2026-11-02 |
 
 ---
 
@@ -101,7 +101,7 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 
 | ID | Nome | Descrição | Prioridade | Status |
 |---|---|---|---|---|
-| REQ-026 | Acessibilidade e responsividade | Navegação por teclado, foco, contraste, `aria-live`, alvos de toque e layout adaptativo. | Média | PENDENTE |
+| REQ-026 | Acessibilidade e responsividade | Navegação por teclado, foco, contraste, `aria-live`, alvos de toque e layout adaptativo. | Média | IMPLEMENTADO |
 | REQ-027 | Testes abrangentes finais | Campanha completa ao término das funcionalidades, com correções documentadas. | Alta | PENDENTE |
 | REQ-028 | Documentação de uso | README com execução, inclusão de provas, publicação, instalação e limitações. | Média | PENDENTE |
 
@@ -137,7 +137,7 @@ XLearn/
 └── .git/
 ```
 
-Arquitetura atual (após REQ-025):
+Arquitetura atual (após REQ-026):
 
 ```
 XLearn/
@@ -146,9 +146,9 @@ XLearn/
 ├── .nojekyll                 # IMPLEMENTADO: evita conversão Jekyll dos .md no GitHub Pages
 ├── service-worker.js         # IMPLEMENTADO: app shell, runtime e atualização versionada
 ├── package.json              # scripts de desenvolvimento; sem dependências de execução
-├── css/styles.css            # IMPLEMENTADO: temas, layout e componentes
+├── css/styles.css            # IMPLEMENTADO: temas, layout, componentes e ajustes de acessibilidade
 ├── js/
-│   ├── app.js                # IMPLEMENTADO: rotas, estado de UI, dashboard, quiz, resumo, revisões, estatísticas, ranking, configurações, backup, limpeza, PWA e conexão
+│   ├── app.js                # IMPLEMENTADO: rotas, estado de UI, dashboard, quiz, resumo, revisões, estatísticas, ranking, configurações, backup, limpeza, PWA, conexão e foco acessível
 │   ├── db.js                 # IMPLEMENTADO: IndexedDB, progresso, sessões, tentativas, estatísticas, reagendamento, backup e exclusão
 │   ├── parser.js             # IMPLEMENTADO: frontmatter + JSON + normalização (puro)
 │   ├── questions.js          # IMPLEMENTADO: manifesto, fetch e cache em memória
@@ -299,6 +299,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.16.0 | REQ-024 | Service worker com app shell pré-cacheado, manifesto e materiais acessados em runtime, fallback offline, limpeza de versões antigas, escopo relativo e aviso de atualização sem recarregar forçado | `695046a` | 2026-11-01 |
 | 0.16.1 | — | Correção de publicação: `.nojekyll` impede o Jekyll de converter os materiais Markdown, que respondiam 404 no GitHub Pages | `facf70d` | 2026-11-02 |
 | 0.17.0 | REQ-025 | Indicador online/offline no topo, aviso de contingência com o que continua disponível, anúncio acessível, reconexão com toast e resposta salva localmente enquanto offline | `eeff2aa` | 2026-11-02 |
+| 0.18.0 | REQ-026 | Link de pular desacoplado do roteador, foco após avançar/agendar/cancelar, progresso do quiz como `progressbar`, letras e gabarito anunciados nas alternativas, contraste corrigido nos dois temas, alvos de toque de 44 px e ajuste para 320 px | _a preencher após o commit_ | 2026-11-02 |
 
 ---
 
@@ -328,14 +329,15 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-021 — Exportação e importação:** a seção Dados de `#/config` gera um arquivo `xlearn-backup-AAAA-MM-DD.json` com configurações, XP, conquistas, progresso, sessões e tentativas. A importação lê o arquivo, limita o tamanho a 25 MB, exige JSON válido e envelope `xlearn-backup` na versão 1, valida todas as listas e chaves antes de escrever e mostra um resumo (tentativas, sessões, questões com progresso, configurações e gamificação). Só após “Substituir dados” os quatro stores são trocados em uma única transação; cancelar ou usar um arquivo inválido mantém os dados atuais. Ao concluir, o app recarrega configurações, aparência, sessão ativa e progresso e volta ao início.
 - **REQ-022 — Gerenciamento de dados:** o cartão “Armazenamento local” de `#/config` separa duas ações. “Limpar cache do app” remove apenas caches com prefixo `xlearn` (HTML, CSS, JS e questões), informa quando a Cache API não existe ou não há cache e mantém respostas, XP e histórico. “Apagar progresso” abre uma confirmação inline que avisa ser irreversível e lista o que será removido; ao confirmar, apaga `progress`, `sessions`, `attempts`, `stats` e `gamification` em uma transação, preserva `meta/settings`, zera o estado da interface, recarrega o dashboard e volta ao início. Cancelar não altera nada. A próxima resposta recomeça o XP e as estatísticas do zero.
 - **REQ-023 — Base do PWA:** `manifest.webmanifest` identifica o app como “XLearn — aprenda praticando”, em pt-BR, com `start_url` e `scope` em `./`, `display: standalone`, cores `#070b18` e ícones any de 192/512 px mais um maskable de 512 px com o “X” dentro da área segura. `scripts/build-icons.mjs` gera os quatro PNGs (incluindo Apple Touch 180 opaco) sem dependências. O `index.html` aponta para o manifesto e o ícone Apple e declara as metas de instalação móvel; o servidor entrega o manifesto como `application/manifest+json`.
-- **REQ-024 — Service worker e offline:** `service-worker.js` pré-cacheia o app shell e o manifesto na instalação, em cache versionada com prefixo `xlearn`. Navegações tentam a rede e caem para o `index.html` em cache; `questoes/manifest.json` e os arquivos `.md` usam rede primeiro e são guardados após o primeiro acesso; demais estáticos usam cache primeiro. Na ativação, versões antigas do XLearn são removidas e o worker assume as páginas abertas. O app registra o worker com escopo relativo, verifica atualizações e mostra um aviso quando há nova versão instalada, sem recarregar à força nem perder a sessão. A limpeza manual de cache continua encontrando esses nomes. A versão das caches é incrementada quando o shell muda (atualmente `v2`).
+- **REQ-024 — Service worker e offline:** `service-worker.js` pré-cacheia o app shell e o manifesto na instalação, em cache versionada com prefixo `xlearn`. Navegações tentam a rede e caem para o `index.html` em cache; `questoes/manifest.json` e os arquivos `.md` usam rede primeiro e são guardados após o primeiro acesso; demais estáticos usam cache primeiro. Na ativação, versões antigas do XLearn são removidas e o worker assume as páginas abertas. O app registra o worker com escopo relativo, verifica atualizações e mostra um aviso quando há nova versão instalada, sem recarregar à força nem perder a sessão. A limpeza manual de cache continua encontrando esses nomes. A versão das caches é incrementada quando o shell muda (atualmente `v3`).
 - **REQ-025 — Indicador de conexão:** o topo mostra “Online” ou “Offline” com `role="status"`, `aria-live="polite"` e rótulo acessível atualizado. Ao ficar offline, uma faixa explica que respostas e dados salvos continuam funcionando e que materiais ainda não acessados podem não carregar. Ao reconectar, a faixa some, o indicador volta a “Online” e um toast confirma que os dados continuam salvos. O estado também é reavaliado quando a página volta a ficar visível.
+- **REQ-026 — Acessibilidade e responsividade:** o link “Pular para o conteúdo” move o foco para `main` sem ser interpretado como rota pelo roteador de hash. Ao entrar em uma sessão ou avançar de questão, o foco vai para o enunciado com `tabindex="-1"` e margem de rolagem sob o topo fixo; após confirmar, vai para o feedback; após reagendar, permanece na opção escolhida; cancelar importação ou exclusão devolve o foco ao botão de origem e `Escape` fecha as confirmações inline. O progresso do quiz é um `progressbar` com mínimo, máximo, valor e texto “X de Y questões respondidas”. As alternativas expõem a letra original e, depois da correção, “resposta correta” ou “sua resposta, incorreta” em texto só para leitores de tela. Os contrastes foram recalibrados nos dois temas para pelo menos 4,5:1 em texto normal, incluindo botão primário, selo de revisões, links, chips e aviso amarelo. Ícones de ação, botões compactos, itens da navegação e alternativas têm alvo de toque de pelo menos 44 px; em telas de até 380 px a assinatura da marca é ocultada para não haver rolagem horizontal, e a navegação reduz a tipografia. O anel de foco das seções expansíveis não é mais cortado pelo `overflow`.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-025. Prioridade imediata: campanha de acessibilidade e responsividade (REQ-026).
+Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-026. Prioridade imediata: campanha de testes abrangentes finais (REQ-027).
 
 Dependências principais:
 
@@ -388,8 +390,10 @@ Dependências principais:
 - Meta e sequência testadas com datas controladas: dia sem estudo, primeiro dia, três dias consecutivos, sequência de ontem ainda válida, quebra por intervalo, recorde histórico, meta atingida e percentual. Integração com meta configurada em 1 questão confirmou registro diário, sequência persistida, conquista da meta e card "1/1" no dashboard.
 - Estatísticas testadas com DOM simulado e IndexedDB em memória: estado vazio da rota `#/progresso` com avisos explícitos, item ativo na navegação, duas respostas (uma correta e uma errada) refletidas em 2 respondidas/1 acerto/50%, ranking de disciplinas e provas, duas tentativas com a mais recente primeiro, marcada e gabarito exibidos, 13 conquistas na grade e duas desbloqueadas. Os cinco testes anteriores foram reexecutados após a mudança e continuaram passando.
 - Ranking verificado com testes puros: zero respostas/zero acertos, uma resposta isolada e cinco acertos não superam 80/100, mais evidência eleva o índice, itens sem respostas excluídos, ordenação por prova, agregação de disciplina e posições sequenciais. Integração com DOM e IndexedDB confirmou estado vazio, duas listas, uma prova e uma disciplina reais, precisão de 50%, posição e índice exibidos, além do aviso de ranking local.
-- Indicador de conexão testado com DOM simulado e IndexedDB em memória: estado online inicial, atributos de status/aria-live, mudança para offline com faixa de contingência e texto sobre materiais não acessados, resposta salva localmente offline, retorno a online com faixa oculta e toast de reconexão. A suíte do service worker foi reexecutada com a versão de cache `v2`.
+- Indicador de conexão testado com DOM simulado e IndexedDB em memória: estado online inicial, atributos de status/aria-live, mudança para offline com faixa de contingência e texto sobre materiais não acessados, resposta salva localmente offline, retorno a online com faixa oculta e toast de reconexão. A suíte do service worker foi reexecutada com a versão de cache `v3`.
 - Publicação no GitHub Pages verificada: sem `.nojekyll`, o Jekyll convertia os `.md` e os dois materiais respondiam 404 em produção; com o arquivo, home, manifesto, os dois materiais, service worker e manifesto PWA respondem 200 no domínio público.
+- Acessibilidade testada com DOM simulado: o link de pular manteve a rota `#/config` e focou `main`; o progresso do quiz expôs `role="progressbar"`, máximo real e texto “0 de N”; a alternativa anunciou “Alternativa A”; o feedback recebeu foco após confirmar e informou “resposta correta” e “sua resposta, incorreta”; avançar focou o próximo enunciado; reagendar manteve o foco na opção escolhida; a confirmação de exclusão focou o título, associou a descrição, fechou com `Escape` e devolveu o foco ao botão de origem.
+- Contraste verificado por cálculo sobre as variáveis dos temas escuro e claro: botão primário, selo de revisões, letras de alternativa, links, chips, textos suaves e aviso amarelo ficaram em pelo menos 4,5:1. Alvos de toque de 44 px (ícones e botões compactos), 50 px (navegação) e 58 px (alternativas) foram conferidos, assim como a ocultação da assinatura da marca em até 380 px e a regra de `prefers-reduced-motion`.
 - Service worker testado em contexto isolado com Cache API e rede simuladas: install pré-cacheou 19 recursos do shell/manifesto e nenhum `.md`; ativação removeu `xlearn-shell-v0` e preservou cache de outro app; navegação offline devolveu o `index.html`; manifesto e material acessados online foram servidos offline; CSS veio do shell; POST e outra origem foram ignorados; recurso ausente respondeu 503; o worker não se auto-cacheia. O registro no app foi testado com DOM simulado: URL e escopo relativos, app carregando normalmente e toast de nova versão sem recarregar.
 - Base PWA verificada com validação estrutural e HTTP: nome/idioma/escopo relativos, `standalone`, cores, ícones 192/512 any e 512 maskable existentes e com dimensões corretas, caminhos relativos, maskable opaco nas bordas, Apple Touch 180 sem transparência, vínculos no `index.html`, manifesto servido como `application/manifest+json` e todos os PNGs servidos como `image/png`. O script de ícones foi executado do zero e regenerou os quatro arquivos.
 - Gerenciamento de dados testado com Cache API simulada e integração real: prefixo `xlearn` removeu três caches e preservou `outra-app`/`xlearninho`; ausência da Cache API retornou `supported: false`; limpar cache pela tela manteve as duas tentativas; confirmação de exclusão exibiu aviso irreversível e lista do conteúdo; cancelar preservou tudo; confirmar apagou tentativas, progresso, sessões, estatísticas e gamificação, manteve a meta configurada em 7, zerou o dashboard, removeu a sessão ativa e voltou ao início. Uma nova resposta após a exclusão recomeçou o XP. As suítes de backup e configurações foram reexecutadas sem regressões.
@@ -407,13 +411,13 @@ Dependências principais:
 - Testar cada configuração e seu efeito real.
 - Testar exportação, importação inválida e exclusão de dados.
 - Testar offline, instalação PWA, atualização do service worker e GitHub Pages em subdiretório.
-- Testar responsividade, teclado, leitor de tela e contraste.
+- Repetir a auditoria de responsividade, teclado, leitor de tela e contraste em navegador real na campanha final.
 - Testar arquivo de prova malformado sem interromper os demais.
 
 ---
 
 ## L. Próxima tarefa recomendada
 
-**REQ-026 — acessibilidade e responsividade.**
+**REQ-027 — testes abrangentes finais.**
 
-Motivo: todas as funcionalidades do MVP estão implementadas; falta auditar o conjunto. A próxima entrega deve percorrer as rotas com teclado, verificar foco visível e ordem de tabulação, rótulos/`aria-live`, contraste nos temas claro e escuro, alvos de toque no celular, ausência de rolagem horizontal, leitura em 320 px, respeito a `prefers-reduced-motion` e foco após navegação/feedback. Qualquer correção deve manter o comportamento atual e ser acompanhada de verificação automatizada ou manual documentada.
+Motivo: o MVP e a auditoria de acessibilidade estão concluídos; falta a campanha completa de regressão em navegador real. A próxima entrega deve carregar os dois materiais e validar todas as 150 questões (IDs, quatro alternativas, gabarito e explicações), o embaralhamento determinístico e a correção por identificador em todas elas; repetir persistência/recarga/retomada, SRS automático e manual, fila e priorização; XP, níveis, conquistas, meta, sequência, ranking e estatísticas; cada configuração e seu efeito real; exportação, importação inválida, exclusão e restauração; offline, instalação, atualização do service worker e publicação em subdiretório; e responsividade, teclado, leitor de tela, contraste e material malformado. Correções encontradas devem ser documentadas e entregues antes do README.

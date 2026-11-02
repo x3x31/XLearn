@@ -490,6 +490,23 @@ async function initialize() {
 function boot() {
   buildShell();
   updateConnectionStatus();
+  document.querySelector(".skip-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    const main = document.getElementById("main");
+    if (!main) return;
+    main.focus({ preventScroll: true });
+    main.scrollIntoView?.({ block: "start", behavior: "auto" });
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (state.pendingReset) {
+      event.preventDefault();
+      cancelProgressReset();
+    } else if (state.pendingImport) {
+      event.preventDefault();
+      cancelPendingImport();
+    }
+  });
   window.addEventListener("offline", () => updateConnectionStatus());
   window.addEventListener("online", () => updateConnectionStatus({ announce: true }));
   document.addEventListener("visibilitychange", () => {
@@ -545,7 +562,9 @@ function render({ focus = false } = {}) {
   }
   if (focus) {
     window.scrollTo({ top: 0, behavior: "auto" });
-    main.focus({ preventScroll: true });
+    const target =
+      state.route === "sessao" ? document.getElementById("question-text") : null;
+    (target || main).focus({ preventScroll: true });
   }
 }
 
@@ -1319,8 +1338,14 @@ function renderSettings() {
         ? h(
             "div",
             { class: "import-confirm", role: "region", "aria-labelledby": "import-confirm-title" },
-            h("h3", { id: "import-confirm-title", tabindex: "-1", text: "Confirmar restauração" }),
+            h("h3", {
+              id: "import-confirm-title",
+              tabindex: "-1",
+              "aria-describedby": "import-confirm-desc",
+              text: "Confirmar restauração",
+            }),
             h("p", {
+              id: "import-confirm-desc",
               text: `Arquivo: ${state.pendingImport.fileName}. O backup substituirá os dados atuais deste dispositivo.`,
             }),
             h(
@@ -1352,10 +1377,7 @@ function renderSettings() {
                   class: "btn btn--ghost",
                   type: "button",
                   "data-role": "cancel-import",
-                  onclick: () => {
-                    state.pendingImport = null;
-                    render();
-                  },
+                  onclick: cancelPendingImport,
                 },
                 "Cancelar"
               )
@@ -1415,11 +1437,18 @@ function renderSettings() {
               role: "region",
               "aria-labelledby": "reset-confirm-title",
             },
-            h("h3", { id: "reset-confirm-title", tabindex: "-1", text: "Apagar todo o progresso?" }),
+            h("h3", {
+              id: "reset-confirm-title",
+              tabindex: "-1",
+              "aria-describedby": "reset-confirm-desc reset-confirm-hint",
+              text: "Apagar todo o progresso?",
+            }),
             h("p", {
+              id: "reset-confirm-desc",
               text: "Serão apagados respostas, sessões, tentativas, XP, níveis, conquistas, meta diária e sequência. Esta ação não pode ser desfeita.",
             }),
             h("p", {
+              id: "reset-confirm-hint",
               class: "hint",
               text: "Configurações de estudo e aparência são mantidas. Se quiser guardar o histórico, exporte um backup antes de continuar.",
             }),
@@ -1673,6 +1702,13 @@ function requestProgressReset() {
 function cancelProgressReset() {
   state.pendingReset = false;
   render();
+  requestAnimationFrame(() => document.querySelector('[data-role="reset-progress"]')?.focus());
+}
+
+function cancelPendingImport() {
+  state.pendingImport = null;
+  render();
+  requestAnimationFrame(() => document.querySelector('[data-role="import-button"]')?.focus());
 }
 
 async function confirmProgressReset() {
@@ -2162,6 +2198,9 @@ async function scheduleReview(question, minutes) {
   } finally {
     state.scheduling = null;
     render();
+    requestAnimationFrame(() =>
+      document.querySelector(`[data-schedule-minutes="${minutes}"]`)?.focus()
+    );
   }
 }
 
@@ -2192,7 +2231,10 @@ async function goToNextQuestion() {
   session.updatedAt = new Date().toISOString();
   render();
   persistSession(session);
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: "auto" });
+  requestAnimationFrame(() =>
+    document.getElementById("question-text")?.focus({ preventScroll: true })
+  );
 }
 
 function renderQuiz() {
@@ -2224,7 +2266,8 @@ function renderQuiz() {
 
   const total = session.questionIds.length;
   const answered = session.answers[question.id] || null;
-  const progress = Math.round(((session.index + (answered ? 1 : 0)) / total) * 100);
+  const done = session.index + (answered ? 1 : 0);
+  const progress = Math.round((done / total) * 100);
   const order = alternativeOrder(session, question);
   const alternativesById = new Map(
     question.alternatives.map((alternative) => [alternative.id, alternative])
@@ -2239,6 +2282,13 @@ function renderQuiz() {
       if (alternative.id === question.correctId) className += " is-correct";
       else if (alternative.id === answered.selectedId) className += " is-wrong";
     }
+    const status = !answered
+      ? ""
+      : alternative.id === question.correctId
+        ? " — resposta correta."
+        : alternative.id === answered.selectedId
+          ? " — sua resposta, incorreta."
+          : "";
     return h(
       "button",
       {
@@ -2249,7 +2299,13 @@ function renderQuiz() {
         onclick: (event) => selectAlternative(event.currentTarget, question, alternative.id),
       },
       h("span", { class: "alt__letter", "aria-hidden": "true", text: alternative.id }),
-      h("span", { class: "alt__text", text: alternative.text })
+      h(
+        "span",
+        { class: "alt__text" },
+        h("span", { class: "sr-only", text: `Alternativa ${alternative.id}: ` }),
+        alternative.text,
+        status ? h("span", { class: "sr-only", text: status }) : null
+      )
     );
   });
 
@@ -2290,8 +2346,16 @@ function renderQuiz() {
     ),
     h(
       "div",
-      { "aria-label": `Progresso da sessão: ${progress}%` },
-      h("div", { class: "progress" }, h("div", { class: "progress__bar", style: `--value:${progress}%` }))
+      {
+        class: "progress",
+        role: "progressbar",
+        "aria-label": "Progresso da sessão",
+        "aria-valuemin": "0",
+        "aria-valuemax": String(total),
+        "aria-valuenow": String(done),
+        "aria-valuetext": `${done} de ${total} questões respondidas`,
+      },
+      h("div", { class: "progress__bar", style: `--value:${progress}%` })
     ),
     h(
       "section",
@@ -2305,7 +2369,13 @@ function renderQuiz() {
           : null,
         question.subtopic ? h("span", { class: "chip chip--neutral", text: question.subtopic }) : null
       ),
-      h("h1", { id: "question-text", class: "question-text", style: "font-size:1.06rem", text: question.text }),
+      h("h1", {
+        id: "question-text",
+        class: "question-text",
+        tabindex: "-1",
+        style: "font-size:1.06rem",
+        text: question.text,
+      }),
       h("p", {
         class: "hint",
         text: "A ordem foi embaralhada. As letras A–D correspondem às alternativas originais do gabarito.",
@@ -2395,6 +2465,7 @@ function renderScheduleBlock(question, answer) {
               type: "button",
               disabled: saving,
               "aria-pressed": String(!manualSelected),
+              "data-schedule-minutes": "auto",
               onclick: () => scheduleReview(question, "auto"),
             },
             h("span", { text: "Automático" }),
@@ -2416,6 +2487,7 @@ function renderScheduleBlock(question, answer) {
                 "aria-pressed": String(
                   manualSelected && schedule?.intervalMinutes === option.minutes
                 ),
+                "data-schedule-minutes": String(option.minutes),
                 onclick: () => scheduleReview(question, option.minutes),
               },
               h("span", { text: option.label }),
