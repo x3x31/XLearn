@@ -312,7 +312,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.16.1 | — | Correção de publicação: `.nojekyll` impede o Jekyll de converter os materiais Markdown, que respondiam 404 no GitHub Pages | `facf70d` | 2026-11-02 |
 | 0.17.0 | REQ-025 | Indicador online/offline no topo, aviso de contingência com o que continua disponível, anúncio acessível, reconexão com toast e resposta salva localmente enquanto offline | `eeff2aa` | 2026-11-02 |
 | 0.18.0 | REQ-026 | Link de pular desacoplado do roteador, foco após avançar/agendar/cancelar, progresso do quiz como `progressbar`, letras e gabarito anunciados nas alternativas, contraste corrigido nos dois temas, alvos de toque de 44 px e ajuste para 320 px | `0cd60c1` | 2026-11-02 |
-| 0.20.0 | REQ-029 | Módulo `sound.js` com efeitos de acerto, erro, início/fim de prova, conquista e moeda gerados via Web Audio; volume e alternância persistidos; botão de som no topo, prévias em `#/config`, primeiro gesto libera o áudio e feedback visual lúdico respeitando animações reduzidas | `pendente` | 2026-11-02 |
+| 0.20.0 | REQ-029 | Módulo `sound.js` com efeitos de acerto, erro, início/fim de prova, conquista e moeda gerados via Web Audio; volume e alternância persistidos; botão de som no topo, prévias em `#/config`, primeiro gesto libera o áudio e feedback visual lúdico respeitando animações reduzidas | `02b1f12` | 2026-11-02 |
 
 ---
 
