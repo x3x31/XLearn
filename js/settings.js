@@ -27,6 +27,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   animations: true,
   gamification: true,
   showExplanations: true,
+  soundEnabled: true,
+  soundVolume: 0.6, // 0–1
 });
 
 let currentSettings = { ...DEFAULT_SETTINGS };
@@ -73,6 +75,9 @@ export function normalizeSettings(raw = {}) {
   settings.animations = settings.animations !== false;
   settings.gamification = settings.gamification !== false;
   settings.showExplanations = settings.showExplanations !== false;
+  settings.soundEnabled = settings.soundEnabled !== false;
+  settings.soundVolume = clamp(Number(settings.soundVolume), 0, 1);
+  if (!Number.isFinite(settings.soundVolume)) settings.soundVolume = DEFAULT_SETTINGS.soundVolume;
   settings.srsEnabled = settings.srsEnabled !== false;
   settings.srsIntervals = Array.isArray(settings.srsIntervals)
     ? settings.srsIntervals.map(Number).filter((value) => value > 0)

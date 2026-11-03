@@ -42,6 +42,7 @@ import {
 import { buildRanking, RANKING_DISCLOSURE } from "./ranking.js";
 import { createBackup, validateBackup } from "./backup.js";
 import { clearAppCaches } from "./storage.js";
+import { installSoundUnlock, playSound, unlockAudio } from "./sound.js";
 
 const app = document.getElementById("app");
 
@@ -89,6 +90,9 @@ const ICONS = {
   trash: '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/>',
   lock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
   wifiOff: '<path d="M2 2l20 20"/><path d="M8.5 8.5A10 10 0 0 1 21 9"/><path d="M5 12.5a10 10 0 0 1 4-2.4"/><path d="M8.5 16a5 5 0 0 1 6-1"/><path d="M12 20h.01"/>',
+  volume: '<path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="M15 8.5a5 5 0 0 1 0 7"/><path d="M17.8 5.7a9 9 0 0 1 0 12.6"/>',
+  volumeOff: '<path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="m16 9 5 6M21 9l-5 6"/>',
+  coin: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.5 9.5h4a1.8 1.8 0 0 1 0 3.6h-3a1.8 1.8 0 0 0 0 3.6h4"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
 };
 
@@ -209,8 +213,62 @@ function toast(message, variant = "info") {
 
 function announceAchievements(achievements) {
   if (!Array.isArray(achievements) || achievements.length === 0) return;
+  playSound("achievement");
   const titles = achievements.map((achievement) => achievement.title).join(", ");
   toast(`Conquista desbloqueada: ${titles}.`, "success");
+}
+
+/** Atualiza o botão de som do topo conforme as preferências atuais. */
+function updateSoundToggle() {
+  const button = document.querySelector('[data-role="sound-toggle"]');
+  if (!button) return;
+  const enabled = getSettings().soundEnabled;
+  button.setAttribute("aria-pressed", String(enabled));
+  button.setAttribute("aria-label", enabled ? "Desativar sons" : "Ativar sons");
+  button.setAttribute("title", enabled ? "Sons ativados" : "Sons desativados");
+  button.dataset.state = enabled ? "on" : "off";
+  button.replaceChildren(icon(enabled ? "volume" : "volumeOff"));
+}
+
+async function toggleSound() {
+  const enabled = !getSettings().soundEnabled;
+  const next = { ...getSettings(), soundEnabled: enabled };
+  setSettings(next);
+  try {
+    await saveSettingsRecord(next);
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+  updateSoundToggle();
+  if (enabled) {
+    unlockAudio();
+    playSound("coin", { force: true });
+  }
+  toast(enabled ? "Sons ativados." : "Sons desativados.", enabled ? "success" : "info");
+}
+
+/**
+ * Reação lúdica à resposta: som sempre que habilitado e uma pequena explosão
+ * visual quando as animações estão ativas. O conteúdo acessível já foi
+ * renderizado; os efeitos são decorativos e ficam ocultos de leitores de tela.
+ */
+function playAnswerEffects(correct) {
+  playSound(correct ? "correct" : "wrong");
+  if (!getSettings().animations) return;
+  const feedback = document.querySelector(".feedback");
+  if (!feedback) return;
+  feedback.classList.add(correct ? "feedback--celebrate" : "feedback--shake");
+  if (correct) {
+    const burst = h("span", { class: "answer-burst", "aria-hidden": "true" });
+    for (let index = 0; index < 8; index += 1) {
+      burst.append(h("span", { class: "answer-burst__spark", style: `--i:${index}` }));
+    }
+    feedback.append(burst);
+    window.setTimeout(() => burst.remove(), 1200);
+  }
+  window.setTimeout(() => {
+    feedback.classList.remove("feedback--celebrate", "feedback--shake");
+  }, 800);
 }
 
 /* Boot / shell ------------------------------------------------------------ */
@@ -249,6 +307,17 @@ function buildShell() {
           { class: "topbar__badge", "data-role": "topbar-badge" },
           h("span", { class: "dot", "aria-hidden": "true" }),
           h("span", { text: "Estudo local" })
+        ),
+        h(
+          "button",
+          {
+            class: "icon-btn sound-toggle",
+            type: "button",
+            "data-role": "sound-toggle",
+            "data-state": "on",
+            onclick: toggleSound,
+          },
+          icon("volume")
         ),
         h(
           "a",
@@ -489,6 +558,7 @@ async function initialize() {
 
 function boot() {
   buildShell();
+  installSoundUnlock();
   updateConnectionStatus();
   document.querySelector(".skip-link")?.addEventListener("click", (event) => {
     event.preventDefault();
@@ -555,6 +625,7 @@ function render({ focus = false } = {}) {
   main.replaceChildren(...content);
   updateNav();
   updateBadge();
+  updateSoundToggle();
   const settingsLink = document.querySelector('[data-role="settings-link"]');
   if (settingsLink) {
     if (state.route === "config") settingsLink.setAttribute("aria-current", "page");
@@ -1085,9 +1156,20 @@ function renderReviews() {
   ];
 }
 
+function previewSound(form, name) {
+  if (!form.elements.soundEnabled.checked) {
+    toast("Ative os sons para ouvir os exemplos.", "info");
+    return;
+  }
+  unlockAudio();
+  const volume = Number(form.elements.soundVolume.value) / 100;
+  playSound(name, {
+    settings: { ...getSettings(), soundEnabled: true, soundVolume: Number.isFinite(volume) ? volume : 0.6 },
+  });
+}
+
 function renderSettings() {
   const settings = getSettings();
-
   const form = h(
     "form",
     { class: "settings-form", id: "settings-form", autocomplete: "off" },
@@ -1285,6 +1367,114 @@ function renderSettings() {
           h("small", { text: "Desative para uma interface mais estática; o respeito à preferência do sistema continua ativo." })
         )
       )
+    ),
+
+    h(
+      "section",
+      { class: "card sound-settings-card", "aria-labelledby": "sound-settings-title" },
+      h(
+        "div",
+        { class: "section-head" },
+        h(
+          "div",
+          {},
+          h("span", { class: "eyebrow" }, icon("volume"), "Som e ludicidade"),
+          h("h2", { id: "sound-settings-title", text: "Efeitos sonoros" })
+        ),
+        h("span", {
+          class: `chip ${settings.soundEnabled ? "chip--success" : "chip--neutral"}`,
+          text: settings.soundEnabled ? "ligado" : "desligado",
+        })
+      ),
+      h(
+        "label",
+        { class: "check-field" },
+        h("input", { type: "checkbox", name: "soundEnabled", checked: settings.soundEnabled }),
+        h(
+          "span",
+          {},
+          h("strong", { text: "Sons animados" }),
+          h("small", {
+            text: "Acerto, erro, início e fim de prova, conquistas e moedas. Sem arquivos externos: o som é gerado pelo navegador.",
+          })
+        )
+      ),
+      h(
+        "label",
+        { class: "field" },
+        h("span", { text: "Volume dos efeitos" }),
+        h("input", {
+          type: "range",
+          name: "soundVolume",
+          min: "0",
+          max: "100",
+          step: "5",
+          value: String(Math.round(settings.soundVolume * 100)),
+          "data-role": "sound-volume-range",
+        }),
+        h(
+          "small",
+          {},
+          "De 0 a 100%. Atual: ",
+          h("output", {
+            "data-role": "sound-volume-value",
+            text: `${Math.round(settings.soundVolume * 100)}%`,
+          }),
+          "."
+        )
+      ),
+      h(
+        "div",
+        { class: "data-actions sound-previews", role: "group", "aria-label": "Ouvir exemplos de sons" },
+        h(
+          "button",
+          {
+            class: "btn btn--ghost btn--sm",
+            type: "button",
+            "data-sound-preview": "correct",
+            onclick: () => previewSound(form, "correct"),
+          },
+          icon("check"),
+          "Acerto"
+        ),
+        h(
+          "button",
+          {
+            class: "btn btn--ghost btn--sm",
+            type: "button",
+            "data-sound-preview": "wrong",
+            onclick: () => previewSound(form, "wrong"),
+          },
+          icon("x"),
+          "Erro"
+        ),
+        h(
+          "button",
+          {
+            class: "btn btn--ghost btn--sm",
+            type: "button",
+            "data-sound-preview": "achievement",
+            onclick: () => previewSound(form, "achievement"),
+          },
+          icon("award"),
+          "Conquista"
+        ),
+        h(
+          "button",
+          {
+            class: "btn btn--ghost btn--sm",
+            type: "button",
+            "data-sound-preview": "coin",
+            onclick: () => previewSound(form, "coin"),
+          },
+          icon("coin"),
+          "Moeda"
+        )
+      ),
+      h("p", {
+        class: "hint",
+        text: "O primeiro toque na página libera o áudio no navegador. O botão de alto-falante no topo alterna os sons rapidamente.",
+      })
     ),
 
     h(
@@ -1497,6 +1687,10 @@ function renderSettings() {
     const output = form.querySelector('[data-role="font-size-value"]');
     if (output) output.textContent = `${form.elements.fontSize.value} px`;
   });
+  form.elements.soundVolume?.addEventListener("input", () => {
+    const output = form.querySelector('[data-role="sound-volume-value"]');
+    if (output) output.textContent = `${form.elements.soundVolume.value}%`;
+  });
 
   return [
     h(
@@ -1532,6 +1726,8 @@ function readSettingsForm(form) {
   const fontSize = Number(fields.fontSize.value);
   const theme = ["dark", "light", "system"].includes(fields.theme.value) ? fields.theme.value : "system";
   const animations = Boolean(fields.animations.checked);
+  const soundEnabled = Boolean(fields.soundEnabled.checked);
+  const soundVolumePercent = Number(fields.soundVolume.value);
 
   if (!Number.isInteger(sessionSize) || sessionSize < 1 || sessionSize > 100) {
     throw new Error("O tamanho da sessão deve ser um número inteiro entre 1 e 100.");
@@ -1552,8 +1748,22 @@ function readSettingsForm(form) {
   if (!Number.isInteger(fontSize) || fontSize < 14 || fontSize > 22) {
     throw new Error("O tamanho do texto deve ser um número inteiro entre 14 e 22 px.");
   }
+  if (!Number.isInteger(soundVolumePercent) || soundVolumePercent < 0 || soundVolumePercent > 100) {
+    throw new Error("O volume dos efeitos deve estar entre 0 e 100%.");
+  }
 
-  return { sessionSize, dailyGoal, questionOrder, srsEnabled, srsIntervals, fontSize, theme, animations };
+  return {
+    sessionSize,
+    dailyGoal,
+    questionOrder,
+    srsEnabled,
+    srsIntervals,
+    fontSize,
+    theme,
+    animations,
+    soundEnabled,
+    soundVolume: soundVolumePercent / 100,
+  };
 }
 
 async function saveSettingsFromForm(form) {
@@ -1567,6 +1777,7 @@ async function saveSettingsFromForm(form) {
   const next = normalizeSettings({ ...getSettings(), ...patch });
   setSettings(next);
   applyVisualSettings(next);
+  updateSoundToggle();
   try {
     await saveSettingsRecord(next);
     toast("Configurações salvas neste dispositivo.", "success");
@@ -1586,6 +1797,12 @@ function syncSettingsForm(form, settings) {
   const fontSizeValue = form.querySelector('[data-role="font-size-value"]');
   if (fontSizeValue) fontSizeValue.textContent = `${settings.fontSize} px`;
   form.elements.animations.checked = settings.animations;
+  form.elements.soundEnabled.checked = settings.soundEnabled;
+  form.elements.soundVolume.value = String(Math.round(settings.soundVolume * 100));
+  const soundVolumeValue = form.querySelector('[data-role="sound-volume-value"]');
+  if (soundVolumeValue) {
+    soundVolumeValue.textContent = `${Math.round(settings.soundVolume * 100)}%`;
+  }
   settings.srsIntervals.forEach((days, index) => {
     const field = form.elements[`srsInterval${index + 1}`];
     if (field) field.value = String(days);
@@ -2083,6 +2300,7 @@ async function startSession(entry, options = {}) {
     };
     state.sessionMaterial = material;
     await persistSession(state.session);
+    playSound("sessionStart");
     navigate("sessao");
   } catch (error) {
     toast(error.message || "Não foi possível iniciar a sessão.", "error");
@@ -2146,6 +2364,7 @@ function confirmAnswer(question) {
     const feedback = document.querySelector(".feedback");
     feedback?.setAttribute("tabindex", "-1");
     feedback?.focus({ preventScroll: false });
+    playAnswerEffects(correct);
   });
 
   state.lastAnswerSave = recordAnswer({
@@ -2211,8 +2430,10 @@ async function goToNextQuestion() {
     session.finishedAt = new Date().toISOString();
     session.updatedAt = session.finishedAt;
     await persistSession(session);
+    playSound("sessionEnd");
     try {
       const award = await awardSessionCompletion(session);
+      if (award?.newAchievements?.length > 0) playSound("achievement");
       const parts = [];
       if (award?.xpGain > 0) parts.push(`Sessão concluída: +${award.xpGain} XP`);
       if (award?.newAchievements?.length > 0) {
