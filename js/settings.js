@@ -19,6 +19,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   sessionSize: 10,
   questionOrder: "shuffle", // shuffle | sequential
   shuffleAlternatives: true, // obrigatório pelo projeto; não é exposto como opção desativável
+  timerEnabled: false, // cronômetro apenas em provas
+  timerMinutes: 30, // 5–120
   srsEnabled: true,
   srsIntervals: [1, 3, 7, 14, 30], // dias
   dailyGoal: 20,
@@ -67,6 +69,12 @@ export function normalizeSettings(raw = {}) {
   const settings = { ...DEFAULT_SETTINGS, ...raw };
   settings.sessionSize = clamp(Number(settings.sessionSize) || 10, 1, 100);
   settings.dailyGoal = clamp(Number(settings.dailyGoal) || 20, 1, 500);
+  settings.timerEnabled = settings.timerEnabled === true;
+  settings.timerMinutes = clamp(
+    Math.round(Number(settings.timerMinutes) || DEFAULT_SETTINGS.timerMinutes),
+    5,
+    120
+  );
   settings.fontSize = clamp(Number(settings.fontSize) || 16, 14, 22);
   settings.questionOrder = settings.questionOrder === "sequential" ? "sequential" : "shuffle";
   settings.theme = ["dark", "light", "system"].includes(settings.theme)

@@ -49,6 +49,21 @@ import { buildRanking, RANKING_DISCLOSURE } from "./ranking.js";
 import { createBackup, validateBackup } from "./backup.js";
 import { clearAppCaches } from "./storage.js";
 import { installSoundUnlock, playSound, unlockAudio } from "./sound.js";
+import {
+  TIMER_MAX_MINUTES,
+  TIMER_MIN_MINUTES,
+  createTimer,
+  expireTimer,
+  formatTimerAria,
+  formatTimerClock,
+  isTimerExpired,
+  isTimerWarning,
+  normalizeTimer,
+  pauseTimer,
+  remainingTimerSeconds,
+  resumeTimer,
+  usesExamTimer,
+} from "./timer.js";
 
 const app = document.getElementById("app");
 
@@ -69,6 +84,8 @@ const state = {
   pendingReset: false,
   lastAnswerSave: null,
   scheduling: null,
+  timerInterval: null,
+  finishingSession: false,
   storageWarned: false,
   route: "inicio",
 };
@@ -483,6 +500,98 @@ async function persistSession(session) {
   }
 }
 
+/* Timer da prova ---------------------------------------------------------- */
+
+function stopTimerTicker() {
+  if (state.timerInterval !== null) {
+    window.clearInterval(state.timerInterval);
+    state.timerInterval = null;
+  }
+}
+
+function syncTimerDisplay() {
+  const session = state.session;
+  const node = document.querySelector('[data-role="session-timer"]');
+  if (!node || !session?.timer?.enabled) return;
+  const timer = session.timer;
+  const remaining = remainingTimerSeconds(timer);
+  const expired = Boolean(timer.expiredAt);
+  const paused = timer.paused && !expired;
+  node.classList.toggle("is-warning", isTimerWarning(remaining));
+  node.classList.toggle("is-paused", paused);
+  node.classList.toggle("is-expired", expired);
+  const clock = node.querySelector(".quiz-timer__clock");
+  if (clock) clock.textContent = formatTimerClock(remaining);
+  node.setAttribute("aria-label", formatTimerAria(remaining, { paused, expired }));
+}
+
+function tickTimer() {
+  const session = state.session;
+  if (!session || session.finishedAt || !session.timer?.enabled) {
+    stopTimerTicker();
+    return;
+  }
+  if (session.timer.expiredAt) {
+    syncTimerDisplay();
+    return;
+  }
+  if (session.timer.paused) {
+    syncTimerDisplay();
+    return;
+  }
+  syncTimerDisplay();
+  if (isTimerExpired(session.timer)) handleTimerExpired();
+}
+
+function startTimerTicker() {
+  stopTimerTicker();
+  const session = state.session;
+  if (!session || session.finishedAt || !session.timer?.enabled || session.timer.expiredAt) {
+    return;
+  }
+  state.timerInterval = window.setInterval(tickTimer, 1000);
+  tickTimer();
+}
+
+function ensureTimerTicker() {
+  const session = state.session;
+  if (!session || session.finishedAt || !session.timer?.enabled || session.timer.expiredAt) {
+    stopTimerTicker();
+    return;
+  }
+  if (state.timerInterval === null) startTimerTicker();
+}
+
+async function handleTimerExpired() {
+  const session = state.session;
+  if (!session || session.finishedAt || session.timer?.expiredAt) return;
+  session.timer = expireTimer(session.timer);
+  syncTimerDisplay();
+  toast("O tempo da prova acabou. A sessão foi encerrada automaticamente.", "info");
+  await finishSession({ expired: true });
+}
+
+function handleTimerVisibility() {
+  const session = state.session;
+  if (!session || session.finishedAt || !session.timer?.enabled || session.timer.expiredAt) return;
+  if (document.hidden) {
+    if (!session.timer.paused) {
+      session.timer = pauseTimer(session.timer);
+      session.updatedAt = new Date().toISOString();
+      stopTimerTicker();
+      syncTimerDisplay();
+      persistSession(session);
+    }
+    return;
+  }
+  if (session.timer.paused) {
+    session.timer = resumeTimer(session.timer);
+    session.updatedAt = new Date().toISOString();
+    persistSession(session);
+  }
+  startTimerTicker();
+}
+
 async function loadPersistedSettings() {
   try {
     const stored = await getSettingsRecord();
@@ -537,6 +646,10 @@ async function restoreActiveSession() {
     active.orders = active.orders && typeof active.orders === "object" ? active.orders : {};
     active.pending = null;
     if (!Number.isInteger(active.index) || active.index < 0) active.index = 0;
+    active.timer = normalizeTimer(active.timer);
+    if (active.timer.enabled && !active.timer.expiredAt && active.timer.paused && !document.hidden) {
+      active.timer = resumeTimer(active.timer);
+    }
 
     state.session = active;
     state.sessionMaterial = material;
@@ -596,6 +709,7 @@ function boot() {
   window.addEventListener("online", () => updateConnectionStatus({ announce: true }));
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) updateConnectionStatus();
+    handleTimerVisibility();
   });
   state.route = currentRoute();
   window.addEventListener("hashchange", () => {
@@ -638,6 +752,8 @@ function render({ focus = false } = {}) {
   }
 
   main.replaceChildren(...content);
+  ensureTimerTicker();
+  syncTimerDisplay();
   updateNav();
   updateBadge();
   updateSoundToggle();
@@ -1345,6 +1461,54 @@ function renderSettings() {
 
     h(
       "section",
+      { class: "card", "aria-labelledby": "timer-settings-title" },
+      h(
+        "div",
+        { class: "section-head" },
+        h(
+          "div",
+          {},
+          h("span", { class: "eyebrow" }, icon("clock"), "Cronômetro"),
+          h("h2", { id: "timer-settings-title", text: "Tempo de prova" })
+        ),
+        h("span", {
+          class: `chip ${settings.timerEnabled ? "chip--success" : "chip--neutral"}`,
+          text: settings.timerEnabled ? "ativado" : "desativado",
+        })
+      ),
+      h(
+        "label",
+        { class: "check-field" },
+        h("input", { type: "checkbox", name: "timerEnabled", checked: settings.timerEnabled }),
+        h(
+          "span",
+          {},
+          h("strong", { text: "Ativar contagem regressiva" }),
+          h("small", {
+            text: "Vale para as próximas provas. Revisões e correções não usam cronômetro. Ao esconder a aba, o tempo é pausado e retomado ao voltar.",
+          })
+        )
+      ),
+      h(
+        "label",
+        { class: "field" },
+        h("span", { text: "Duração da prova" }),
+        h("input", {
+          type: "number",
+          name: "timerMinutes",
+          min: String(TIMER_MIN_MINUTES),
+          max: String(TIMER_MAX_MINUTES),
+          step: "1",
+          inputmode: "numeric",
+          value: String(settings.timerMinutes),
+          required: true,
+        }),
+        h("small", { text: `Entre ${TIMER_MIN_MINUTES} e ${TIMER_MAX_MINUTES} minutos. Ao chegar a zero, a sessão é encerrada e as questões sem resposta são marcadas.` })
+      )
+    ),
+
+    h(
+      "section",
       { class: "card", "aria-labelledby": "srs-settings-title" },
       h(
         "div",
@@ -1821,6 +1985,8 @@ function readSettingsForm(form) {
   const questionOrder = fields.questionOrder.value === "sequential" ? "sequential" : "shuffle";
   const srsEnabled = Boolean(fields.srsEnabled.checked);
   const srsIntervals = [1, 2, 3, 4, 5].map((index) => Number(fields[`srsInterval${index}`].value));
+  const timerEnabled = Boolean(fields.timerEnabled.checked);
+  const timerMinutes = Number(fields.timerMinutes.value);
   const fontSize = Number(fields.fontSize.value);
   const theme = ["dark", "light", "system"].includes(fields.theme.value) ? fields.theme.value : "system";
   const animations = Boolean(fields.animations.checked);
@@ -1846,6 +2012,9 @@ function readSettingsForm(form) {
   if (!Number.isInteger(fontSize) || fontSize < 14 || fontSize > 22) {
     throw new Error("O tamanho do texto deve ser um número inteiro entre 14 e 22 px.");
   }
+  if (!Number.isInteger(timerMinutes) || timerMinutes < TIMER_MIN_MINUTES || timerMinutes > TIMER_MAX_MINUTES) {
+    throw new Error(`A duração da prova deve ser um número inteiro entre ${TIMER_MIN_MINUTES} e ${TIMER_MAX_MINUTES} minutos.`);
+  }
   if (!Number.isInteger(soundVolumePercent) || soundVolumePercent < 0 || soundVolumePercent > 100) {
     throw new Error("O volume dos efeitos deve estar entre 0 e 100%.");
   }
@@ -1856,6 +2025,8 @@ function readSettingsForm(form) {
     questionOrder,
     srsEnabled,
     srsIntervals,
+    timerEnabled,
+    timerMinutes,
     fontSize,
     theme,
     animations,
@@ -1890,6 +2061,8 @@ function syncSettingsForm(form, settings) {
   form.elements.dailyGoal.value = String(settings.dailyGoal);
   form.elements.questionOrder.value = settings.questionOrder;
   form.elements.srsEnabled.checked = settings.srsEnabled;
+  form.elements.timerEnabled.checked = settings.timerEnabled;
+  form.elements.timerMinutes.value = String(settings.timerMinutes);
   form.elements.theme.value = settings.theme;
   form.elements.fontSize.value = String(settings.fontSize);
   const fontSizeValue = form.querySelector('[data-role="font-size-value"]');
@@ -1972,8 +2145,10 @@ async function confirmPendingImport() {
   showLoadingOverlay("Restaurando backup…");
   try {
     await importDatabase(pending.backup.data);
+    stopTimerTicker();
     state.session = null;
     state.sessionMaterial = null;
+    state.finishingSession = false;
     await loadPersistedSettings();
     applyVisualSettings(getSettings());
     await restoreActiveSession();
@@ -2032,10 +2207,12 @@ async function confirmProgressReset() {
   showLoadingOverlay("Apagando progresso…");
   try {
     await clearProgressData();
+    stopTimerTicker();
     state.session = null;
     state.sessionMaterial = null;
     state.lastAnswerSave = null;
     state.scheduling = null;
+    state.finishingSession = false;
     await refreshProgress();
     toast("Progresso apagado. Suas configurações foram preservadas.", "success");
     navigate("inicio");
@@ -2378,6 +2555,7 @@ async function startSession(entry, options = {}) {
     const requestedSize = Number.isFinite(options.size) ? options.size : settings.sessionSize;
     const size = Math.max(1, Math.min(requestedSize, pool.length));
     const questionIds = pool.slice(0, size).map((question) => question.id);
+    const mode = options.mode || "material";
 
     state.session = {
       id: makeId(),
@@ -2385,7 +2563,7 @@ async function startSession(entry, options = {}) {
       materialPath: entry.path,
       materialTitle: entry.title,
       subject: entry.subject,
-      mode: options.mode || "material",
+      mode,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       startedAt: Date.now(),
@@ -2394,6 +2572,10 @@ async function startSession(entry, options = {}) {
       answers: {},
       orders: {},
       pending: null,
+      timer:
+        usesExamTimer(mode) && settings.timerEnabled
+          ? createTimer({ enabled: true, minutes: settings.timerMinutes })
+          : createTimer({ enabled: false }),
       finishedAt: null,
     };
     state.sessionMaterial = material;
@@ -2526,30 +2708,48 @@ async function scheduleReview(question, minutes) {
   }
 }
 
+async function finishSession({ expired = false } = {}) {
+  const session = state.session;
+  if (!session || session.finishedAt || state.finishingSession) return;
+  state.finishingSession = true;
+  stopTimerTicker();
+  session.pending = null;
+  try {
+    if (state.lastAnswerSave) await state.lastAnswerSave;
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+  if (session.timer?.enabled) {
+    session.timer = expired ? expireTimer(session.timer) : pauseTimer(session.timer);
+  }
+  session.finishedAt = new Date().toISOString();
+  session.updatedAt = session.finishedAt;
+  await persistSession(session);
+  state.finishingSession = false;
+  playSound("sessionEnd");
+  try {
+    const award = await awardSessionCompletion(session);
+    if (award?.newAchievements?.length > 0) playSound("achievement");
+    if (award?.coinsGain > 0) playSound("coin");
+    const parts = [];
+    if (award?.xpGain > 0) parts.push(`Sessão concluída: +${award.xpGain} XP`);
+    if (award?.coinsGain > 0) parts.push(`+${award.coinsGain} moedas`);
+    if (award?.newAchievements?.length > 0) {
+      parts.push(`conquistas: ${award.newAchievements.map((item) => item.title).join(", ")}`);
+    }
+    if (parts.length > 0) toast(`${parts.join(" · ")}.`, "success");
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+  await refreshProgress();
+  navigate("resumo");
+}
+
 async function goToNextQuestion() {
   const session = state.session;
   if (!session) return;
   if (session.index + 1 >= session.questionIds.length) {
-    session.finishedAt = new Date().toISOString();
-    session.updatedAt = session.finishedAt;
-    await persistSession(session);
-    playSound("sessionEnd");
-    try {
-      const award = await awardSessionCompletion(session);
-      if (award?.newAchievements?.length > 0) playSound("achievement");
-      if (award?.coinsGain > 0) playSound("coin");
-      const parts = [];
-      if (award?.xpGain > 0) parts.push(`Sessão concluída: +${award.xpGain} XP`);
-      if (award?.coinsGain > 0) parts.push(`+${award.coinsGain} moedas`);
-      if (award?.newAchievements?.length > 0) {
-        parts.push(`conquistas: ${award.newAchievements.map((item) => item.title).join(", ")}`);
-      }
-      if (parts.length > 0) toast(`${parts.join(" · ")}.`, "success");
-    } catch (error) {
-      warnStorageOnce(error);
-    }
-    await refreshProgress();
-    navigate("resumo");
+    await finishSession();
     return;
   }
   session.index += 1;
@@ -2560,6 +2760,30 @@ async function goToNextQuestion() {
   window.scrollTo({ top: 0, behavior: "auto" });
   requestAnimationFrame(() =>
     document.getElementById("question-text")?.focus({ preventScroll: true })
+  );
+}
+
+function renderTimerChip(session) {
+  const timer = session.timer;
+  if (!timer?.enabled) return null;
+  const remaining = remainingTimerSeconds(timer);
+  const expired = Boolean(timer.expiredAt);
+  const paused = timer.paused && !expired;
+  const classes = ["quiz-timer"];
+  if (isTimerWarning(remaining)) classes.push("is-warning");
+  if (paused) classes.push("is-paused");
+  if (expired) classes.push("is-expired");
+  return h(
+    "span",
+    {
+      class: classes.join(" "),
+      "data-role": "session-timer",
+      role: "timer",
+      "aria-live": "off",
+      "aria-label": formatTimerAria(remaining, { paused, expired }),
+    },
+    icon("clock"),
+    h("span", { class: "quiz-timer__clock", text: formatTimerClock(remaining) })
   );
 }
 
@@ -2668,7 +2892,7 @@ function renderQuiz() {
           })
         )
       ),
-      h("span", { class: "quiz-head__count", text: `${session.index + 1} / ${total}` })
+      h("div", { class: "quiz-head__meta" }, renderTimerChip(session), h("span", { class: "quiz-head__count", text: `${session.index + 1} / ${total}` }))
     ),
     h(
       "div",
@@ -2957,6 +3181,8 @@ function renderSummary() {
   const answeredResults = results.filter((item) => item.answer);
   const correctCount = answeredResults.filter((item) => item.answer.correct).length;
   const wrongResults = results.filter((item) => item.answer && !item.answer.correct);
+  const unansweredResults = results.filter((item) => !item.answer);
+  const expired = Boolean(session.timer?.expiredAt);
   const total = session.questionIds.length;
   const pct = total > 0 ? Math.round((correctCount / total) * 100) : 0;
   const duration = formatDuration(Date.now() - session.startedAt);
@@ -2979,8 +3205,14 @@ function renderSummary() {
       h(
         "div",
         { class: "summary-hero__text" },
-        h("span", { class: "eyebrow" }, icon("sparkles"), "Sessão concluída"),
-        h("h1", { text: correctCount === total ? "Excelente trabalho!" : "Sessão finalizada" }),
+        h("span", { class: "eyebrow" }, icon(expired ? "clock" : "sparkles"), expired ? "Tempo esgotado" : "Sessão concluída"),
+        h("h1", {
+          text: expired
+            ? "A prova terminou"
+            : correctCount === total
+              ? "Excelente trabalho!"
+              : "Sessão finalizada",
+        }),
         h("p", { text: session.materialTitle }),
         h("p", {
           class: "small muted",
@@ -2989,11 +3221,23 @@ function renderSummary() {
       )
     ),
 
+    expired
+      ? h(
+          "div",
+          { class: "notice notice--info" },
+          h("strong", { text: "Tempo esgotado: " }),
+          "o cronômetro chegou a zero e a sessão foi encerrada automaticamente. As questões sem resposta foram marcadas abaixo."
+        )
+      : null,
+
     h(
       "div",
-      { class: "summary-stats" },
+      { class: `summary-stats${unansweredResults.length > 0 ? " summary-stats--four" : ""}` },
       h("div", { class: "summary-stat" }, h("strong", { text: String(correctCount) }), h("span", { text: "acertos" })),
       h("div", { class: "summary-stat" }, h("strong", { text: String(wrongResults.length) }), h("span", { text: "erros" })),
+      unansweredResults.length > 0
+        ? h("div", { class: "summary-stat" }, h("strong", { text: String(unansweredResults.length) }), h("span", { text: "não respondidas" }))
+        : null,
       h("div", { class: "summary-stat" }, h("strong", { text: String(total) }), h("span", { text: "questões" }))
     ),
 
@@ -3038,10 +3282,12 @@ function renderSummary() {
         ...results.map(({ question, answer }) => {
           if (!question) return null;
           const isCorrect = Boolean(answer?.correct);
+          const unanswered = !answer;
+          const modifier = unanswered ? "is-unanswered" : isCorrect ? "is-correct" : "is-wrong";
           return h(
             "div",
-            { class: `result-item ${isCorrect ? "is-correct" : "is-wrong"}` },
-            h("span", { class: "result-item__icon" }, icon(isCorrect ? "check" : "x")),
+            { class: `result-item ${modifier}` },
+            h("span", { class: "result-item__icon" }, icon(unanswered ? "clock" : isCorrect ? "check" : "x")),
             h(
               "div",
               {},
@@ -3049,7 +3295,9 @@ function renderSummary() {
               h("span", {
                 text: answer
                   ? `Marcada: ${answer.selectedId} · Gabarito: ${question.correctId}`
-                  : "Não respondida",
+                  : expired
+                    ? "Não respondida — tempo esgotado"
+                    : "Não respondida",
               })
             )
           );

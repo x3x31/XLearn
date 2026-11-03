@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.21.0` |
+| **Versão atual** | `0.22.0` |
 | **Data da última atualização** | 2026-11-03 |
 
 ---
@@ -111,7 +111,7 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 |---|---|---|---|---|
 | REQ-029 | Sons e feedback lúdico | Sons animados para resposta correta/errada, início e fim da prova, e ao atingir conquistas. Alternância configurável em ajustes (som ligado/desligado), sem dependências externas, gerados via Web Audio com primeiro toque, respeitando animações reduzidas. Feedback visual lúdico sem quebrar acessibilidade. | Alta | IMPLEMENTADO |
 | REQ-030 | Moedas e evolução de personagens | Sistema de moedas e evolução de personagem estudioso com imagens de personagens (SVG) em estágios. Ganho de moedas em respostas corretas, conclusão de sessão, meta e conquistas; saldo persistido no IndexedDB. Cartão "Personagem & Moedas" no dashboard com personagem atual, estágio, moedas e barra de evolução. | Alta | IMPLEMENTADO |
-| REQ-031 | Contagem regressiva nas provas | Cronômetro regressivo configurável por sessão de prova (desligado por padrão; 5–120 minutos). Persiste tempo restante ao recarregar/retomar, finaliza a sessão automaticamente ao zerar marcando não respondidas, não aplicado a revisões. Exibido discretamente com acessibilidade e pausa visual ao ficar oculto. | Alta | PENDENTE |
+| REQ-031 | Contagem regressiva nas provas | Cronômetro regressivo configurável por sessão de prova (desligado por padrão; 5–120 minutos). Persiste tempo restante ao recarregar/retomar, finaliza a sessão automaticamente ao zerar marcando não respondidas, não aplicado a revisões. Exibido discretamente com acessibilidade e pausa visual ao ficar oculto. | Alta | IMPLEMENTADO |
 | REQ-032 | Simulados por assunto | Rota `#/simulado` para criar simulados configurando quantas questões de cada assunto (agregados dos materiais válidos). Não afeta progresso, XP, conquistas, SRS, ranking ou estatísticas. Apenas registra histórico separado por assunto com total de questões e acertos. Reaproveita fluxo de quiz; resumo distinto. | Alta | PENDENTE |
 | REQ-033 | Coleta de moedas de conquistas | Animação de moedas nas conquistas desbloqueadas: o usuário deve clicar na conquista para "coletar" as moedas, com animação em cascata e som de moedas. Recompensa única, idempotente, gravada em transação, atualiza saldo e não concede automaticamente. | Alta | PENDENTE |
 
@@ -147,7 +147,7 @@ XLearn/
 └── .git/
 ```
 
-Arquitetura atual (após REQ-030):
+Arquitetura atual (após REQ-031):
 
 ```
 XLearn/
@@ -162,10 +162,11 @@ XLearn/
 │   ├── db.js                 # IMPLEMENTADO: IndexedDB, progresso, sessões, tentativas, estatísticas, gamificação, carteira de moedas, reagendamento, backup e exclusão
 │   ├── parser.js             # IMPLEMENTADO: frontmatter + JSON + normalização (puro)
 │   ├── questions.js          # IMPLEMENTADO: manifesto, fetch e cache em memória
-│   ├── settings.js           # IMPLEMENTADO: defaults, normalização, intervalos manuais e aplicação visual
+│   ├── settings.js           # IMPLEMENTADO: defaults, normalização, cronômetro, intervalos manuais e aplicação visual
 │   ├── srs.js                # IMPLEMENTADO: repetição espaçada e fila de revisões (puro)
 │   ├── gamification.js       # IMPLEMENTADO: XP, níveis, conquistas com recompensas em moedas, meta e sequência (puro)
 │   ├── coins.js              # IMPLEMENTADO: carteira, economia de moedas, coleta de conquistas e estágios do personagem (puro)
+│   ├── timer.js              # IMPLEMENTADO: cronômetro regressivo, pausa/retomada e formatação acessível (puro)
 │   ├── sound.js              # IMPLEMENTADO: efeitos sonoros via Web Audio e desbloqueio no primeiro gesto
 │   └── ranking.js            # IMPLEMENTADO: ranking local por prova/disciplina com Wilson (puro)
 ├── scripts/
@@ -180,7 +181,7 @@ XLearn/
 └── PROJECT_STATUS.md
 ```
 
-Responsabilidades: `parser.js`, `srs.js`, `gamification.js` e `coins.js` são módulos puros, sem DOM, testáveis no Node. `db.js` concentrará o acesso ao IndexedDB. `app.js` não acessará IndexedDB diretamente. A ordem das alternativas será gerada no início de cada apresentação e persistida na sessão. `questions.js` resolve os caminhos do manifesto a partir da URL do próprio módulo, o que mantém compatibilidade com subdiretórios do GitHub Pages.
+Responsabilidades: `parser.js`, `srs.js`, `gamification.js`, `coins.js` e `timer.js` são módulos puros, sem DOM, testáveis no Node. `db.js` concentrará o acesso ao IndexedDB. `app.js` não acessará IndexedDB diretamente. A ordem das alternativas será gerada no início de cada apresentação e persistida na sessão. `questions.js` resolve os caminhos do manifesto a partir da URL do próprio módulo, o que mantém compatibilidade com subdiretórios do GitHub Pages.
 
 ---
 
@@ -286,6 +287,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Cache | App shell em cache na instalação; materiais em cache após o primeiro acesso; navegação com fallback para `index.html`. | Compatível com offline e subdiretórios do GitHub Pages. |
 | Moedas e personagem | `js/coins.js` (puro) concentra a economia: 2 moedas por acerto, 10 por sessão concluída + 5 se perfeita, 15 pela meta diária uma vez por dia e recompensas de conquistas coletadas manualmente. A carteira em `meta/wallet` guarda saldo, total acumulado (`earned`), gasto, sessões pagas, dias de meta e conquistas coletadas. O personagem evolui pelo total acumulado (0, 60, 180, 400 e 800 moedas), não pelo saldo, usando cinco SVGs reais. | Moedas e evolução persistem localmente e continuam corretas após recarregar; usar o total ganho evita regressão ao gastar em uma futura loja. Os pagamentos usam chaves idempotentes por sessão/dia para não duplicar recompensas. |
 | Som | `js/sound.js` (Web Audio, sem arquivos) sintetiza efeitos curtos e mantém um único `AudioContext`, criado apenas após gesto do usuário. Preferências `soundEnabled` e `soundVolume` integram `meta/settings`; o botão do topo e as prévias usam a mesma fonte. Feedback visual usa classes decorativas com `aria-hidden` e é neutralizado por `data-animations="off"`/`prefers-reduced-motion`. | Atende ao requisito lúdico sem dependências, sem autoplay bloqueado e sem alterar o conteúdo acessível ou o gabarito. |
+| Cronômetro da prova | `js/timer.js` (puro) cria um cronômetro desligado por padrão, com duração de 5–120 minutos e padrão de 30. Enquanto corre, guarda `deadlineAt`; ao pausar, congela `remainingSeconds`; ao retomar, recria o limite. A sessão persiste o objeto `timer`, o app atualiza um único nó com `role="timer"` a cada segundo, entra em estado de alerta no último minuto e pausa/retoma ao ocultar/mostrar a aba. Ao zerar, aguarda a gravação da última resposta, encerra a sessão, premia a conclusão e abre o resumo com as não respondidas destacadas. | O instante-limite mantém o tempo correto mesmo com atraso de renderização; a pausa ao ocultar evita punir quem troca de aba. O cronômetro é aplicado só a `mode: "material"`, nunca a revisões ou correções. |
 | Versionamento | Um commit funcional por requisito, Conventional Commits, push após cada entrega; hash registrado no commit seguinte. | Rastreabilidade e histórico incremental. |
 | Entrega conjunta REQ-004..007 | Seleção, exibição, embaralhamento e correção entregues juntos. | São inseparáveis para que exista um fluxo utilizável; um commit intermediário sem correção ou sem shuffle seria uma funcionalidade parcial, o que o projeto proíbe. |
 | Entrega conjunta REQ-011..013 | Agendamento automático, escolha manual e fila de revisões entregues juntos. | O agendamento só tem efeito observável na fila; a escolha manual precisa do agendamento para existir. Separar produziria estados inutilizáveis. |
@@ -317,6 +319,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.18.0 | REQ-026 | Link de pular desacoplado do roteador, foco após avançar/agendar/cancelar, progresso do quiz como `progressbar`, letras e gabarito anunciados nas alternativas, contraste corrigido nos dois temas, alvos de toque de 44 px e ajuste para 320 px | `0cd60c1` | 2026-11-02 |
 | 0.20.0 | REQ-029 | Módulo `sound.js` com efeitos de acerto, erro, início/fim de prova, conquista e moeda gerados via Web Audio; volume e alternância persistidos; botão de som no topo, prévias em `#/config`, primeiro gesto libera o áudio e feedback visual lúdico respeitando animações reduzidas | `02b1f12` | 2026-11-02 |
 | 0.21.0 | REQ-030 | Módulo `coins.js` com carteira persistida em `meta/wallet`, moedas por acerto/sessão/meta, estágios do personagem por total acumulado, cinco SVGs reais, recompensas de conquistas preparadas para coleta e cartão “Personagem & Moedas” no dashboard | `3353195` | 2026-11-03 |
+| 0.22.0 | REQ-031 | Módulo `timer.js` com cronômetro regressivo de 5–120 minutos, persistência de `deadlineAt`/`remainingSeconds`, pausa automática ao ocultar a aba, alerta no último minuto, encerramento automático com resumo marcando não respondidas e exclusão de revisões/correções | `pendente` | 2026-11-03 |
 
 ---
 
@@ -346,17 +349,18 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-021 — Exportação e importação:** a seção Dados de `#/config` gera um arquivo `xlearn-backup-AAAA-MM-DD.json` com configurações, XP, conquistas, moedas, personagem, progresso, sessões e tentativas. A importação lê o arquivo, limita o tamanho a 25 MB, exige JSON válido e envelope `xlearn-backup` na versão 1, valida todas as listas e chaves antes de escrever e mostra um resumo (tentativas, sessões, questões com progresso, configurações, gamificação e moedas). Só após “Substituir dados” os quatro stores são trocados em uma única transação; cancelar ou usar um arquivo inválido mantém os dados atuais. Ao concluir, o app recarrega configurações, aparência, sessão ativa e progresso e volta ao início.
 - **REQ-022 — Gerenciamento de dados:** o cartão “Armazenamento local” de `#/config` separa duas ações. “Limpar cache do app” remove apenas caches com prefixo `xlearn` (HTML, CSS, JS e questões), informa quando a Cache API não existe ou não há cache e mantém respostas, XP e histórico. “Apagar progresso” abre uma confirmação inline que avisa ser irreversível e lista o que será removido; ao confirmar, apaga `progress`, `sessions`, `attempts`, `stats`, `gamification` e `wallet` em uma transação, preserva `meta/settings`, zera o estado da interface, recarrega o dashboard e volta ao início. Cancelar não altera nada. A próxima resposta recomeça o XP, as estatísticas, as moedas e o personagem do zero.
 - **REQ-023 — Base do PWA:** `manifest.webmanifest` identifica o app como “XLearn — aprenda praticando”, em pt-BR, com `start_url` e `scope` em `./`, `display: standalone`, cores `#070b18` e ícones any de 192/512 px mais um maskable de 512 px com o “X” dentro da área segura. `scripts/build-icons.mjs` gera os quatro PNGs (incluindo Apple Touch 180 opaco) sem dependências. O `index.html` aponta para o manifesto e o ícone Apple e declara as metas de instalação móvel; o servidor entrega o manifesto como `application/manifest+json`.
-- **REQ-024 — Service worker e offline:** `service-worker.js` pré-cacheia o app shell e o manifesto na instalação, em cache versionada com prefixo `xlearn`. Navegações tentam a rede e caem para o `index.html` em cache; `questoes/manifest.json` e os arquivos `.md` usam rede primeiro e são guardados após o primeiro acesso; demais estáticos usam cache primeiro. Na ativação, versões antigas do XLearn são removidas e o worker assume as páginas abertas. O app registra o worker com escopo relativo, verifica atualizações e mostra um aviso quando há nova versão instalada, sem recarregar à força nem perder a sessão. A limpeza manual de cache continua encontrando esses nomes. A versão das caches é incrementada quando o shell muda (atualmente `v5`).
+- **REQ-024 — Service worker e offline:** `service-worker.js` pré-cacheia o app shell e o manifesto na instalação, em cache versionada com prefixo `xlearn`. Navegações tentam a rede e caem para o `index.html` em cache; `questoes/manifest.json` e os arquivos `.md` usam rede primeiro e são guardados após o primeiro acesso; demais estáticos usam cache primeiro. Na ativação, versões antigas do XLearn são removidas e o worker assume as páginas abertas. O app registra o worker com escopo relativo, verifica atualizações e mostra um aviso quando há nova versão instalada, sem recarregar à força nem perder a sessão. A limpeza manual de cache continua encontrando esses nomes. A versão das caches é incrementada quando o shell muda (atualmente `v6`).
 - **REQ-025 — Indicador de conexão:** o topo mostra “Online” ou “Offline” com `role="status"`, `aria-live="polite"` e rótulo acessível atualizado. Ao ficar offline, uma faixa explica que respostas e dados salvos continuam funcionando e que materiais ainda não acessados podem não carregar. Ao reconectar, a faixa some, o indicador volta a “Online” e um toast confirma que os dados continuam salvos. O estado também é reavaliado quando a página volta a ficar visível.
 - **REQ-026 — Acessibilidade e responsividade:** o link “Pular para o conteúdo” move o foco para `main` sem ser interpretado como rota pelo roteador de hash. Ao entrar em uma sessão ou avançar de questão, o foco vai para o enunciado com `tabindex="-1"` e margem de rolagem sob o topo fixo; após confirmar, vai para o feedback; após reagendar, permanece na opção escolhida; cancelar importação ou exclusão devolve o foco ao botão de origem e `Escape` fecha as confirmações inline. O progresso do quiz é um `progressbar` com mínimo, máximo, valor e texto “X de Y questões respondidas”. As alternativas expõem a letra original e, depois da correção, “resposta correta” ou “sua resposta, incorreta” em texto só para leitores de tela. Os contrastes foram recalibrados nos dois temas para pelo menos 4,5:1 em texto normal, incluindo botão primário, selo de revisões, links, chips e aviso amarelo. Ícones de ação, botões compactos, itens da navegação e alternativas têm alvo de toque de pelo menos 44 px; em telas de até 380 px a assinatura da marca é ocultada para não haver rolagem horizontal, e a navegação reduz a tipografia. O anel de foco das seções expansíveis não é mais cortado pelo `overflow`.
 - **REQ-029 — Sons e feedback lúdico:** `js/sound.js` gera todos os efeitos com Web Audio, sem arquivos ou dependências: acerto (arpejo ascendente), erro (notas graves), início e fim de prova, conquista e moeda. O contexto só é criado depois do primeiro gesto do usuário e é reaproveitado. `soundEnabled` e `soundVolume` (0–100%) ficam em `meta/settings`, com prévias e volume no cartão “Som e ludicidade” de `#/config` e alternância rápida por botão no topo com `aria-pressed` e rótulo atualizado. Acertos disparam uma pequena explosão decorativa e erros uma vibração curta; ambos são ocultos de leitores de tela e neutralizados por `prefers-reduced-motion` ou animações desligadas.
 - **REQ-030 — Moedas e evolução do personagem:** `js/coins.js` define a economia em módulo puro e mantém a carteira em `meta/wallet` com saldo, total acumulado, moedas gastas, sessões já pagas, dias de meta e conquistas coletadas. Cada acerto rende 2 moedas; concluir uma sessão rende 10 + 5 se todas estiverem corretas; atingir a meta diária rende 15 moedas uma única vez por dia; as conquistas têm recompensas próprias, preparadas para coleta manual em REQ-033. Os pagamentos são idempotentes por `sessionId`/dia e ocorrem na mesma transação da resposta ou da conclusão. O personagem evolui pelo total acumulado em cinco estágios — Curioso (0), Estudante (60), Focado (180), Veterano (400) e Mestre dos estudos (800) — cada um com SVG próprio em `assets/characters/`. O dashboard mostra o cartão “Personagem & Moedas” com imagem, saldo, estágio, total acumulado, barra acessível e quanto falta para evoluir. Backup inclui a carteira e apagar progresso também apaga moedas e evolução.
+- **REQ-031 — Contagem regressiva nas provas:** `js/timer.js` mantém o cronômetro como módulo puro. A configuração `timerEnabled`/`timerMinutes` (5–120, padrão 30) integra `meta/settings` e o cartão “Tempo de prova” de `#/config`. Sessões novas de prova (`mode: "material"`) recebem o cronômetro; revisões e correções não. Enquanto corre, a sessão guarda `deadlineAt`; ao ocultar a aba, o tempo é congelado em `remainingSeconds` e retomado ao voltar. O cabeçalho do quiz mostra um `role="timer"` discreto, com `aria-label` em texto, estado de alerta no último minuto e indicação visual de pausa. Ao zerar, o app aguarda a última gravação, encerra a sessão, paga a conclusão uma única vez, toca o som de fim e abre o resumo com aviso de tempo esgotado, contador de não respondidas e marcação individual dessas questões.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-026, REQ-029 e REQ-030. Prioridade imediata: concluir a fase 8 (REQ-031 a REQ-033) e, em seguida, a campanha de testes abrangentes finais (REQ-027).
+Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-026 e REQ-029 a REQ-031. Prioridade imediata: concluir a fase 8 (REQ-032 e REQ-033) e, em seguida, a campanha de testes abrangentes finais (REQ-027).
 
 Dependências principais:
 
@@ -367,7 +371,7 @@ Dependências principais:
 - REQ-021 e REQ-022 dependem do modelo de dados.
 - REQ-024 depende de REQ-023.
 - REQ-027 depende de todas as anteriores.
-- REQ-031 a REQ-033 dependem de REQ-008, do registro de tentativas, da gamificação e de REQ-030.
+- REQ-032 e REQ-033 dependem de REQ-008, do registro de tentativas, da gamificação, de REQ-030 e de REQ-031 quando aplicável.
 
 ---
 
@@ -429,6 +433,10 @@ Dependências principais:
 - Cartão do personagem testado com DOM simulado e IndexedDB: saldo 130 exibiu Estudante, “Estágio 2 de 5”, 58% acessíveis, “Faltam 50 moedas” e a imagem real `estudante.svg`. O fluxo completo de 10 questões somou 2 moedas por acerto + 10 da sessão (e 5 de sessão perfeita quando aplicável), o dashboard refletiu o novo saldo, e “Apagar progresso” zerou carteira e personagem, voltando a Curioso.
 - As cinco imagens SVG foram servidas com HTTP 200, parseadas como XML válido e incluídas no app shell do service worker `v5`, cuja instalação simulada pré-cacheou os 26 recursos previstos, incluindo `js/coins.js` e os cinco personagens. O chip de moedas foi recalibrado para manter pelo menos 4,5:1 nos temas escuro e claro.
 
+- Cronômetro testado com funções puras: criação desligada por padrão, duração padrão de 30 minutos, limites de 5/120, `deadlineAt` correto, segundos restantes arredondados para cima, formatação `MM:SS`, rótulos acessíveis em minutos/segundos, pausa/congelamento, retomada com novo limite, expiração e preservação de `expiredAt`. A normalização cobriu sessões antigas sem cronômetro, dados corrompidos e valores acima da duração. `usesExamTimer` confirmou que apenas `material` recebe cronômetro.
+- Integração com DOM e IndexedDB confirmou cronômetro em uma prova com 5 minutos, `role="timer"` e rótulo acessível, persistência de duração/limite, pausa ao ocultar a aba com segundos congelados, retomada ao voltar, estado visual de pausa e alerta no último minuto. O texto do alerta foi recalibrado para pelo menos 4,5:1 no tema claro. Com o relógio avançado, o app encerrou a sessão automaticamente, persistiu `expiredAt` e `remainingSeconds = 0`, abriu o resumo “Tempo esgotado”, mostrou 9 não respondidas e marcou cada item. O resumo ofereceu a revisão do erro e a sessão de correção foi criada sem cronômetro. A configuração rejeitou 2 minutos e salvou 45 minutos, refletindo o valor no formulário.
+- A suíte anterior de sons, moedas, personagem, backup, reset e instalação do service worker foi reexecutada sem regressões; a instalação simulada do shell `v6` pré-cacheou os 27 recursos, incluindo `js/timer.js`.
+
 ### Testes finais pendentes
 
 - Carregar todas as provas e validar metadados.
@@ -446,6 +454,6 @@ Dependências principais:
 
 ## L. Próxima tarefa recomendada
 
-**REQ-031 — contagem regressiva nas provas.**
+**REQ-032 — simulados por assunto.**
 
-Motivo: a economia de moedas e a evolução do personagem estão concluídas. A próxima entrega deve adicionar o cronômetro configurável, persistir o tempo restante na sessão, finalizar automaticamente ao zerar e manter a acessibilidade. Depois de REQ-031 a REQ-033, a campanha final (REQ-027) e o README (REQ-028) serão retomados.
+Motivo: o cronômetro configurável está concluído, incluindo persistência, pausa ao ocultar a aba, encerramento automático e resumo com não respondidas. A próxima entrega deve criar a rota `#/simulado`, permitir escolher quantas questões de cada assunto, reaproveitar o fluxo de quiz e manter um histórico separado sem afetar progresso, XP, conquistas, SRS, ranking ou estatísticas. Depois de REQ-033, a campanha final (REQ-027) e o README (REQ-028) serão retomados.
