@@ -34,6 +34,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Responda sua primeira questão.",
     icon: "check",
     xp: 10,
+    coins: 5,
     check: (context) => context.answered >= 1,
   },
   {
@@ -42,6 +43,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Acerte pelo menos uma questão.",
     icon: "target",
     xp: 10,
+    coins: 5,
     check: (context) => context.correct >= 1,
   },
   {
@@ -50,6 +52,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Responda 10 questões.",
     icon: "book",
     xp: 15,
+    coins: 10,
     check: (context) => context.answered >= 10,
   },
   {
@@ -58,6 +61,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Responda 50 questões.",
     icon: "layers",
     xp: 25,
+    coins: 20,
     check: (context) => context.answered >= 50,
   },
   {
@@ -66,6 +70,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Responda 100 questões.",
     icon: "chart",
     xp: 50,
+    coins: 30,
     check: (context) => context.answered >= 100,
   },
   {
@@ -74,6 +79,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Conclua uma sessão de estudo.",
     icon: "play",
     xp: 15,
+    coins: 10,
     check: (context) => context.sessionsCompleted >= 1,
   },
   {
@@ -82,6 +88,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Conclua 5 sessões de estudo.",
     icon: "flame",
     xp: 30,
+    coins: 20,
     check: (context) => context.sessionsCompleted >= 5,
   },
   {
@@ -90,6 +97,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Conclua uma sessão acertando todas as questões.",
     icon: "sparkles",
     xp: 25,
+    coins: 15,
     check: (context) => context.perfectSessions >= 1,
   },
   {
@@ -98,6 +106,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Alcance o nível 3.",
     icon: "chart",
     xp: 25,
+    coins: 15,
     check: (context) => context.level >= 3,
   },
   {
@@ -106,6 +115,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Alcance o nível 5.",
     icon: "sparkles",
     xp: 50,
+    coins: 25,
     check: (context) => context.level >= 5,
   },
   {
@@ -114,6 +124,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Bata a meta diária configurada.",
     icon: "target",
     xp: 20,
+    coins: 10,
     check: (context) => Boolean(context.goalReached),
   },
   {
@@ -122,6 +133,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Estude por 3 dias consecutivos.",
     icon: "flame",
     xp: 25,
+    coins: 15,
     check: (context) => context.bestStreak >= 3,
   },
   {
@@ -130,6 +142,7 @@ export const ACHIEVEMENTS = Object.freeze([
     description: "Estude por 7 dias consecutivos.",
     icon: "flame",
     xp: 50,
+    coins: 30,
     check: (context) => context.bestStreak >= 7,
   },
 ]);

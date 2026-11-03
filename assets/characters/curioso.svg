@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <defs>
+    <radialGradient id="bg-curioso" cx="35%" cy="25%" r="80%">
+      <stop offset="0" stop-color="#2b3c78"/>
+      <stop offset="1" stop-color="#111a38"/>
+    </radialGradient>
+    <linearGradient id="shirt-curioso" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#0f9f7a"/>
+    </linearGradient>
+  </defs>
+  <circle cx="80" cy="80" r="76" fill="url(#bg-curioso)"/>
+  <circle cx="80" cy="80" r="70" fill="none" stroke="#6c8cff" stroke-opacity=".35" stroke-width="2"/>
+  <ellipse cx="80" cy="137" rx="42" ry="8" fill="#050913" opacity=".45"/>
+  <path d="M52 137c0-24 12-38 28-38s28 14 28 38z" fill="url(#shirt-curioso)"/>
+  <path d="M67 104h26v16a13 13 0 0 1-26 0z" fill="#f2c9a5"/>
+  <circle cx="80" cy="79" r="28" fill="#f7d5b5"/>
+  <path d="M52 79c-1-20 12-32 28-32s29 12 28 32c-4-7-8-11-14-13-7 5-17 6-28 5-5 2-9 4-14 8z" fill="#2b1b3d"/>
+  <path d="M58 62c5-11 15-17 26-16 9 1 16 6 20 14-8-4-16-5-24-3-8 2-15 3-22 5z" fill="#3d2857"/>
+  <circle cx="70" cy="80" r="3" fill="#1b1430"/>
+  <circle cx="90" cy="80" r="3" fill="#1b1430"/>
+  <circle cx="71" cy="79" r="1" fill="#fff"/>
+  <circle cx="91" cy="79" r="1" fill="#fff"/>
+  <path d="M73 90c4 4 10 4 14 0" fill="none" stroke="#b9655d" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M54 121c8 8 16 12 26 12s18-4 26-12" fill="none" stroke="#0b7d61" stroke-width="3" opacity=".6"/>
+  <path d="M92 132c16-3 27-14 31-29 1 18-9 32-31 36z" fill="#6c8cff" opacity=".85"/>
+  <path d="M102 92l12-5 4 9-12 5z" fill="#fbbf24"/>
+  <path d="M107 91l5-2 2 4-5 2z" fill="#fef3c7"/>
+  <path d="M104 99l11-4" stroke="#b45309" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M38 52l2.2 5.8L46 60l-5.8 2.2L38 68l-2.2-5.8L30 60l5.8-2.2z" fill="#fbbf24"/>
+  <circle cx="121" cy="43" r="2.4" fill="#a78bfa"/>
+  <circle cx="31" cy="103" r="2" fill="#34d399"/>
+</svg>

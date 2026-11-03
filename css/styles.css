@@ -691,6 +691,82 @@ button:disabled {
   margin-top: 12px;
 }
 
+/* Character & coins ------------------------------------------------------- */
+
+.character-card {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+}
+
+.character-card__art {
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 50% 20%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%),
+    var(--surface-2);
+}
+
+.character-card__art img {
+  display: block;
+  width: 100%;
+  max-width: 108px;
+  height: auto;
+  border-radius: 16px;
+}
+
+.character-card__body {
+  min-width: 0;
+}
+
+.character-card__body .section-head {
+  align-items: flex-start;
+}
+
+.character-card__body h2 {
+  margin-top: 6px;
+  font-size: 1.08rem;
+}
+
+.character-card__body > .small {
+  margin-top: 6px;
+}
+
+.character-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.character-card__progress {
+  margin-top: 12px;
+}
+
+.character-card__body > .hint {
+  margin-top: 8px;
+}
+
+.chip--coin {
+  background: color-mix(in srgb, #fbbf24 18%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, #fbbf24 45%, transparent);
+  color: #fde68a;
+  white-space: nowrap;
+}
+
+[data-theme="light"] .chip--coin {
+  color: #7a4a00;
+}
+
+.chip--coin svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* Daily goal / streak ----------------------------------------------------- */
 
 .habit-card__head {
@@ -2282,6 +2358,24 @@ button:disabled {
   .connection-status {
     padding: 5px 9px;
     font-size: 0.72rem;
+  }
+
+  .character-card {
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .character-card__art img {
+    max-width: 76px;
+  }
+
+  .character-card__body h2 {
+    font-size: 0.98rem;
+  }
+
+  .character-card .chip--coin {
+    padding: 4px 8px;
+    font-size: 0.68rem;
   }
 
   .hero__stats {

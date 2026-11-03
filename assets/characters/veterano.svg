@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <defs>
+    <radialGradient id="bg-veterano" cx="70%" cy="20%" r="90%">
+      <stop offset="0" stop-color="#4a2b63"/>
+      <stop offset="1" stop-color="#171226"/>
+    </radialGradient>
+    <linearGradient id="shirt-veterano" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f472b6"/>
+      <stop offset="1" stop-color="#be185d"/>
+    </linearGradient>
+  </defs>
+  <circle cx="80" cy="80" r="76" fill="url(#bg-veterano)"/>
+  <circle cx="80" cy="80" r="70" fill="none" stroke="#f472b6" stroke-opacity=".32" stroke-width="2"/>
+  <ellipse cx="80" cy="138" rx="44" ry="8" fill="#050913" opacity=".45"/>
+  <path d="M46 138c0-27 15-42 34-42s34 15 34 42z" fill="url(#shirt-veterano)"/>
+  <path d="M57 108c-5 7-8 18-8 30h12l6-28z" fill="#9d174d"/>
+  <path d="M103 108c5 7 8 18 8 30h-12l-6-28z" fill="#9d174d"/>
+  <path d="M65 101h30v17a15 15 0 0 1-30 0z" fill="#dda77c"/>
+  <circle cx="80" cy="76" r="30" fill="#ecc097"/>
+  <path d="M49 76c-2-22 13-36 31-36s33 14 31 36c-5-9-10-14-16-17-9 5-20 7-31 5-5 3-10 6-15 12z" fill="#1c1328"/>
+  <path d="M54 91c3 12 11 20 26 21 15-1 23-9 26-21-4 8-11 12-26 12s-22-4-26-12z" fill="#3a2416"/>
+  <path d="M65 98c5 4 25 4 30 0-3 8-9 12-15 12s-12-4-15-12z" fill="#3a2416"/>
+  <circle cx="70" cy="78" r="3" fill="#1b1430"/>
+  <circle cx="90" cy="78" r="3" fill="#1b1430"/>
+  <circle cx="71" cy="77" r="1" fill="#fff"/>
+  <circle cx="91" cy="77" r="1" fill="#fff"/>
+  <path d="M74 89c4 3 8 3 12 0" fill="none" stroke="#a95454" stroke-width="2.3" stroke-linecap="round"/>
+  <path d="M54 52l26-14 26 14-26 10z" fill="#111827"/>
+  <path d="M80 62v8" stroke="#fbbf24" stroke-width="2"/>
+  <path d="M88 64l-8 6 8 6 8-6z" fill="#fbbf24"/>
+  <path d="M44 118h24l-3 8H47z" fill="#fbbf24"/>
+  <path d="M41 126h29l-4 9H45z" fill="#fb7185"/>
+  <path d="M47 135h23l-3 8H50z" fill="#38bdf8"/>
+  <path d="M122 118l1.8 4.7 4.7 1.8-4.7 1.8-1.8 4.7-1.8-4.7-4.7-1.8 4.7-1.8z" fill="#fbbf24"/>
+  <circle cx="130" cy="45" r="2.4" fill="#38bdf8"/>
+  <circle cx="32" cy="55" r="2" fill="#34d399"/>
+</svg>

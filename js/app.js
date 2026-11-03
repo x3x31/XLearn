@@ -19,6 +19,7 @@ import {
   getProgressSummary,
   getSettingsRecord,
   getStats,
+  getWallet,
   importDatabase,
   listAttempts,
   recordAnswer,
@@ -32,6 +33,11 @@ import {
   levelFromXp,
   listAchievements,
 } from "./gamification.js";
+import {
+  COIN_RULES,
+  characterFromCoins,
+  createWallet,
+} from "./coins.js";
 import {
   buildReviewQueue,
   computeSchedule,
@@ -56,6 +62,7 @@ const state = {
   progress: { byPath: {}, byId: {}, byKey: {}, records: [] },
   reviewQueue: { groups: [], counts: { overdue: 0, upcoming: 0 } },
   gamification: createGamification(),
+  wallet: createWallet(),
   stats: { answered: 0, correct: 0, daily: {}, byMaterial: {} },
   recentAttempts: [],
   pendingImport: null,
@@ -211,11 +218,16 @@ function toast(message, variant = "info") {
   window.setTimeout(() => node.remove(), 4200);
 }
 
-function announceAchievements(achievements) {
-  if (!Array.isArray(achievements) || achievements.length === 0) return;
-  playSound("achievement");
-  const titles = achievements.map((achievement) => achievement.title).join(", ");
-  toast(`Conquista desbloqueada: ${titles}.`, "success");
+function announceAchievements(achievements, extras = []) {
+  const messages = [];
+  if (Array.isArray(achievements) && achievements.length > 0) {
+    playSound("achievement");
+    const titles = achievements.map((achievement) => achievement.title).join(", ");
+    messages.push(`Conquista desbloqueada: ${titles}`);
+  }
+  messages.push(...extras.filter(Boolean));
+  if (messages.length === 0) return;
+  toast(`${messages.join(" · ")}.`, "success");
 }
 
 /** Atualiza o botão de som do topo conforme as preferências atuais. */
@@ -482,16 +494,18 @@ async function loadPersistedSettings() {
 
 async function refreshProgress() {
   try {
-    const [progress, gamification, stats, recentAttempts] = await Promise.all([
+    const [progress, gamification, stats, recentAttempts, wallet] = await Promise.all([
       getProgressSummary(),
       getGamification(),
       getStats(),
       listAttempts(10),
+      getWallet(),
     ]);
     state.progress = progress;
     state.gamification = gamification;
     state.stats = stats;
     state.recentAttempts = recentAttempts;
+    state.wallet = wallet;
     state.reviewQueue = buildReviewQueue(state.progress.records || []);
   } catch (error) {
     warnStorageOnce(error);
@@ -499,6 +513,7 @@ async function refreshProgress() {
     state.gamification = createGamification();
     state.stats = { answered: 0, correct: 0, daily: {}, byMaterial: {} };
     state.recentAttempts = [];
+    state.wallet = createWallet();
     state.reviewQueue = { groups: [], counts: { overdue: 0, upcoming: 0 } };
   }
   updateNav();
@@ -722,6 +737,7 @@ function renderHome() {
     ),
 
     renderLevelCard(),
+    renderCharacterCard(),
     renderAchievementsCard(),
     renderHabitCard(),
 
@@ -845,6 +861,88 @@ function renderLevelCard() {
       h("div", {}, h("strong", { text: String(gamification.answered) }), h("span", { text: "respondidas" })),
       h("div", {}, h("strong", { text: `${accuracy}%` }), h("span", { text: "precisão" })),
       h("div", {}, h("strong", { text: String(gamification.sessionsCompleted) }), h("span", { text: "sessões" }))
+    )
+  );
+}
+
+function renderCharacterCard() {
+  const wallet = state.wallet || createWallet();
+  const character = characterFromCoins(wallet.earned);
+  const percent = Math.round(character.progress * 100);
+  const stage = character.stage;
+
+  return h(
+    "section",
+    { class: "card character-card", "aria-labelledby": "character-title" },
+    h(
+      "div",
+      { class: "character-card__art" },
+      h("img", {
+        src: new URL(`../${stage.image}`, import.meta.url).href,
+        alt: `Ilustração do personagem ${stage.name}`,
+        width: "160",
+        height: "160",
+        loading: "lazy",
+        decoding: "async",
+      })
+    ),
+    h(
+      "div",
+      { class: "character-card__body" },
+      h(
+        "div",
+        { class: "section-head" },
+        h(
+          "div",
+          {},
+          h("span", { class: "eyebrow" }, icon("sparkles"), "Personagem & moedas"),
+          h("h2", { id: "character-title", text: stage.name })
+        ),
+        h(
+          "span",
+          { class: "chip chip--coin", "aria-label": `${wallet.balance} moedas disponíveis` },
+          icon("coin"),
+          h("span", { text: `${wallet.balance} moedas` })
+        )
+      ),
+      h("p", { class: "small muted", text: stage.description }),
+      h(
+        "div",
+        { class: "character-card__meta" },
+        h("span", {
+          class: "chip chip--neutral",
+          text: `Estágio ${character.stageNumber} de ${character.totalStages}`,
+        }),
+        h("span", {
+          class: "chip chip--neutral",
+          text: `${wallet.earned} moedas acumuladas`,
+        })
+      ),
+      h(
+        "div",
+        {
+          class: "progress character-card__progress",
+          role: "progressbar",
+          "aria-label": "Evolução do personagem",
+          "aria-valuemin": "0",
+          "aria-valuemax": "100",
+          "aria-valuenow": String(percent),
+          "aria-valuetext": character.nextStage
+            ? `${stage.name}: ${percent}% para ${character.nextStage.name}`
+            : `${stage.name}: estágio máximo`,
+        },
+        h("span", { class: "progress__bar", style: `width:${percent}%` })
+      ),
+      h("p", {
+        class: "hint",
+        text: character.nextStage
+          ? `Faltam ${plural(character.coinsToNext, "moeda", "moedas")} para evoluir para ${character.nextStage.name}.`
+          : "Estágio máximo alcançado. Continue estudando para manter o ritmo!",
+      }),
+      h("p", {
+        class: "hint",
+        text: `Ganhe ${COIN_RULES.correctAnswer} moedas por acerto, ${COIN_RULES.sessionBase} ao concluir uma sessão e ${COIN_RULES.dailyGoal} ao bater a meta diária.`,
+      })
     )
   );
 }
@@ -1493,7 +1591,7 @@ function renderSettings() {
       ),
       h("p", {
         class: "hint",
-        text: "O backup inclui configurações, estatísticas, XP, conquistas, progresso das questões, sessões e tentativas deste dispositivo.",
+        text: "O backup inclui configurações, estatísticas, XP, conquistas, moedas, personagem, progresso das questões, sessões e tentativas deste dispositivo.",
       }),
       h(
         "div",
@@ -1549,7 +1647,7 @@ function renderSettings() {
               h("li", {
                 text: `${state.pendingImport.summary.hasSettings ? "Configurações incluídas" : "Sem configurações"} · ${
                   state.pendingImport.summary.hasGamification ? "gamificação incluída" : "sem gamificação"
-                }`,
+                } · ${state.pendingImport.summary.hasWallet ? "moedas incluídas" : "sem moedas"}`,
               })
             ),
             h(
@@ -1617,7 +1715,7 @@ function renderSettings() {
       ),
       h("p", {
         class: "hint",
-        text: "Limpar o cache remove apenas arquivos baixados (HTML, CSS, JS e questões). Seu progresso, XP e histórico continuam salvos no navegador.",
+        text: "Limpar o cache remove apenas arquivos baixados (HTML, CSS, JS e questões). Seu progresso, XP, moedas e histórico continuam salvos no navegador.",
       }),
       state.pendingReset
         ? h(
@@ -1635,7 +1733,7 @@ function renderSettings() {
             }),
             h("p", {
               id: "reset-confirm-desc",
-              text: "Serão apagados respostas, sessões, tentativas, XP, níveis, conquistas, meta diária e sequência. Esta ação não pode ser desfeita.",
+              text: "Serão apagados respostas, sessões, tentativas, XP, níveis, conquistas, moedas, evolução do personagem, meta diária e sequência. Esta ação não pode ser desfeita.",
             }),
             h("p", {
               id: "reset-confirm-hint",
@@ -2377,7 +2475,12 @@ function confirmAnswer(question) {
     .then(async (result) => {
       await refreshProgress();
       if (state.route === "inicio" || state.route === "estudar") render();
-      announceAchievements(result?.newAchievements);
+      const extras = [];
+      if (result?.goalCoinAwarded) {
+        playSound("coin");
+        extras.push(`+${COIN_RULES.dailyGoal} moedas pela meta diária`);
+      }
+      announceAchievements(result?.newAchievements, extras);
       return result;
     })
     .catch((error) => {
@@ -2434,8 +2537,10 @@ async function goToNextQuestion() {
     try {
       const award = await awardSessionCompletion(session);
       if (award?.newAchievements?.length > 0) playSound("achievement");
+      if (award?.coinsGain > 0) playSound("coin");
       const parts = [];
       if (award?.xpGain > 0) parts.push(`Sessão concluída: +${award.xpGain} XP`);
+      if (award?.coinsGain > 0) parts.push(`+${award.coinsGain} moedas`);
       if (award?.newAchievements?.length > 0) {
         parts.push(`conquistas: ${award.newAchievements.map((item) => item.title).join(", ")}`);
       }

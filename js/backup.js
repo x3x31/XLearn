@@ -35,6 +35,7 @@ export function createBackup(data, now = new Date()) {
       attempts: count("attempts", source),
       hasSettings: (source.meta || []).some((record) => record?.key === "settings"),
       hasGamification: (source.meta || []).some((record) => record?.key === "gamification"),
+      hasWallet: (source.meta || []).some((record) => record?.key === "wallet"),
     },
     data: {
       meta: Array.isArray(source.meta) ? source.meta : [],
@@ -99,6 +100,7 @@ export function validateBackup(raw) {
       attempts: backup.data.attempts.length,
       hasSettings: backup.summary.hasSettings,
       hasGamification: backup.summary.hasGamification,
+      hasWallet: backup.summary.hasWallet,
       exportedAt: raw.exportedAt || null,
     },
   };

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <defs>
+    <radialGradient id="bg-focado" cx="30%" cy="18%" r="90%">
+      <stop offset="0" stop-color="#12405c"/>
+      <stop offset="1" stop-color="#0a1730"/>
+    </radialGradient>
+    <linearGradient id="shirt-focado" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <circle cx="80" cy="80" r="76" fill="url(#bg-focado)"/>
+  <circle cx="80" cy="80" r="70" fill="none" stroke="#38bdf8" stroke-opacity=".3" stroke-width="2"/>
+  <ellipse cx="80" cy="138" rx="44" ry="8" fill="#050913" opacity=".45"/>
+  <path d="M47 138c0-26 14-41 33-41s33 15 33 41z" fill="url(#shirt-focado)"/>
+  <path d="M66 102h28v17a14 14 0 0 1-28 0z" fill="#e7b38a"/>
+  <circle cx="80" cy="77" r="29" fill="#f0c49e"/>
+  <path d="M50 77c-2-22 13-35 30-35s32 13 30 35c-5-9-9-14-15-16-8 5-19 6-30 4-5 3-10 6-15 12z" fill="#131c33"/>
+  <path d="M55 61c7-11 15-16 25-16s19 5 25 15c-8-3-16-4-25-3-9 2-17 3-25 4z" fill="#213052"/>
+  <rect x="59" y="71" width="19" height="14" rx="5" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
+  <rect x="82" y="71" width="19" height="14" rx="5" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
+  <path d="M78 77h4" stroke="#fbbf24" stroke-width="2.5"/>
+  <path d="M59 77l-6-2M101 77l6-2" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="69" cy="78" r="2.6" fill="#172033"/>
+  <circle cx="91" cy="78" r="2.6" fill="#172033"/>
+  <circle cx="70" cy="77" r=".9" fill="#fff"/>
+  <circle cx="92" cy="77" r=".9" fill="#fff"/>
+  <path d="M74 91c4 3 8 3 12 0" fill="none" stroke="#b9655d" stroke-width="2.3" stroke-linecap="round"/>
+  <path d="M58 55c-6 0-11 5-11 11s5 11 11 11" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M102 55c6 0 11 5 11 11s-5 11-11 11" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M52 69c4 10 10 16 18 19" fill="none" stroke="#2563eb" stroke-width="4" stroke-linecap="round"/>
+  <rect x="54" y="112" width="52" height="24" rx="5" fill="#0b1224" stroke="#38bdf8" stroke-width="2"/>
+  <path d="M62 119h30M62 125h22" stroke="#7dd3fc" stroke-width="2" stroke-linecap="round" opacity=".8"/>
+  <path d="M29 47l2 5.3 5.3 2-5.3 2-2 5.3-2-5.3-5.3-2 5.3-2z" fill="#fbbf24"/>
+  <circle cx="126" cy="55" r="2.4" fill="#a78bfa"/>
+  <circle cx="31" cy="106" r="2" fill="#34d399"/>
+</svg>

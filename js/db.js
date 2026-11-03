@@ -2,7 +2,7 @@
  * db.js — persistência local do XLearn em IndexedDB.
  *
  * Stores:
- *   meta      { key, value, updatedAt }        configurações, estatísticas agregadas e gamificação
+ *   meta      { key, value, updatedAt }        configurações, estatísticas agregadas, gamificação e carteira
  *   progress  { key, materialId, questionId }  domínio por questão + histórico curto
  *   sessions  { id, status, ... }              sessões completas, retomáveis
  *   attempts  { key, sessionId, ... }          histórico completo de respostas
@@ -15,6 +15,11 @@ import {
   applySessionRewards,
   normalizeGamification,
 } from "./gamification.js";
+import {
+  applyAnswerCoins,
+  applySessionCoins,
+  normalizeWallet,
+} from "./coins.js";
 
 const DB_NAME = "xlearn";
 const DB_VERSION = 1;
@@ -174,6 +179,7 @@ export async function clearProgressData() {
       const meta = tx.objectStore("meta");
       meta.delete("stats");
       meta.delete("gamification");
+      meta.delete("wallet");
     } catch (error) {
       tx.abort();
       reject(error);
@@ -226,6 +232,11 @@ export async function getStats() {
 /** Lê a gamificação acumulada, sempre em formato completo. */
 export async function getGamification() {
   return normalizeGamification(await getMeta("gamification"));
+}
+
+/** Lê a carteira de moedas, sempre em formato completo. */
+export async function getWallet() {
+  return normalizeWallet(await getMeta("wallet"));
 }
 
 export function progressKey(materialId, questionId) {
@@ -324,12 +335,18 @@ export async function recordAnswer({
   const dayKey = localDayKey(new Date(answeredAt));
   let savedProgress = null;
   let savedGamification = null;
+  let savedWallet = null;
   let xpGain = 0;
+  let coinsGain = 0;
+  let goalCoinAwarded = false;
   let newAchievements = [];
   let statsSnapshot = null;
   let gamificationSnapshot = null;
   let gamificationReady = false;
   let gamificationApplied = false;
+  let walletSnapshot = null;
+  let walletReady = false;
+  let walletApplied = false;
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["sessions", "progress", "attempts", "meta"], "readwrite");
@@ -356,6 +373,28 @@ export async function recordAnswer({
         value: result.gamification,
         updatedAt: result.gamification.updatedAt,
       });
+    };
+
+    const applyWallet = () => {
+      if (walletApplied || !statsSnapshot || !walletReady) return;
+      walletApplied = true;
+      const goalReached = (statsSnapshot.daily?.[dayKey]?.answered || 0) >= dailyGoal;
+      const result = applyAnswerCoins(walletSnapshot, {
+        correct: Boolean(answer.correct),
+        goalReached,
+        dayKey,
+        now: new Date(answeredAt),
+      });
+      savedWallet = result.wallet;
+      coinsGain = result.gain;
+      goalCoinAwarded = result.goalAwarded;
+      if (result.gain > 0) {
+        metaStore.put({
+          key: "wallet",
+          value: result.wallet,
+          updatedAt: result.wallet.updatedAt,
+        });
+      }
     };
 
     sessionsStore.put(sessionSnapshot);
@@ -465,6 +504,7 @@ export async function recordAnswer({
         byMaterial,
       };
       applyGamification();
+      applyWallet();
     };
 
     const gamificationRequest = metaStore.get("gamification");
@@ -474,13 +514,23 @@ export async function recordAnswer({
       applyGamification();
     };
 
+    const walletRequest = metaStore.get("wallet");
+    walletRequest.onsuccess = () => {
+      walletSnapshot = walletRequest.result?.value ?? null;
+      walletReady = true;
+      applyWallet();
+    };
+
     tx.oncomplete = () =>
       resolve({
         attempt,
         progressKey: pKey,
         progress: savedProgress,
         gamification: savedGamification,
+        wallet: savedWallet,
         xpGain,
+        coinsGain,
+        goalCoinAwarded,
         newAchievements,
       });
     tx.onerror = () => reject(tx.error || new Error("Falha ao registrar a resposta."));
@@ -501,11 +551,24 @@ export async function awardSessionCompletion(session, { now = new Date() } = {})
   return new Promise((resolve, reject) => {
     const tx = db.transaction("meta", "readwrite");
     const store = tx.objectStore("meta");
-    const request = store.get("gamification");
+    const gamificationRequest = store.get("gamification");
+    const walletRequest = store.get("wallet");
     let result = null;
+    let walletResult = null;
+    let gamificationReady = false;
+    let walletReady = false;
+    let applied = false;
 
-    request.onsuccess = () => {
-      result = applySessionRewards(request.result?.value, {
+    const apply = () => {
+      if (applied || !gamificationReady || !walletReady) return;
+      applied = true;
+      result = applySessionRewards(gamificationRequest.result?.value, {
+        sessionId: session?.id,
+        correct,
+        total,
+        now,
+      });
+      walletResult = applySessionCoins(walletRequest.result?.value, {
         sessionId: session?.id,
         correct,
         total,
@@ -518,9 +581,35 @@ export async function awardSessionCompletion(session, { now = new Date() } = {})
           updatedAt: result.gamification.updatedAt,
         });
       }
+      if (!walletResult.alreadyAwarded) {
+        store.put({
+          key: "wallet",
+          value: walletResult.wallet,
+          updatedAt: walletResult.wallet.updatedAt,
+        });
+      }
     };
 
-    tx.oncomplete = () => resolve(result);
+    gamificationRequest.onsuccess = () => {
+      gamificationReady = true;
+      apply();
+    };
+    walletRequest.onsuccess = () => {
+      walletReady = true;
+      apply();
+    };
+
+    tx.oncomplete = () =>
+      resolve(
+        result
+          ? {
+              ...result,
+              wallet: walletResult?.wallet ?? null,
+              coinsGain: walletResult?.gain ?? 0,
+              coinsAlreadyAwarded: Boolean(walletResult?.alreadyAwarded),
+            }
+          : null
+      );
     tx.onerror = () => reject(tx.error || new Error("Falha ao premiar a sessão."));
     tx.onabort = () => reject(tx.error || new Error("Premiação da sessão cancelada."));
   });
