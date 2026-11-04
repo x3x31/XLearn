@@ -1452,7 +1452,7 @@ function renderStudy() {
         icon("sparkles")
       )
     ),
-    ...renderMaterialGrid(),
+    renderMaterialGrid(),
   ];
 }
 
