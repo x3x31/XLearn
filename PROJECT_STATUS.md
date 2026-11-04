@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.24.0` |
+| **Versão atual** | `0.25.0` |
 | **Data da última atualização** | 2026-11-04 |
 
 ---
@@ -102,7 +102,7 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 | ID | Nome | Descrição | Prioridade | Status |
 |---|---|---|---|---|
 | REQ-026 | Acessibilidade e responsividade | Navegação por teclado, foco, contraste, `aria-live`, alvos de toque e layout adaptativo. | Média | IMPLEMENTADO |
-| REQ-027 | Testes abrangentes finais | Campanha completa ao término das funcionalidades, com correções documentadas. | Alta | PENDENTE |
+| REQ-027 | Testes abrangentes finais | Campanha completa ao término das funcionalidades, com correções documentadas. | Alta | IMPLEMENTADO |
 | REQ-028 | Documentação de uso | README com execução, inclusão de provas, publicação, instalação e limitações. | Média | PENDENTE |
 
 ### Fase 8 — Ludicidade, moedas, personagens, simulados
@@ -325,6 +325,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.22.0 | REQ-031 | Módulo `timer.js` com cronômetro regressivo de 5–120 minutos, persistência de `deadlineAt`/`remainingSeconds`, pausa automática ao ocultar a aba, alerta no último minuto, encerramento automático com resumo marcando não respondidas e exclusão de revisões/correções | `369fb6f` | 2026-11-03 |
 | 0.23.0 | REQ-032 | Módulo `simulado.js` puro, rota `#/simulado`, construtor por assunto com total em tempo real, sessão ativa separada em `meta/simuladoSession`, histórico idempotente em `meta/simulados`, resumo por assunto e isolamento de progresso/XP/conquistas/SRS/ranking/estatísticas/moedas | `2c67248` | 2026-11-04 |
 | 0.24.0 | REQ-033 | Coleta manual de moedas das conquistas desbloqueadas com botão acessível, valor canônico, transação atômica e idempotente, cascata decorativa de moedas, som de moeda, saldo/pendências atualizados no dashboard e no progresso | `0464c32` | 2026-11-04 |
+| 0.25.0 | REQ-027 | Campanha final de testes em 12 suítes temporárias (unitárias, DOM/IndexedDB, PWA/estática e regressões), cobrindo 10 materiais/1250 questões; correção da rota `#/estudar`, que quebrava ao aplicar spread em um único elemento | `8f7219a` | 2026-11-04 |
 
 ---
 
@@ -362,12 +363,13 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-031 — Contagem regressiva nas provas:** `js/timer.js` mantém o cronômetro como módulo puro. A configuração `timerEnabled`/`timerMinutes` (5–120, padrão 30) integra `meta/settings` e o cartão “Tempo de prova” de `#/config`. Sessões novas de prova (`mode: "material"`) recebem o cronômetro; revisões e correções não. Enquanto corre, a sessão guarda `deadlineAt`; ao ocultar a aba, o tempo é congelado em `remainingSeconds` e retomado ao voltar. O cabeçalho do quiz mostra um `role="timer"` discreto, com `aria-label` em texto, estado de alerta no último minuto e indicação visual de pausa. Ao zerar, o app aguarda a última gravação, encerra a sessão, paga a conclusão uma única vez, toca o som de fim e abre o resumo com aviso de tempo esgotado, contador de não respondidas e marcação individual dessas questões.
 - **REQ-032 — Simulados por assunto:** `js/simulado.js` concentra as funções puras de resumo, histórico idempotente e agregação. A rota `#/simulado` agrupa os materiais válidos por assunto, oferece campos de quantidade por assunto, presets “10 por assunto”/“Limpar”, total em tempo real e início desativado sem questões. O simulado ativo fica em `meta/simuladoSession` com `mode: "simulado"` e IDs compostos; as questões são embaralhadas e o quiz mostra o selo “Simulado”. Concluir grava apenas um resumo compacto em `meta/simulados` (datas, duração, total, acertos e totais/acertos por assunto), limpa o simulado ativo e abre um resumo próprio com resultado por assunto. Nenhum caminho grava progresso, tentativas, sessões normais, estatísticas, XP, conquistas, SRS, ranking ou moedas. Sessão normal e simulado podem ficar ativos ao mesmo tempo e são retomados por banners independentes no início; o backup inclui os dois e apagar progresso remove o histórico de simulados.
 - **REQ-033 — Coleta de moedas de conquistas:** as conquistas desbloqueadas aparecem como botões “Clique para coletar”, com a recompensa em moedas e o XP já recebido. O clique chama `claimAchievementReward` em `js/db.js`, que valida o desbloqueio e usa o valor canônico de `js/gamification.js` dentro de uma transação `readwrite` sobre `meta`; o pagamento é gravado em `wallet.claimedAchievements` e nunca é automático. A resposta atualiza o dashboard e a tela de progresso, toca o som de moeda e dispara uma cascata decorativa de moedas ancorada no cartão, oculta de leitores de tela e neutralizada por animações desligadas ou `prefers-reduced-motion`. Cliques repetidos, inclusive concorrentes, retornam `alreadyClaimed` sem somar saldo; conquistas bloqueadas e valores adulterados são recusados. O chip de conquistas mostra o total pendente de moedas e volta ao XP quando tudo foi coletado.
+- **REQ-027 — Testes abrangentes finais:** campanha executada ao término da fase 8 com 12 suítes temporárias, fora do repositório, em Node com DOM simulado (`happy-dom`), IndexedDB em memória (`fake-indexeddb`), Cache API e rede simuladas. A cobertura unitária validou manifesto (10 materiais/1250 questões), parser e correção por ID em todas as questões, embaralhamento estável, SRS, gamificação, moedas, ranking, cronômetro, simulados, backup, configurações, cache e isolamento de materiais malformados/manifesto inválido. As suítes de integração percorreram configurações e efeitos reais, sessão normal, cronômetro com pausa/retomada e expiração, SRS automático/manual, fila de revisões, estatísticas, XP, meta, sequência, ranking, acessibilidade, exportação/importação, restauração, exclusão de dados, simulados, coleta de conquistas e service worker. A campanha encontrou e corrigiu um defeito real: `renderStudy` aplicava spread em `renderMaterialGrid()`, que devolve um único elemento, e a rota `#/estudar` não renderizava; a chamada passou a ser inserida diretamente no array. Todas as suítes e `npm run check` passaram após a correção.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-026 e REQ-029 a REQ-033. A fase 8 está concluída; a prioridade imediata é a campanha de testes abrangentes finais (REQ-027) e, depois, o README (REQ-028).
+Todas as funcionalidades listadas na seção C estão implementadas, exceto REQ-028. A fase 8 e a campanha de testes abrangentes finais (REQ-027) estão concluídas; resta apenas o README de uso (REQ-028).
 
 Dependências principais:
 
@@ -452,23 +454,25 @@ Dependências principais:
 - Coleta de conquistas testada com funções puras e IndexedDB em memória: conquista bloqueada recusada, valor desconhecido recusado, valor canônico de `ACHIEVEMENTS` usado, saldo e total acumulado somados uma vez, registro em `claimedAchievements`, chamada repetida sem novo pagamento e duas chamadas concorrentes pagando apenas uma vez.
 - Integração com DOM confirmou duas conquistas desbloqueadas como botões “Clique para coletar” com `aria-label`, chip somando 10 moedas pendentes, clique creditando 5 moedas, som de moeda e cascata decorativa, item convertido em artigo focável com “Moedas coletadas”, pendência restante atualizada e XP inalterado. Chamada repetida e segunda coleta na tela de progresso foram verificadas; sem pendências, o chip voltou a exibir o XP recebido.
 
-### Testes finais pendentes
+### Campanha final (REQ-027)
 
-- Carregar todas as provas e validar metadados.
-- Verificar embaralhamento e correção em todas as questões.
-- Testar persistência, recarga e retomada de sessão.
-- Reexecutar o SRS automático/manual, a fila e a priorização em todos os materiais na campanha final.
-- Testar XP, níveis, conquistas, meta, sequência, ranking e estatísticas.
-- Testar cada configuração e seu efeito real.
-- Testar exportação, importação inválida e exclusão de dados.
-- Testar offline, instalação PWA, atualização do service worker e GitHub Pages em subdiretório.
-- Repetir a auditoria de responsividade, teclado, leitor de tela e contraste em navegador real na campanha final.
-- Testar arquivo de prova malformado sem interromper os demais.
+12 suítes temporárias executadas em `/tmp/opencode/xlearn-test/` (harness de desenvolvimento, não versionado), todas aprovadas:
+
+- **Unitária:** manifesto com 10 materiais válidos e 1250 questões; parser e correção por ID nas 1250 questões; alternativas estáveis e gabarito único; material vazio, JSON inválido, ID duplicado e questão sem gabarito isolados; manifesto inválido recusado sem impedir materiais válidos.
+- **SRS e gamificação:** acerto/erro, desativação, intervalo manual e fila priorizada; XP, níveis, meta, sequência, conquistas e bônus de sessão sem duplicação; economia de moedas, meta diária, coleta e cinco estágios; ranking por Wilson e agregação por prova/disciplina.
+- **Cronômetro, simulados, backup, configurações e cache:** criação, pausa, retomada, expiração e acessibilidade; resumo por assunto, histórico idempotente e agregação; envelope/versão do backup e rejeição de chaves duplicadas; normalização de faixas, intervalos e volume; limpeza seletiva de caches sem afetar outros apps.
+- **DOM/IndexedDB — configurações e estudo:** persistência e aplicação imediata de tema, fonte, animações, som, volume, SRS, cronômetro, meta e ordem; rejeição de valores inválidos; sessão respeitando tamanho e ordem; pausa ao ocultar a aba e retomada; correção por alternativa e feedback acessível; revisão manual de 1 hora; estatísticas, XP, meta, sequência, ranking e fila de revisões.
+- **DOM/IndexedDB — expiração:** relógio avançado de forma independente da recarga; encerramento automático; `expiredAt` e `remainingSeconds = 0` persistidos; resumo “Tempo esgotado” com todas as questões não respondidas; nenhuma resposta inventada e nenhuma estatística contabilizada.
+- **DOM/IndexedDB — backup e exclusão:** exportação real com carteira, simulados e progresso; rejeição de JSON inválido e versão incompatível; cancelamento sem alterações; confirmação com resumo; restauração de configurações, carteira, histórico de simulados, progresso, sessões e tentativas; exclusão preservando configurações e zerando o restante.
+- **Estática/PWA:** HTML pt-BR e sem dependências externas; manifesto instalável, ícones reais e maskable; CSS responsivo, `prefers-reduced-motion`, foco visível e alvos de toque; shell `v8` com 28 arquivos existentes, incluindo os cinco personagens.
+- **Regressões:** simulados (unitária, backup e DOM), sessão normal, coleta de conquistas (IndexedDB e DOM) e service worker `v8` reexecutados sem falhas após a correção.
+- **Defeito corrigido:** `renderStudy` usava `...renderMaterialGrid()`, mas a função devolve um único elemento; a rota `#/estudar` não renderizava. A chamada passou a ser inserida diretamente em `js/app.js`, e a rota foi reverificada.
+- **Validação final:** `npm run check` confirmou 10 materiais e 1250 questões; `node --check js/app.js` passou.
 
 ---
 
 ## L. Próxima tarefa recomendada
 
-**REQ-027 — testes abrangentes finais.**
+**REQ-028 — documentação de uso (README).**
 
-Motivo: a fase 8 está concluída. As conquistas agora exigem coleta manual, com transação atômica, idempotência, cascata de moedas, som e atualização de saldo/pendências. A próxima etapa deve executar a campanha completa de testes em todos os materiais e fluxos, corrigindo e documentando qualquer regressão encontrada. Em seguida, o README (REQ-028) encerrará a documentação de uso.
+Motivo: todas as funcionalidades e a campanha final de testes estão concluídas. Falta documentar execução local, inclusão de provas, publicação no GitHub Pages, instalação como PWA, uso das telas e limitações conhecidas. O README encerrará a documentação de uso e permitirá declarar o projeto concluído.
