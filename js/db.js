@@ -11,6 +11,7 @@
  */
 
 import {
+  ACHIEVEMENTS,
   applyAnswerRewards,
   applySessionRewards,
   normalizeGamification,
@@ -18,6 +19,7 @@ import {
 import {
   applyAnswerCoins,
   applySessionCoins,
+  claimAchievementCoins as applyAchievementClaim,
   normalizeWallet,
 } from "./coins.js";
 
@@ -239,6 +241,76 @@ export async function getGamification() {
 /** Lê a carteira de moedas, sempre em formato completo. */
 export async function getWallet() {
   return normalizeWallet(await getMeta("wallet"));
+}
+
+/**
+ * Coleta a recompensa em moedas de uma conquista desbloqueada.
+ * A leitura da gamificação e da carteira, a validação do desbloqueio e a
+ * gravação acontecem na mesma transação `readwrite`, portanto cliques
+ * repetidos (ou em abas diferentes) não pagam a recompensa duas vezes.
+ */
+export async function claimAchievementReward(achievementId, { now = new Date() } = {}) {
+  const achievement = ACHIEVEMENTS.find((item) => item.id === achievementId);
+  if (!achievement) {
+    throw new Error("Conquista desconhecida.");
+  }
+
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("meta", "readwrite");
+    const store = tx.objectStore("meta");
+    const gamificationRequest = store.get("gamification");
+    const walletRequest = store.get("wallet");
+    let gamificationReady = false;
+    let walletReady = false;
+    let applied = false;
+    let result = null;
+
+    const apply = () => {
+      if (applied || !gamificationReady || !walletReady) return;
+      applied = true;
+      const gamification = normalizeGamification(gamificationRequest.result?.value);
+      const wallet = normalizeWallet(walletRequest.result?.value);
+
+      if (!gamification.achievements[achievementId]) {
+        result = {
+          wallet,
+          gain: 0,
+          alreadyClaimed: false,
+          notUnlocked: true,
+          achievement,
+        };
+        return;
+      }
+
+      const claim = applyAchievementClaim(wallet, {
+        achievementId,
+        amount: achievement.coins,
+        now,
+      });
+      result = { ...claim, notUnlocked: false, achievement };
+      if (!claim.alreadyClaimed) {
+        store.put({
+          key: "wallet",
+          value: claim.wallet,
+          updatedAt: claim.wallet.updatedAt,
+        });
+      }
+    };
+
+    gamificationRequest.onsuccess = () => {
+      gamificationReady = true;
+      apply();
+    };
+    walletRequest.onsuccess = () => {
+      walletReady = true;
+      apply();
+    };
+
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => reject(tx.error || new Error("Falha ao coletar a recompensa."));
+    tx.onabort = () => reject(tx.error || new Error("Coleta da recompensa cancelada."));
+  });
 }
 
 /** Simulado ativo, mantido separado das sessões normais. */

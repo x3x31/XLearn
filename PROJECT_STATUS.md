@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.23.0` |
+| **Versão atual** | `0.24.0` |
 | **Data da última atualização** | 2026-11-04 |
 
 ---
@@ -113,7 +113,7 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 | REQ-030 | Moedas e evolução de personagens | Sistema de moedas e evolução de personagem estudioso com imagens de personagens (SVG) em estágios. Ganho de moedas em respostas corretas, conclusão de sessão, meta e conquistas; saldo persistido no IndexedDB. Cartão "Personagem & Moedas" no dashboard com personagem atual, estágio, moedas e barra de evolução. | Alta | IMPLEMENTADO |
 | REQ-031 | Contagem regressiva nas provas | Cronômetro regressivo configurável por sessão de prova (desligado por padrão; 5–120 minutos). Persiste tempo restante ao recarregar/retomar, finaliza a sessão automaticamente ao zerar marcando não respondidas, não aplicado a revisões. Exibido discretamente com acessibilidade e pausa visual ao ficar oculto. | Alta | IMPLEMENTADO |
 | REQ-032 | Simulados por assunto | Rota `#/simulado` para criar simulados configurando quantas questões de cada assunto (agregados dos materiais válidos). Não afeta progresso, XP, conquistas, SRS, ranking ou estatísticas. Apenas registra histórico separado por assunto com total de questões e acertos. Reaproveita fluxo de quiz; resumo distinto. | Alta | IMPLEMENTADO |
-| REQ-033 | Coleta de moedas de conquistas | Animação de moedas nas conquistas desbloqueadas: o usuário deve clicar na conquista para "coletar" as moedas, com animação em cascata e som de moedas. Recompensa única, idempotente, gravada em transação, atualiza saldo e não concede automaticamente. | Alta | PENDENTE |
+| REQ-033 | Coleta de moedas de conquistas | Animação de moedas nas conquistas desbloqueadas: o usuário deve clicar na conquista para "coletar" as moedas, com animação em cascata e som de moedas. Recompensa única, idempotente, gravada em transação, atualiza saldo e não concede automaticamente. | Alta | IMPLEMENTADO |
 
 ### Critérios de aceitação gerais
 
@@ -147,7 +147,7 @@ XLearn/
 └── .git/
 ```
 
-Arquitetura atual (após REQ-032):
+Arquitetura atual (após REQ-033):
 
 ```
 XLearn/
@@ -290,6 +290,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Som | `js/sound.js` (Web Audio, sem arquivos) sintetiza efeitos curtos e mantém um único `AudioContext`, criado apenas após gesto do usuário. Preferências `soundEnabled` e `soundVolume` integram `meta/settings`; o botão do topo e as prévias usam a mesma fonte. Feedback visual usa classes decorativas com `aria-hidden` e é neutralizado por `data-animations="off"`/`prefers-reduced-motion`. | Atende ao requisito lúdico sem dependências, sem autoplay bloqueado e sem alterar o conteúdo acessível ou o gabarito. |
 | Cronômetro da prova | `js/timer.js` (puro) cria um cronômetro desligado por padrão, com duração de 5–120 minutos e padrão de 30. Enquanto corre, guarda `deadlineAt`; ao pausar, congela `remainingSeconds`; ao retomar, recria o limite. A sessão persiste o objeto `timer`, o app atualiza um único nó com `role="timer"` a cada segundo, entra em estado de alerta no último minuto e pausa/retoma ao ocultar/mostrar a aba. Ao zerar, aguarda a gravação da última resposta, encerra a sessão, premia a conclusão e abre o resumo com as não respondidas destacadas. | O instante-limite mantém o tempo correto mesmo com atraso de renderização; a pausa ao ocultar evita punir quem troca de aba. O cronômetro é aplicado só a `mode: "material"`, nunca a revisões ou correções. |
 | Simulados por assunto | A rota `#/simulado` agrupa os materiais válidos por `subject`, aceita uma quantidade por assunto e monta a sessão com IDs compostos `materialId::questionId` para evitar colisão. O simulado ativo vive em `meta/simuladoSession` com `mode: "simulado"`; a conclusão grava apenas um resumo compacto em `meta/simulados` (datas, duração, totais e acertos por assunto). Nenhum caminho de gravação normal é chamado: sem `progress`, `attempts`, `sessions`, `stats`, gamificação, carteira ou SRS. O quiz reaproveita embaralhamento e correção, mas o resumo é próprio e o cronômetro de prova fica desligado. | Mantém o simulado isolado por definição, permite retomar simulado e sessão normal de forma independente e preserva a precisão dos totais por assunto sem inflar XP, ranking ou estatísticas. |
+| Coleta de conquistas | As conquistas desbloqueadas viram botões “Clique para coletar”. `claimAchievementReward` usa o valor canônico de `ACHIEVEMENTS` e executa, em uma única transação `readwrite` no store `meta`, a leitura da gamificação e da carteira, a verificação de desbloqueio e o registro em `claimedAchievements`. A interface só anima e toca o som de moedas quando o retorno tem ganho; chamadas repetidas retornam `alreadyClaimed` sem alterar o saldo. | Impede concessão automática, adulteração do valor pelo DOM e pagamento duplicado por cliques repetidos ou abas concorrentes; a cascata e o som comemoram somente a coleta efetiva. |
 | Versionamento | Um commit funcional por requisito, Conventional Commits, push após cada entrega; hash registrado no commit seguinte. | Rastreabilidade e histórico incremental. |
 | Entrega conjunta REQ-004..007 | Seleção, exibição, embaralhamento e correção entregues juntos. | São inseparáveis para que exista um fluxo utilizável; um commit intermediário sem correção ou sem shuffle seria uma funcionalidade parcial, o que o projeto proíbe. |
 | Entrega conjunta REQ-011..013 | Agendamento automático, escolha manual e fila de revisões entregues juntos. | O agendamento só tem efeito observável na fila; a escolha manual precisa do agendamento para existir. Separar produziria estados inutilizáveis. |
@@ -323,6 +324,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.21.0 | REQ-030 | Módulo `coins.js` com carteira persistida em `meta/wallet`, moedas por acerto/sessão/meta, estágios do personagem por total acumulado, cinco SVGs reais, recompensas de conquistas preparadas para coleta e cartão “Personagem & Moedas” no dashboard | `3353195` | 2026-11-03 |
 | 0.22.0 | REQ-031 | Módulo `timer.js` com cronômetro regressivo de 5–120 minutos, persistência de `deadlineAt`/`remainingSeconds`, pausa automática ao ocultar a aba, alerta no último minuto, encerramento automático com resumo marcando não respondidas e exclusão de revisões/correções | `369fb6f` | 2026-11-03 |
 | 0.23.0 | REQ-032 | Módulo `simulado.js` puro, rota `#/simulado`, construtor por assunto com total em tempo real, sessão ativa separada em `meta/simuladoSession`, histórico idempotente em `meta/simulados`, resumo por assunto e isolamento de progresso/XP/conquistas/SRS/ranking/estatísticas/moedas | `2c67248` | 2026-11-04 |
+| 0.24.0 | REQ-033 | Coleta manual de moedas das conquistas desbloqueadas com botão acessível, valor canônico, transação atômica e idempotente, cascata decorativa de moedas, som de moeda, saldo/pendências atualizados no dashboard e no progresso | `pendente` | 2026-11-04 |
 
 ---
 
@@ -359,12 +361,13 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-030 — Moedas e evolução do personagem:** `js/coins.js` define a economia em módulo puro e mantém a carteira em `meta/wallet` com saldo, total acumulado, moedas gastas, sessões já pagas, dias de meta e conquistas coletadas. Cada acerto rende 2 moedas; concluir uma sessão rende 10 + 5 se todas estiverem corretas; atingir a meta diária rende 15 moedas uma única vez por dia; as conquistas têm recompensas próprias, preparadas para coleta manual em REQ-033. Os pagamentos são idempotentes por `sessionId`/dia e ocorrem na mesma transação da resposta ou da conclusão. O personagem evolui pelo total acumulado em cinco estágios — Curioso (0), Estudante (60), Focado (180), Veterano (400) e Mestre dos estudos (800) — cada um com SVG próprio em `assets/characters/`. O dashboard mostra o cartão “Personagem & Moedas” com imagem, saldo, estágio, total acumulado, barra acessível e quanto falta para evoluir. Backup inclui a carteira e apagar progresso também apaga moedas e evolução.
 - **REQ-031 — Contagem regressiva nas provas:** `js/timer.js` mantém o cronômetro como módulo puro. A configuração `timerEnabled`/`timerMinutes` (5–120, padrão 30) integra `meta/settings` e o cartão “Tempo de prova” de `#/config`. Sessões novas de prova (`mode: "material"`) recebem o cronômetro; revisões e correções não. Enquanto corre, a sessão guarda `deadlineAt`; ao ocultar a aba, o tempo é congelado em `remainingSeconds` e retomado ao voltar. O cabeçalho do quiz mostra um `role="timer"` discreto, com `aria-label` em texto, estado de alerta no último minuto e indicação visual de pausa. Ao zerar, o app aguarda a última gravação, encerra a sessão, paga a conclusão uma única vez, toca o som de fim e abre o resumo com aviso de tempo esgotado, contador de não respondidas e marcação individual dessas questões.
 - **REQ-032 — Simulados por assunto:** `js/simulado.js` concentra as funções puras de resumo, histórico idempotente e agregação. A rota `#/simulado` agrupa os materiais válidos por assunto, oferece campos de quantidade por assunto, presets “10 por assunto”/“Limpar”, total em tempo real e início desativado sem questões. O simulado ativo fica em `meta/simuladoSession` com `mode: "simulado"` e IDs compostos; as questões são embaralhadas e o quiz mostra o selo “Simulado”. Concluir grava apenas um resumo compacto em `meta/simulados` (datas, duração, total, acertos e totais/acertos por assunto), limpa o simulado ativo e abre um resumo próprio com resultado por assunto. Nenhum caminho grava progresso, tentativas, sessões normais, estatísticas, XP, conquistas, SRS, ranking ou moedas. Sessão normal e simulado podem ficar ativos ao mesmo tempo e são retomados por banners independentes no início; o backup inclui os dois e apagar progresso remove o histórico de simulados.
+- **REQ-033 — Coleta de moedas de conquistas:** as conquistas desbloqueadas aparecem como botões “Clique para coletar”, com a recompensa em moedas e o XP já recebido. O clique chama `claimAchievementReward` em `js/db.js`, que valida o desbloqueio e usa o valor canônico de `js/gamification.js` dentro de uma transação `readwrite` sobre `meta`; o pagamento é gravado em `wallet.claimedAchievements` e nunca é automático. A resposta atualiza o dashboard e a tela de progresso, toca o som de moeda e dispara uma cascata decorativa de moedas ancorada no cartão, oculta de leitores de tela e neutralizada por animações desligadas ou `prefers-reduced-motion`. Cliques repetidos, inclusive concorrentes, retornam `alreadyClaimed` sem somar saldo; conquistas bloqueadas e valores adulterados são recusados. O chip de conquistas mostra o total pendente de moedas e volta ao XP quando tudo foi coletado.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-026 e REQ-029 a REQ-032. Prioridade imediata: concluir a fase 8 com REQ-033 e, em seguida, a campanha de testes abrangentes finais (REQ-027).
+Todas as funcionalidades listadas na seção C estão pendentes, exceto REQ-001 a REQ-026 e REQ-029 a REQ-033. A fase 8 está concluída; a prioridade imediata é a campanha de testes abrangentes finais (REQ-027) e, depois, o README (REQ-028).
 
 Dependências principais:
 
@@ -444,7 +447,10 @@ Dependências principais:
 - Simulados testados com funções puras: chave composta `materialId::questionId`, precisão com zero questões, resumo com acertos/erros/não respondidas e totais por assunto, histórico que ignora registro repetido do mesmo `id`, ordenação do mais recente, agregação geral e por assunto e normalização de histórico legado/corrompido.
 - Integração de simulados com DOM e IndexedDB confirmou a rota `#/simulado`, agrupamento dos assuntos reais, início desativado sem questões, total em tempo real, quatro questões escolhidas, selo de simulado, ausência do cronômetro de prova, persistência em `meta/simuladoSession`, conclusão em `meta/simulados`, resumo distinto com resultado por assunto e limpeza do simulado ativo. Progresso, tentativas, sessões normais, estatísticas, XP, conquistas e carteira permaneceram zerados; a retomada de simulado e de sessão normal foi verificada por banners independentes.
 - A regressão da sessão normal foi reexecutada após separar os stores: início, persistência, alternativas, avanço para a questão 2, tentativa, progresso, banner “Sessão em andamento” e retomada continuaram funcionando.
-- O service worker foi verificado em `v7` com 28 caminhos do shell, incluindo `js/simulado.js`, todos existentes no repositório; o app importa o módulo, registra o worker e mantém o manifesto válido com 10 materiais/1250 questões.
+- O service worker foi verificado em `v7` com 28 caminhos do shell, incluindo `js/simulado.js`, todos existentes no repositório; o app importa o módulo, registra o worker e mantém o manifesto válido com 10 materiais/1250 questões. Após a coleta de conquistas, a versão passou para `v8` mantendo os 28 caminhos.
+
+- Coleta de conquistas testada com funções puras e IndexedDB em memória: conquista bloqueada recusada, valor desconhecido recusado, valor canônico de `ACHIEVEMENTS` usado, saldo e total acumulado somados uma vez, registro em `claimedAchievements`, chamada repetida sem novo pagamento e duas chamadas concorrentes pagando apenas uma vez.
+- Integração com DOM confirmou duas conquistas desbloqueadas como botões “Clique para coletar” com `aria-label`, chip somando 10 moedas pendentes, clique creditando 5 moedas, som de moeda e cascata decorativa, item convertido em artigo focável com “Moedas coletadas”, pendência restante atualizada e XP inalterado. Chamada repetida e segunda coleta na tela de progresso foram verificadas; sem pendências, o chip voltou a exibir o XP recebido.
 
 ### Testes finais pendentes
 
@@ -463,6 +469,6 @@ Dependências principais:
 
 ## L. Próxima tarefa recomendada
 
-**REQ-033 — coleta de moedas de conquistas.**
+**REQ-027 — testes abrangentes finais.**
 
-Motivo: os simulados por assunto estão concluídos, com construtor, sessão ativa isolada, histórico idempotente por assunto e resumo próprio sem afetar progresso, XP, conquistas, SRS, ranking, estatísticas ou moedas. A próxima entrega deve transformar as recompensas de conquistas já desbloqueadas em coleta manual: clique na conquista, animação de moedas em cascata, som de moedas e crédito único e idempotente na carteira, sem concessão automática. Depois de REQ-033, a campanha final (REQ-027) e o README (REQ-028) serão retomados.
+Motivo: a fase 8 está concluída. As conquistas agora exigem coleta manual, com transação atômica, idempotência, cascata de moedas, som e atualização de saldo/pendências. A próxima etapa deve executar a campanha completa de testes em todos os materiais e fluxos, corrigindo e documentando qualquer regressão encontrada. Em seguida, o README (REQ-028) encerrará a documentação de uso.

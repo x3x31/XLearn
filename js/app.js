@@ -12,6 +12,7 @@ import { getSettings, applyVisualSettings, normalizeSettings, setSettings, MANUA
 import {
   applyReviewSchedule,
   awardSessionCompletion,
+  claimAchievementReward,
   clearProgressData,
   clearSimuladoSession,
   exportDatabase,
@@ -91,6 +92,7 @@ const state = {
   simuladoSession: null,
   simuladoHistory: createSimuladoHistory(),
   simuladoDraft: {},
+  claimingAchievement: null,
   progress: { byPath: {}, byId: {}, byKey: {}, records: [] },
   reviewQueue: { groups: [], counts: { overdue: 0, upcoming: 0 } },
   gamification: createGamification(),
@@ -315,6 +317,143 @@ function playAnswerEffects(correct) {
   window.setTimeout(() => {
     feedback.classList.remove("feedback--celebrate", "feedback--shake");
   }, 800);
+}
+
+/* Conquistas: coleta manual de moedas ------------------------------------- */
+
+function achievementClaim(achievement) {
+  const claimedAt = state.wallet?.claimedAchievements?.[achievement.id] || null;
+  return {
+    claimedAt,
+    collectible: Boolean(achievement.unlockedAt && !claimedAt),
+  };
+}
+
+function pendingAchievementCoins(achievements) {
+  return achievements.reduce((sum, achievement) => {
+    const { collectible } = achievementClaim(achievement);
+    return sum + (collectible ? achievement.coins : 0);
+  }, 0);
+}
+
+function renderAchievementItem(achievement) {
+  const { claimedAt, collectible } = achievementClaim(achievement);
+  const classes = `achievement-mini${achievement.unlockedAt ? "" : " is-locked"}${
+    collectible ? " achievement-mini--collectible" : ""
+  }${claimedAt ? " achievement-mini--claimed" : ""}`;
+  const details = [
+    h(
+      "span",
+      { class: "achievement-mini__icon", "aria-hidden": "true" },
+      icon(achievement.unlockedAt ? achievement.icon : "lock")
+    ),
+    h(
+      "div",
+      { class: "achievement-mini__body" },
+      h("strong", { text: achievement.title }),
+      h("span", { text: achievement.description }),
+      h("small", {
+        text: !achievement.unlockedAt
+          ? `Recompensa: ${achievement.xp} XP · ${plural(achievement.coins, "moeda", "moedas")}`
+          : claimedAt
+            ? `Moedas coletadas em ${formatDateTime(claimedAt)} · ${achievement.xp} XP recebidos`
+            : `Clique para coletar ${plural(achievement.coins, "moeda", "moedas")} · ${achievement.xp} XP recebidos`,
+      })
+    ),
+    achievement.unlockedAt
+      ? h(
+          "span",
+          {
+            class: `achievement-mini__reward${claimedAt ? " is-claimed" : ""}`,
+            "aria-hidden": "true",
+          },
+          icon("coin"),
+          claimedAt ? "coletado" : `+${achievement.coins}`
+        )
+      : null,
+  ];
+
+  if (!collectible) {
+    return h(
+      "article",
+      {
+        class: classes,
+        "data-achievement": achievement.id,
+        tabindex: "-1",
+      },
+      ...details
+    );
+  }
+
+  return h(
+    "button",
+    {
+      class: classes,
+      type: "button",
+      "data-achievement": achievement.id,
+      "aria-label": `Coletar ${plural(achievement.coins, "moeda", "moedas")} da conquista ${achievement.title}`,
+      onclick: (event) => collectAchievement(event.currentTarget, achievement),
+    },
+    ...details
+  );
+}
+
+function playCoinCascade(rect, amount) {
+  if (!getSettings().animations || !rect || typeof rect.left !== "number") return;
+  const width = Math.max(120, Math.round(rect.width || 0));
+  const count = Math.max(5, Math.min(12, Math.ceil(amount / 2)));
+  const layer = h("div", {
+    class: "coin-cascade",
+    "aria-hidden": "true",
+    style: `left:${Math.round(rect.left)}px;top:${Math.round(rect.top)}px;width:${width}px;`,
+  });
+  for (let index = 0; index < count; index += 1) {
+    const x = Math.round(((index + 0.5) / count) * width) - 10;
+    const drift = ((index % 5) - 2) * 9;
+    const delay = (index % 4) * 70 + Math.floor(index / 4) * 45;
+    layer.append(
+      h("span", {
+        class: "coin-cascade__coin",
+        style: `--x:${x}px;--drift:${drift}px;--delay:${delay}ms`,
+      }, icon("coin"))
+    );
+  }
+  document.body.append(layer);
+  window.setTimeout(() => layer.remove(), 1500);
+}
+
+async function collectAchievement(button, achievement) {
+  if (state.claimingAchievement) return;
+  const rect = button?.getBoundingClientRect?.() || null;
+  state.claimingAchievement = achievement.id;
+  if (button) button.disabled = true;
+  try {
+    const result = await claimAchievementReward(achievement.id);
+    if (result?.notUnlocked) {
+      await refreshProgress();
+      render();
+      toast("Esta conquista ainda não foi desbloqueada.", "info");
+      return;
+    }
+    await refreshProgress();
+    render();
+    if (result?.gain > 0) {
+      playSound("coin");
+      playCoinCascade(rect, result.gain);
+      toast(
+        `+${plural(result.gain, "moeda coletada", "moedas coletadas")} da conquista “${achievement.title}”.`,
+        "success"
+      );
+    } else if (result?.alreadyClaimed) {
+      toast("Essa recompensa já foi coletada.", "info");
+    }
+    const target = document.querySelector(`[data-achievement="${achievement.id}"]`);
+    target?.focus?.({ preventScroll: true });
+  } catch (error) {
+    warnStorageOnce(error);
+  } finally {
+    state.claimingAchievement = null;
+  }
 }
 
 /* Boot / shell ------------------------------------------------------------ */
@@ -1190,6 +1329,7 @@ function renderAchievementsCard() {
     .filter((achievement) => achievement.unlockedAt)
     .sort((a, b) => String(b.unlockedAt).localeCompare(String(a.unlockedAt)));
   const visible = unlocked.length > 0 ? unlocked.slice(0, 3) : all.slice(0, 3);
+  const pendingCoins = pendingAchievementCoins(unlocked);
 
   return h(
     "section",
@@ -1204,34 +1344,19 @@ function renderAchievementsCard() {
         h("h2", { id: "achievements-title", text: `${unlocked.length} de ${all.length} desbloqueadas` })
       ),
       unlocked.length > 0
-        ? h("span", { class: "chip chip--success", text: `+${unlocked.reduce((sum, item) => sum + item.xp, 0)} XP` })
+        ? h("span", {
+            class: pendingCoins > 0 ? "chip chip--coin" : "chip chip--success",
+            text:
+              pendingCoins > 0
+                ? `${pendingCoins} moedas a coletar`
+                : `+${unlocked.reduce((sum, item) => sum + item.xp, 0)} XP`,
+          })
         : h("span", { class: "chip chip--neutral", text: "comece agora" })
     ),
     h(
       "div",
       { class: "achievement-mini-grid" },
-      ...visible.map((achievement) =>
-        h(
-          "article",
-          { class: `achievement-mini${achievement.unlockedAt ? "" : " is-locked"}` },
-          h(
-            "span",
-            { class: "achievement-mini__icon", "aria-hidden": "true" },
-            icon(achievement.unlockedAt ? achievement.icon : "lock")
-          ),
-          h(
-            "div",
-            {},
-            h("strong", { text: achievement.title }),
-            h("span", { text: achievement.description }),
-            h("small", {
-              text: achievement.unlockedAt
-                ? `Desbloqueada em ${formatDateTime(achievement.unlockedAt)}`
-                : `Recompensa: ${achievement.xp} XP`,
-            })
-          )
-        )
-      )
+      ...visible.map((achievement) => renderAchievementItem(achievement))
     ),
     unlocked.length === 0
       ? h("p", { class: "hint", text: "Responda questões para desbloquear as primeiras conquistas." })
@@ -2962,6 +3087,7 @@ function renderProgress() {
   const locked = achievements.filter((item) => !item.unlockedAt);
   const orderedAchievements = [...unlocked, ...locked];
   const attempts = state.recentAttempts || [];
+  const pendingCoins = pendingAchievementCoins(unlocked);
 
   return [
     h(
@@ -3044,33 +3170,18 @@ function renderProgress() {
           h("span", { class: "eyebrow" }, icon("award"), "Conquistas"),
           h("h2", { id: "all-achievements-title", text: `${unlocked.length} de ${achievements.length}` })
         ),
-        h("span", { class: "chip chip--success", text: `${unlocked.reduce((sum, item) => sum + item.xp, 0)} XP recebidos` })
+        h("span", {
+          class: pendingCoins > 0 ? "chip chip--coin" : "chip chip--success",
+          text:
+            pendingCoins > 0
+              ? `${pendingCoins} moedas a coletar`
+              : `${unlocked.reduce((sum, item) => sum + item.xp, 0)} XP recebidos`,
+        })
       ),
       h(
         "div",
         { class: "achievement-grid" },
-        ...orderedAchievements.map((achievement) =>
-          h(
-            "article",
-            { class: `achievement-mini${achievement.unlockedAt ? "" : " is-locked"}` },
-            h(
-              "span",
-              { class: "achievement-mini__icon", "aria-hidden": "true" },
-              icon(achievement.unlockedAt ? achievement.icon : "lock")
-            ),
-            h(
-              "div",
-              {},
-              h("strong", { text: achievement.title }),
-              h("span", { text: achievement.description }),
-              h("small", {
-                text: achievement.unlockedAt
-                  ? `Desbloqueada em ${formatDateTime(achievement.unlockedAt)}`
-                  : `Recompensa: ${achievement.xp} XP`,
-              })
-            )
-          )
-        )
+        ...orderedAchievements.map((achievement) => renderAchievementItem(achievement))
       )
     ),
 
