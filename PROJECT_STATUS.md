@@ -322,7 +322,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.20.0 | REQ-029 | Módulo `sound.js` com efeitos de acerto, erro, início/fim de prova, conquista e moeda gerados via Web Audio; volume e alternância persistidos; botão de som no topo, prévias em `#/config`, primeiro gesto libera o áudio e feedback visual lúdico respeitando animações reduzidas | `02b1f12` | 2026-11-02 |
 | 0.21.0 | REQ-030 | Módulo `coins.js` com carteira persistida em `meta/wallet`, moedas por acerto/sessão/meta, estágios do personagem por total acumulado, cinco SVGs reais, recompensas de conquistas preparadas para coleta e cartão “Personagem & Moedas” no dashboard | `3353195` | 2026-11-03 |
 | 0.22.0 | REQ-031 | Módulo `timer.js` com cronômetro regressivo de 5–120 minutos, persistência de `deadlineAt`/`remainingSeconds`, pausa automática ao ocultar a aba, alerta no último minuto, encerramento automático com resumo marcando não respondidas e exclusão de revisões/correções | `369fb6f` | 2026-11-03 |
-| 0.23.0 | REQ-032 | Módulo `simulado.js` puro, rota `#/simulado`, construtor por assunto com total em tempo real, sessão ativa separada em `meta/simuladoSession`, histórico idempotente em `meta/simulados`, resumo por assunto e isolamento de progresso/XP/conquistas/SRS/ranking/estatísticas/moedas | `pendente` | 2026-11-04 |
+| 0.23.0 | REQ-032 | Módulo `simulado.js` puro, rota `#/simulado`, construtor por assunto com total em tempo real, sessão ativa separada em `meta/simuladoSession`, histórico idempotente em `meta/simulados`, resumo por assunto e isolamento de progresso/XP/conquistas/SRS/ranking/estatísticas/moedas | `2c67248` | 2026-11-04 |
 
 ---
 
