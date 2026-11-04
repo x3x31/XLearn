@@ -180,6 +180,8 @@ export async function clearProgressData() {
       meta.delete("stats");
       meta.delete("gamification");
       meta.delete("wallet");
+      meta.delete("simuladoSession");
+      meta.delete("simulados");
     } catch (error) {
       tx.abort();
       reject(error);
@@ -237,6 +239,28 @@ export async function getGamification() {
 /** Lê a carteira de moedas, sempre em formato completo. */
 export async function getWallet() {
   return normalizeWallet(await getMeta("wallet"));
+}
+
+/** Simulado ativo, mantido separado das sessões normais. */
+export async function getSimuladoSession() {
+  return getMeta("simuladoSession");
+}
+
+export async function saveSimuladoSession(session) {
+  return setMeta("simuladoSession", session);
+}
+
+export async function clearSimuladoSession() {
+  return setMeta("simuladoSession", null);
+}
+
+/** Histórico agregado dos simulados, também separado das estatísticas normais. */
+export async function getSimuladoHistory() {
+  return getMeta("simulados");
+}
+
+export async function saveSimuladoHistory(history) {
+  return setMeta("simulados", history);
 }
 
 export function progressKey(materialId, questionId) {

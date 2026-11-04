@@ -21,9 +21,16 @@ function count(store, data) {
   return Array.isArray(data?.[store]) ? data[store].length : 0;
 }
 
+function simuladoHistory(meta) {
+  const record = (Array.isArray(meta) ? meta : []).find((item) => item?.key === "simulados");
+  const sessions = record?.value?.sessions;
+  return Array.isArray(sessions) ? sessions : [];
+}
+
 /** Cria o envelope exportável a partir dos registros brutos do IndexedDB. */
 export function createBackup(data, now = new Date()) {
   const source = data && typeof data === "object" ? data : {};
+  const simulados = simuladoHistory(source.meta);
   return {
     app: "XLearn",
     format: BACKUP_FORMAT,
@@ -33,9 +40,12 @@ export function createBackup(data, now = new Date()) {
       progress: count("progress", source),
       sessions: count("sessions", source),
       attempts: count("attempts", source),
+      simulados: simulados.length,
       hasSettings: (source.meta || []).some((record) => record?.key === "settings"),
       hasGamification: (source.meta || []).some((record) => record?.key === "gamification"),
       hasWallet: (source.meta || []).some((record) => record?.key === "wallet"),
+      hasSimuladoHistory: (source.meta || []).some((record) => record?.key === "simulados"),
+      hasActiveSimulado: (source.meta || []).some((record) => record?.key === "simuladoSession"),
     },
     data: {
       meta: Array.isArray(source.meta) ? source.meta : [],
@@ -98,9 +108,12 @@ export function validateBackup(raw) {
       progress: backup.data.progress.length,
       sessions: backup.data.sessions.length,
       attempts: backup.data.attempts.length,
+      simulados: backup.summary.simulados,
       hasSettings: backup.summary.hasSettings,
       hasGamification: backup.summary.hasGamification,
       hasWallet: backup.summary.hasWallet,
+      hasSimuladoHistory: backup.summary.hasSimuladoHistory,
+      hasActiveSimulado: backup.summary.hasActiveSimulado,
       exportedAt: raw.exportedAt || null,
     },
   };

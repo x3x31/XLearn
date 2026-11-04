@@ -2056,6 +2056,191 @@ button:disabled {
   background: color-mix(in srgb, var(--warning) 9%, transparent);
 }
 
+.session-banner--simulado {
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  background:
+    linear-gradient(135deg, rgba(108, 140, 255, 0.14), rgba(167, 139, 250, 0.1)),
+    var(--surface);
+}
+
+.chip--simulado {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: color-mix(in srgb, var(--primary) 82%, var(--text));
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+/* Simulados --------------------------------------------------------------- */
+
+.simulado-form {
+  display: block;
+}
+
+.simulado-subject-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.simulado-subject {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.simulado-subject__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.simulado-subject__text strong {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.simulado-subject__text span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.simulado-subject input {
+  flex: 0 0 88px;
+  width: 88px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+}
+
+.simulado-subject input:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.simulado-total {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.simulado-total[data-empty="false"] {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border));
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.simulado-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.simulado-actions .btn--primary {
+  margin-left: auto;
+}
+
+.simulado-table-wrap {
+  margin-top: 14px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+}
+
+.simulado-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.simulado-table th,
+.simulado-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.simulado-table thead th {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.simulado-table tbody th {
+  font-size: 0.82rem;
+}
+
+.simulado-table tbody tr:last-child th,
+.simulado-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.simulado-table td:nth-child(n + 2),
+.simulado-table thead th:nth-child(n + 2) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.simulado-history {
+  display: grid;
+  gap: 4px;
+}
+
+.simulado-history-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.simulado-history-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.simulado-history-item > div:first-child {
+  min-width: 0;
+}
+
+.simulado-history-item strong {
+  display: block;
+  font-size: 0.84rem;
+}
+
+.simulado-history-item span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
 /* Spaced repetition / reviews -------------------------------------------- */
 
 .review-card {
@@ -2473,6 +2658,27 @@ button:disabled {
 
   .summary-stats--four {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .simulado-subject {
+    gap: 10px;
+    padding: 11px 12px;
+  }
+
+  .simulado-subject input {
+    flex-basis: 72px;
+    width: 72px;
+  }
+
+  .simulado-actions .btn--primary {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .simulado-table th,
+  .simulado-table td {
+    padding: 9px 10px;
+    white-space: nowrap;
   }
 
   .achievement-grid {

@@ -13,11 +13,14 @@ import {
   applyReviewSchedule,
   awardSessionCompletion,
   clearProgressData,
+  clearSimuladoSession,
   exportDatabase,
   getActiveSession,
   getGamification,
   getProgressSummary,
   getSettingsRecord,
+  getSimuladoHistory,
+  getSimuladoSession,
   getStats,
   getWallet,
   importDatabase,
@@ -25,6 +28,8 @@ import {
   recordAnswer,
   saveSession,
   saveSettingsRecord,
+  saveSimuladoHistory,
+  saveSimuladoSession,
 } from "./db.js";
 import {
   computeStreak,
@@ -64,6 +69,14 @@ import {
   resumeTimer,
   usesExamTimer,
 } from "./timer.js";
+import {
+  aggregateSimuladoHistory,
+  appendSimuladoResult,
+  createSimuladoHistory,
+  simuladoAccuracy,
+  simuladoQuestionKey,
+  summarizeSimulado,
+} from "./simulado.js";
 
 const app = document.getElementById("app");
 
@@ -74,6 +87,10 @@ const state = {
   error: null,
   session: null,
   sessionMaterial: null,
+  normalSession: null,
+  simuladoSession: null,
+  simuladoHistory: createSimuladoHistory(),
+  simuladoDraft: {},
   progress: { byPath: {}, byId: {}, byKey: {}, records: [] },
   reviewQueue: { groups: [], counts: { overdue: 0, upcoming: 0 } },
   gamification: createGamification(),
@@ -90,7 +107,7 @@ const state = {
   route: "inicio",
 };
 
-const ROUTES = new Set(["inicio", "estudar", "sessao", "resumo", "revisoes", "progresso", "config"]);
+const ROUTES = new Set(["inicio", "estudar", "simulado", "sessao", "resumo", "revisoes", "progresso", "config"]);
 
 const ICONS = {
   logo: '<path d="M8 7h4l3 5 3-5h4l-5 8 5 8h-4l-3-5-3 5H8l5-8z" fill="currentColor" stroke="none"/>',
@@ -422,6 +439,7 @@ function updateNav() {
       icon: "clock",
       badge: state.reviewQueue?.counts?.overdue || 0,
     },
+    { route: "simulado", label: "Simulado", icon: "target" },
     { route: "progresso", label: "Progresso", icon: "chart" },
   ];
   if (state.session && !state.session.finishedAt) {
@@ -629,6 +647,11 @@ async function refreshProgress() {
 }
 
 async function restoreActiveSession() {
+  await restoreNormalSession();
+  await restoreSimuladoState();
+}
+
+async function restoreNormalSession() {
   try {
     const active = await getActiveSession();
     if (!active || !Array.isArray(active.questionIds) || active.questionIds.length === 0) return;
@@ -651,23 +674,77 @@ async function restoreActiveSession() {
       active.timer = resumeTimer(active.timer);
     }
 
-    state.session = active;
-    state.sessionMaterial = material;
+    state.normalSession = active;
+    if (!state.session) {
+      state.session = active;
+      state.sessionMaterial = material;
+    }
 
     const answeredCount = Object.keys(active.answers).length;
     if (answeredCount >= active.questionIds.length && !active.finishedAt) {
       active.finishedAt = new Date().toISOString();
       active.updatedAt = active.finishedAt;
       await persistSession(active);
+      state.normalSession = null;
       try {
         await awardSessionCompletion(active);
       } catch (error) {
         warnStorageOnce(error);
       }
-      if (currentRoute() === "sessao") navigate("resumo");
+      if (currentRoute() === "sessao" && state.session === active) navigate("resumo");
     }
   } catch (error) {
     warnStorageOnce(error);
+  }
+}
+
+async function restoreSimuladoState() {
+  try {
+    state.simuladoHistory = createSimuladoHistory(await getSimuladoHistory());
+  } catch (error) {
+    warnStorageOnce(error);
+    state.simuladoHistory = createSimuladoHistory();
+  }
+
+  try {
+    const active = await getSimuladoSession();
+    if (!active || !Array.isArray(active.questionIds) || active.questionIds.length === 0) return;
+    const material = await hydrateSimuladoMaterial(active);
+    if (!material) return;
+
+    active.answers = active.answers && typeof active.answers === "object" ? active.answers : {};
+    active.orders = active.orders && typeof active.orders === "object" ? active.orders : {};
+    active.pending = null;
+    if (!Number.isInteger(active.index) || active.index < 0) active.index = 0;
+    active.timer = createTimer({ enabled: false });
+    active.mode = "simulado";
+
+    state.simuladoSession = active;
+    if (!state.session) {
+      state.session = active;
+      state.sessionMaterial = material;
+    }
+
+    const answeredCount = Object.keys(active.answers).length;
+    if (answeredCount >= active.questionIds.length && !active.finishedAt) {
+      active.finishedAt = new Date().toISOString();
+      active.updatedAt = active.finishedAt;
+      active.durationMs = Math.max(0, Date.now() - active.startedAt);
+      await recordSimuladoCompletion(active, material);
+      state.simuladoSession = null;
+      if (currentRoute() === "sessao" && state.session === active) navigate("resumo");
+    }
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+}
+
+async function refreshSimuladoHistory() {
+  try {
+    state.simuladoHistory = createSimuladoHistory(await getSimuladoHistory());
+  } catch (error) {
+    warnStorageOnce(error);
+    state.simuladoHistory = createSimuladoHistory();
   }
 }
 
@@ -732,6 +809,9 @@ function render({ focus = false } = {}) {
     case "estudar":
       content = renderStudy();
       break;
+    case "simulado":
+      content = renderSimulado();
+      break;
     case "sessao":
       content = renderQuiz();
       break;
@@ -754,6 +834,7 @@ function render({ focus = false } = {}) {
   main.replaceChildren(...content);
   ensureTimerTicker();
   syncTimerDisplay();
+  if (state.route === "simulado") syncSimuladoTotal(document.getElementById("simulado-form"));
   updateNav();
   updateBadge();
   updateSoundToggle();
@@ -812,8 +893,11 @@ function renderHome() {
 
   const summary = state.manifest.summary;
   const settings = getSettings();
-  const active = state.session && !state.session.finishedAt ? state.session : null;
-  const answered = active ? Object.keys(active.answers).length : 0;
+  const normalActive =
+    state.normalSession && !state.normalSession.finishedAt ? state.normalSession : null;
+  const simuladoActive =
+    state.simuladoSession && !state.simuladoSession.finishedAt ? state.simuladoSession : null;
+  const currentActive = state.session && !state.session.finishedAt ? state.session : null;
 
   return [
     h(
@@ -834,7 +918,13 @@ function renderHome() {
           icon("play"),
           "Escolher prova"
         ),
-        active
+        h(
+          "a",
+          { class: "btn btn--ghost", href: "#/simulado" },
+          icon("target"),
+          "Criar simulado"
+        ),
+        currentActive
           ? h(
               "a",
               { class: "btn btn--ghost", href: "#/sessao" },
@@ -857,7 +947,7 @@ function renderHome() {
     renderAchievementsCard(),
     renderHabitCard(),
 
-    active
+    normalActive
       ? h(
           "section",
           { class: "session-banner", "aria-label": "Sessão em andamento" },
@@ -866,12 +956,43 @@ function renderHome() {
             { class: "session-banner__text" },
             h("strong", { text: "Sessão em andamento" }),
             h("span", {
-              text: `${active.materialTitle} · ${answered} de ${active.questionIds.length} respondidas`,
+              text: `${normalActive.materialTitle} · ${Object.keys(normalActive.answers || {}).length} de ${normalActive.questionIds.length} respondidas`,
             })
           ),
           h(
-            "a",
-            { class: "btn btn--primary btn--sm", href: "#/sessao" },
+            "button",
+            {
+              class: "btn btn--primary btn--sm",
+              type: "button",
+              "data-role": "resume-normal",
+              onclick: () => resumeNormalSession(),
+            },
+            "Continuar",
+            icon("arrowRight")
+          )
+        )
+      : null,
+
+    simuladoActive
+      ? h(
+          "section",
+          { class: "session-banner session-banner--simulado", "aria-label": "Simulado em andamento" },
+          h(
+            "div",
+            { class: "session-banner__text" },
+            h("strong", { text: "Simulado em andamento" }),
+            h("span", {
+              text: `${Object.keys(simuladoActive.answers || {}).length} de ${simuladoActive.questionIds.length} respondidas · histórico separado`,
+            })
+          ),
+          h(
+            "button",
+            {
+              class: "btn btn--primary btn--sm",
+              type: "button",
+              "data-role": "resume-simulado",
+              onclick: () => resumeSimuladoSession(),
+            },
             "Continuar",
             icon("arrowRight")
           )
@@ -1208,6 +1329,564 @@ function renderStudy() {
     ),
     ...renderMaterialGrid(),
   ];
+}
+
+function simuladoSubjectGroups() {
+  const map = new Map();
+  for (const entry of state.entries) {
+    const subject = entry.subject || "Geral";
+    const group = map.get(subject) || { subject, entries: [], available: 0 };
+    group.entries.push(entry);
+    group.available += Math.max(0, Number(entry.questionCount) || 0);
+    map.set(subject, group);
+  }
+  return [...map.values()].sort((a, b) => a.subject.localeCompare(b.subject, "pt-BR"));
+}
+
+function simuladoDraftValue(subject, available) {
+  const raw = Number(state.simuladoDraft?.[subject]) || 0;
+  return Math.max(0, Math.min(available, Math.round(raw)));
+}
+
+function syncSimuladoTotal(form) {
+  if (!form) return 0;
+  const total = [...form.querySelectorAll("[data-subject]")].reduce(
+    (sum, input) => sum + Math.max(0, Math.round(Number(input.value) || 0)),
+    0
+  );
+  const status = form.querySelector('[data-role="simulado-total"]');
+  if (status) {
+    status.textContent =
+      total === 0
+        ? "Escolha pelo menos uma questão para montar o simulado."
+        : `Total: ${plural(total, "questão", "questões")} no simulado.`;
+    status.dataset.empty = total === 0 ? "true" : "false";
+  }
+  const start = form.querySelector('[data-role="start-simulado"]');
+  if (start) start.disabled = total === 0;
+  return total;
+}
+
+function updateSimuladoDraft(input) {
+  if (!input) return;
+  const max = Math.max(0, Number(input.dataset.max) || 0);
+  const value = Math.max(0, Math.min(max, Math.round(Number(input.value) || 0)));
+  if (String(value) !== input.value) input.value = String(value);
+  state.simuladoDraft[input.dataset.subject] = value;
+  syncSimuladoTotal(input.closest("form"));
+}
+
+function fillSimuladoPreset(form, amount) {
+  if (!form) return;
+  for (const input of form.querySelectorAll("[data-subject]")) {
+    const max = Math.max(0, Number(input.dataset.max) || 0);
+    input.value = String(Math.min(amount, max));
+    state.simuladoDraft[input.dataset.subject] = Math.min(amount, max);
+  }
+  syncSimuladoTotal(form);
+}
+
+function readSimuladoPlan(form) {
+  if (!form) return [];
+  return [...form.querySelectorAll("[data-subject]")]
+    .map((input) => {
+      const max = Math.max(0, Number(input.dataset.max) || 0);
+      const count = Math.max(0, Math.min(max, Math.round(Number(input.value) || 0)));
+      return { subject: input.dataset.subject, count, available: max };
+    })
+    .filter((item) => item.count > 0);
+}
+
+function renderSimuladoHistory(aggregate) {
+  if (!aggregate || aggregate.totalSessions === 0) {
+    return h(
+      "div",
+      { class: "empty card" },
+      h("h2", { text: "Nenhum simulado concluído" }),
+      h("p", {
+        text: "Monte seu primeiro simulado acima. O histórico por assunto aparecerá aqui, separado das estatísticas normais.",
+      })
+    );
+  }
+
+  return h(
+    "section",
+    { class: "card simulado-history", "aria-labelledby": "simulado-history-title" },
+    h(
+      "div",
+      { class: "section-head" },
+      h(
+        "div",
+        {},
+        h("span", { class: "eyebrow" }, icon("chart"), "Histórico separado"),
+        h("h2", { id: "simulado-history-title", text: "Seus simulados por assunto" })
+      ),
+      h("span", {
+        class: "chip chip--neutral",
+        text: `${plural(aggregate.totalSessions, "simulado", "simulados")}`,
+      })
+    ),
+    h(
+      "div",
+      { class: "summary-stats summary-stats--four" },
+      h("div", { class: "summary-stat" }, h("strong", { text: String(aggregate.totalSessions) }), h("span", { text: "simulados" })),
+      h("div", { class: "summary-stat" }, h("strong", { text: String(aggregate.totalQuestions) }), h("span", { text: "questões" })),
+      h("div", { class: "summary-stat" }, h("strong", { text: String(aggregate.totalCorrect) }), h("span", { text: "acertos" })),
+      h("div", { class: "summary-stat" }, h("strong", { text: `${aggregate.accuracy}%` }), h("span", { text: "aproveitamento" }))
+    ),
+    h(
+      "div",
+      { class: "simulado-table-wrap" },
+      h(
+        "table",
+        { class: "simulado-table" },
+        h(
+          "caption",
+          { class: "sr-only" },
+          "Totais de questões e acertos por assunto nos simulados"
+        ),
+        h(
+          "thead",
+          {},
+          h(
+            "tr",
+            {},
+            h("th", { scope: "col", text: "Assunto" }),
+            h("th", { scope: "col", text: "Questões" }),
+            h("th", { scope: "col", text: "Acertos" }),
+            h("th", { scope: "col", text: "Aproveitamento" })
+          )
+        ),
+        h(
+          "tbody",
+          {},
+          ...aggregate.subjects.map((row) =>
+            h(
+              "tr",
+              {},
+              h("th", { scope: "row", text: row.subject }),
+              h("td", { text: String(row.total) }),
+              h("td", { text: String(row.correct) }),
+              h("td", { text: `${row.accuracy}%` })
+            )
+          )
+        )
+      )
+    ),
+    h(
+      "ol",
+      { class: "simulado-history-list", "aria-label": "Simulados recentes" },
+      ...aggregate.sessions.slice(0, 8).map((session) =>
+        h(
+          "li",
+          { class: "simulado-history-item" },
+          h(
+            "div",
+            {},
+            h("strong", {
+              text: session.finishedAt ? formatDateTime(session.finishedAt) : "Simulado concluído",
+            }),
+            h("span", {
+              text: `${plural(session.total, "questão", "questões")} · ${plural(session.correct, "acerto", "acertos")} · ${simuladoAccuracy(session.correct, session.total)}%`,
+            })
+          ),
+          h(
+            "div",
+            { class: "chip-row" },
+            ...session.subjects.slice(0, 4).map((row) =>
+              h("span", {
+                class: "chip chip--neutral",
+                text: `${row.subject}: ${row.correct}/${row.total}`,
+              })
+            )
+          )
+        )
+      )
+    ),
+    aggregate.sessions.length > 8
+      ? h("p", {
+          class: "hint",
+          text: `Mostrando os 8 simulados mais recentes de ${aggregate.totalSessions}.`,
+        })
+      : null,
+    h("p", {
+      class: "hint",
+      text: "Este histórico é independente: simulados não alteram progresso, XP, conquistas, revisões, ranking, estatísticas nem moedas.",
+    })
+  );
+}
+
+function renderSimulado() {
+  if (state.loading) {
+    return [h("div", { class: "skeleton skeleton--row" }), h("div", { class: "skeleton skeleton--row" })];
+  }
+  if (state.error) return renderHome();
+
+  const groups = simuladoSubjectGroups();
+  const aggregate = aggregateSimuladoHistory(state.simuladoHistory);
+  const active =
+    state.simuladoSession && !state.simuladoSession.finishedAt ? state.simuladoSession : null;
+
+  const form = h(
+    "form",
+    {
+      class: "simulado-form",
+      id: "simulado-form",
+      autocomplete: "off",
+      onsubmit: startSimulado,
+    },
+    h(
+      "section",
+      { class: "card", "aria-labelledby": "simulado-builder-title" },
+      h(
+        "div",
+        { class: "section-head" },
+        h(
+          "div",
+          {},
+          h("span", { class: "eyebrow" }, icon("target"), "Monte do seu jeito"),
+          h("h2", { id: "simulado-builder-title", text: "Questões por assunto" })
+        ),
+        h("span", {
+          class: "chip chip--neutral",
+          text: `${plural(groups.length, "assunto", "assuntos")}`,
+        })
+      ),
+      h("p", {
+        class: "hint",
+        text: "Defina quantas questões quer de cada assunto. O simulado embaralha as questões escolhidas e não interfere no seu progresso normal.",
+      }),
+      h(
+        "div",
+        { class: "simulado-subject-list" },
+        ...groups.map((group) =>
+          h(
+            "label",
+            { class: "simulado-subject", "data-available": String(group.available) },
+            h(
+              "span",
+              { class: "simulado-subject__text" },
+              h("strong", { text: group.subject }),
+              h("span", {
+                text: `${plural(group.available, "questão disponível", "questões disponíveis")} em ${plural(group.entries.length, "prova", "provas")}`,
+              })
+            ),
+            h("input", {
+              type: "number",
+              inputmode: "numeric",
+              min: "0",
+              max: String(group.available),
+              step: "1",
+              value: String(simuladoDraftValue(group.subject, group.available)),
+              "data-subject": group.subject,
+              "data-max": String(group.available),
+              "aria-label": `Quantidade de questões de ${group.subject}`,
+              oninput: (event) => updateSimuladoDraft(event.currentTarget),
+            })
+          )
+        )
+      ),
+      h("p", {
+        class: "simulado-total",
+        role: "status",
+        "aria-live": "polite",
+        "data-role": "simulado-total",
+        "data-empty": "true",
+        text: "Escolha pelo menos uma questão para montar o simulado.",
+      }),
+      h(
+        "div",
+        { class: "simulado-actions" },
+        h(
+          "button",
+          {
+            class: "btn btn--ghost btn--sm",
+            type: "button",
+            onclick: (event) => fillSimuladoPreset(event.currentTarget.closest("form"), 10),
+          },
+          icon("sparkles"),
+          "10 por assunto"
+        ),
+        h(
+          "button",
+          {
+            class: "btn btn--ghost btn--sm",
+            type: "button",
+            onclick: (event) => fillSimuladoPreset(event.currentTarget.closest("form"), 0),
+          },
+          "Limpar"
+        ),
+        h(
+          "button",
+          {
+            class: "btn btn--primary",
+            type: "submit",
+            "data-role": "start-simulado",
+            disabled: true,
+          },
+          icon("play"),
+          "Iniciar simulado"
+        )
+      ),
+      active
+        ? h("p", {
+            class: "hint",
+            text: "Você tem um simulado em andamento. Iniciar outro substitui o rascunho atual; o histórico já concluído é preservado.",
+          })
+        : null
+    )
+  );
+
+  return [
+    h(
+      "div",
+      { class: "section-head" },
+      h(
+        "div",
+        {},
+        h("span", { class: "eyebrow" }, icon("target"), "Simulados"),
+        h("h1", { text: "Simulado por assunto" }),
+        h("p", {
+          text: "Uma prova sob medida, com questões dos seus materiais e resultado separado por assunto.",
+        })
+      )
+    ),
+    active
+      ? h(
+          "section",
+          { class: "session-banner session-banner--simulado", "aria-label": "Simulado em andamento" },
+          h(
+            "div",
+            { class: "session-banner__text" },
+            h("strong", { text: "Simulado em andamento" }),
+            h("span", {
+              text: `${Object.keys(active.answers || {}).length} de ${active.questionIds.length} respondidas`,
+            })
+          ),
+          h(
+            "button",
+            {
+              class: "btn btn--primary btn--sm",
+              type: "button",
+              onclick: () => resumeSimuladoSession(),
+            },
+            "Continuar",
+            icon("arrowRight")
+          )
+        )
+      : null,
+    h(
+      "div",
+      { class: "notice notice--info" },
+      h("strong", { text: "Histórico separado: " }),
+      "simulados não contam para XP, moedas, conquistas, SRS, ranking nem estatísticas. Apenas o total de questões e acertos por assunto é guardado."
+    ),
+    form,
+    renderSimuladoHistory(aggregate),
+  ];
+}
+
+async function startSimulado(event) {
+  event?.preventDefault();
+  const form = document.getElementById("simulado-form");
+  const plan = readSimuladoPlan(form);
+  if (plan.length === 0) {
+    toast("Escolha pelo menos uma questão para iniciar o simulado.", "info");
+    return;
+  }
+
+  showLoadingOverlay("Montando o simulado…");
+  try {
+    if (state.lastAnswerSave) await state.lastAnswerSave;
+    const groups = simuladoSubjectGroups();
+    const selected = [];
+    const sources = new Map();
+
+    for (const item of plan) {
+      const group = groups.find((entry) => entry.subject === item.subject);
+      if (!group) throw new Error(`O assunto "${item.subject}" não está mais disponível.`);
+
+      const pool = [];
+      for (const entry of group.entries) {
+        try {
+          const material = await loadMaterial(entry);
+          for (const question of material.questions) pool.push({ entry, question });
+        } catch {
+          // Um material indisponível não impede os demais assuntos.
+        }
+      }
+      if (pool.length < item.count) {
+        throw new Error(
+          `O assunto "${item.subject}" tem apenas ${plural(pool.length, "questão disponível", "questões disponíveis")}.`
+        );
+      }
+
+      for (const picked of shuffle(pool).slice(0, item.count)) {
+        const { entry, question } = picked;
+        const sourceId = entry.materialId || entry.path;
+        selected.push({
+          ...question,
+          id: simuladoQuestionKey(sourceId, question.id),
+          originalId: question.id,
+          materialId: sourceId,
+          materialPath: entry.path,
+          materialTitle: entry.title,
+        });
+        sources.set(entry.path, {
+          materialId: sourceId,
+          materialPath: entry.path,
+          materialTitle: entry.title,
+          subject: entry.subject || "Geral",
+        });
+      }
+    }
+
+    const questions = shuffle(selected);
+    const now = new Date().toISOString();
+    const session = {
+      id: makeId(),
+      mode: "simulado",
+      materialId: "simulado",
+      materialPath: null,
+      materialTitle: "Simulado por assunto",
+      subject: null,
+      createdAt: now,
+      updatedAt: now,
+      startedAt: Date.now(),
+      questionIds: questions.map((question) => question.id),
+      index: 0,
+      answers: {},
+      orders: {},
+      pending: null,
+      timer: createTimer({ enabled: false }),
+      sources: [...sources.values()],
+      targetSubjects: plan.map((item) => ({ subject: item.subject, count: item.count })),
+      finishedAt: null,
+    };
+
+    state.session = session;
+    state.sessionMaterial = { questions };
+    state.simuladoSession = session;
+    await saveSimuladoSession(session);
+    playSound("sessionStart");
+    navigate("sessao");
+  } catch (error) {
+    toast(error.message || "Não foi possível montar o simulado.", "error");
+  } finally {
+    hideLoadingOverlay();
+  }
+}
+
+async function hydrateSimuladoMaterial(session) {
+  if (!session || !Array.isArray(session.questionIds) || !Array.isArray(session.sources)) {
+    return null;
+  }
+  const wanted = new Set(session.questionIds);
+  const questions = [];
+  for (const source of session.sources) {
+    const entry =
+      state.entries.find((item) => item.path === source.materialPath) ||
+      state.entries.find((item) => (item.materialId || item.path) === source.materialId);
+    if (!entry) return null;
+    const material = await loadMaterial(entry);
+    for (const question of material.questions) {
+      const id = simuladoQuestionKey(source.materialId, question.id);
+      if (!wanted.has(id)) continue;
+      questions.push({
+        ...question,
+        id,
+        originalId: question.id,
+        materialId: source.materialId,
+        materialPath: source.materialPath,
+        materialTitle: source.materialTitle,
+      });
+    }
+  }
+  return questions.length === wanted.size ? { questions } : null;
+}
+
+async function persistSimulado(session) {
+  try {
+    await saveSimuladoSession(session);
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+}
+
+async function recordSimuladoCompletion(session, material) {
+  const questions = material?.questions || state.sessionMaterial?.questions || [];
+  const summary = summarizeSimulado(session, questions);
+  summary.durationMs = Math.max(
+    0,
+    Number(session.durationMs) || (session.startedAt ? Date.now() - session.startedAt : 0)
+  );
+  const next = appendSimuladoResult(state.simuladoHistory, summary);
+  state.simuladoHistory = next;
+  let saved = false;
+  try {
+    await saveSimuladoHistory(next);
+    saved = true;
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+  if (saved) {
+    try {
+      await clearSimuladoSession();
+    } catch (error) {
+      warnStorageOnce(error);
+    }
+  }
+}
+
+async function resumeNormalSession() {
+  try {
+    const active = state.normalSession || (await getActiveSession());
+    if (!active || active.finishedAt) {
+      toast("Nenhuma sessão normal em andamento.", "info");
+      return;
+    }
+    const entry =
+      state.entries.find((item) => item.path === active.materialPath) ||
+      state.entries.find((item) => item.materialId === active.materialId);
+    if (!entry) {
+      toast("O material desta sessão não está mais disponível.", "error");
+      return;
+    }
+    if (state.lastAnswerSave) await state.lastAnswerSave;
+    const material = await loadMaterial(entry);
+    const validIds = new Set(material.questions.map((question) => question.id));
+    if (!active.questionIds.every((id) => validIds.has(id))) {
+      toast("A sessão não pôde ser retomada com o material atual.", "error");
+      return;
+    }
+    state.normalSession = active;
+    state.session = active;
+    state.sessionMaterial = material;
+    navigate("sessao");
+  } catch (error) {
+    toast(error.message || "Não foi possível retomar a sessão.", "error");
+  }
+}
+
+async function resumeSimuladoSession() {
+  try {
+    const active = state.simuladoSession;
+    if (!active || active.finishedAt) {
+      toast("Nenhum simulado em andamento.", "info");
+      return;
+    }
+    if (state.lastAnswerSave) await state.lastAnswerSave;
+    const material = await hydrateSimuladoMaterial(active);
+    if (!material) {
+      toast("O simulado não pôde ser retomado porque um material mudou.", "error");
+      return;
+    }
+    state.session = active;
+    state.sessionMaterial = material;
+    navigate("sessao");
+  } catch (error) {
+    toast(error.message || "Não foi possível retomar o simulado.", "error");
+  }
 }
 
 function renderReviews() {
@@ -1805,13 +2484,16 @@ function renderSettings() {
               { class: "import-summary" },
               h("li", { text: plural(state.pendingImport.summary.attempts, "tentativa registrada", "tentativas registradas") }),
               h("li", { text: plural(state.pendingImport.summary.sessions, "sessão salva", "sessões salvas") }),
+              h("li", { text: plural(state.pendingImport.summary.simulados || 0, "simulado no histórico", "simulados no histórico") }),
               h("li", {
                 text: plural(state.pendingImport.summary.progress, "questão com progresso", "questões com progresso"),
               }),
               h("li", {
                 text: `${state.pendingImport.summary.hasSettings ? "Configurações incluídas" : "Sem configurações"} · ${
                   state.pendingImport.summary.hasGamification ? "gamificação incluída" : "sem gamificação"
-                } · ${state.pendingImport.summary.hasWallet ? "moedas incluídas" : "sem moedas"}`,
+                } · ${state.pendingImport.summary.hasWallet ? "moedas incluídas" : "sem moedas"} · ${
+                  state.pendingImport.summary.hasSimuladoHistory ? "simulados incluídos" : "sem simulados"
+                }`,
               })
             ),
             h(
@@ -1897,7 +2579,7 @@ function renderSettings() {
             }),
             h("p", {
               id: "reset-confirm-desc",
-              text: "Serão apagados respostas, sessões, tentativas, XP, níveis, conquistas, moedas, evolução do personagem, meta diária e sequência. Esta ação não pode ser desfeita.",
+              text: "Serão apagados respostas, sessões, tentativas, XP, níveis, conquistas, moedas, evolução do personagem, histórico de simulados, meta diária e sequência. Esta ação não pode ser desfeita.",
             }),
             h("p", {
               id: "reset-confirm-hint",
@@ -2099,7 +2781,11 @@ async function exportCurrentData() {
         backup.summary.sessions,
         "sessão",
         "sessões"
-      )} e ${plural(backup.summary.progress, "questão com progresso", "questões com progresso")}.`,
+      )}, ${plural(backup.summary.simulados, "simulado", "simulados")} e ${plural(
+        backup.summary.progress,
+        "questão com progresso",
+        "questões com progresso"
+      )}.`,
       "success"
     );
   } catch (error) {
@@ -2148,6 +2834,10 @@ async function confirmPendingImport() {
     stopTimerTicker();
     state.session = null;
     state.sessionMaterial = null;
+    state.normalSession = null;
+    state.simuladoSession = null;
+    state.simuladoHistory = createSimuladoHistory();
+    state.simuladoDraft = {};
     state.finishingSession = false;
     await loadPersistedSettings();
     applyVisualSettings(getSettings());
@@ -2210,6 +2900,10 @@ async function confirmProgressReset() {
     stopTimerTicker();
     state.session = null;
     state.sessionMaterial = null;
+    state.normalSession = null;
+    state.simuladoSession = null;
+    state.simuladoHistory = createSimuladoHistory();
+    state.simuladoDraft = {};
     state.lastAnswerSave = null;
     state.scheduling = null;
     state.finishingSession = false;
@@ -2579,6 +3273,7 @@ async function startSession(entry, options = {}) {
       finishedAt: null,
     };
     state.sessionMaterial = material;
+    state.normalSession = state.session;
     await persistSession(state.session);
     playSound("sessionStart");
     navigate("sessao");
@@ -2618,15 +3313,19 @@ function confirmAnswer(question) {
 
   const correct = selectedId === question.correctId;
   const settings = getSettings();
-  const previous =
-    state.progress?.byKey?.[`${session.materialId}::${question.id}`] || null;
-  const schedule = computeSchedule({
-    level: previous?.srsLevel ?? 0,
-    correct,
-    intervals: settings.srsIntervals,
-    enabled: settings.srsEnabled,
-    now: new Date(),
-  });
+  const isSimulado = session.mode === "simulado";
+  let schedule = null;
+  if (!isSimulado) {
+    const previous =
+      state.progress?.byKey?.[`${session.materialId}::${question.id}`] || null;
+    schedule = computeSchedule({
+      level: previous?.srsLevel ?? 0,
+      correct,
+      intervals: settings.srsIntervals,
+      enabled: settings.srsEnabled,
+      now: new Date(),
+    });
+  }
 
   session.answers[question.id] = {
     selectedId,
@@ -2634,8 +3333,7 @@ function confirmAnswer(question) {
     correct,
     answeredAt: new Date().toISOString(),
     order: alternativeOrder(session, question),
-    schedule,
-    autoSchedule: schedule,
+    ...(schedule ? { schedule, autoSchedule: schedule } : {}),
   };
   session.pending = null;
   session.updatedAt = new Date().toISOString();
@@ -2646,6 +3344,14 @@ function confirmAnswer(question) {
     feedback?.focus({ preventScroll: false });
     playAnswerEffects(correct);
   });
+
+  if (isSimulado) {
+    state.lastAnswerSave = persistSimulado(session).catch((error) => {
+      warnStorageOnce(error);
+      return null;
+    });
+    return;
+  }
 
   state.lastAnswerSave = recordAnswer({
     session,
@@ -2719,6 +3425,17 @@ async function finishSession({ expired = false } = {}) {
   } catch (error) {
     warnStorageOnce(error);
   }
+  if (session.mode === "simulado") {
+    session.finishedAt = new Date().toISOString();
+    session.updatedAt = session.finishedAt;
+    session.durationMs = Math.max(0, Date.now() - session.startedAt);
+    state.simuladoSession = null;
+    state.finishingSession = false;
+    playSound("sessionEnd");
+    await recordSimuladoCompletion(session, state.sessionMaterial);
+    navigate("resumo");
+    return;
+  }
   if (session.timer?.enabled) {
     session.timer = expired ? expireTimer(session.timer) : pauseTimer(session.timer);
   }
@@ -2726,6 +3443,7 @@ async function finishSession({ expired = false } = {}) {
   session.updatedAt = session.finishedAt;
   await persistSession(session);
   state.finishingSession = false;
+  if (state.normalSession?.id === session.id) state.normalSession = null;
   playSound("sessionEnd");
   try {
     const award = await awardSessionCompletion(session);
@@ -2756,7 +3474,11 @@ async function goToNextQuestion() {
   session.pending = null;
   session.updatedAt = new Date().toISOString();
   render();
-  persistSession(session);
+  if (session.mode === "simulado") {
+    persistSimulado(session);
+  } else {
+    persistSession(session);
+  }
   window.scrollTo({ top: 0, behavior: "auto" });
   requestAnimationFrame(() =>
     document.getElementById("question-text")?.focus({ preventScroll: true })
@@ -2818,6 +3540,7 @@ function renderQuiz() {
   const answered = session.answers[question.id] || null;
   const done = session.index + (answered ? 1 : 0);
   const progress = Math.round((done / total) * 100);
+  const isSimulado = session.mode === "simulado";
   const order = alternativeOrder(session, question);
   const alternativesById = new Map(
     question.alternatives.map((alternative) => [alternative.id, alternative])
@@ -2880,7 +3603,12 @@ function renderQuiz() {
         { class: "inline" },
         h(
           "a",
-          { class: "icon-btn", href: "#/inicio", "aria-label": "Voltar ao início", title: "Voltar ao início" },
+          {
+            class: "icon-btn",
+            href: isSimulado ? "#/simulado" : "#/inicio",
+            "aria-label": isSimulado ? "Voltar aos simulados" : "Voltar ao início",
+            title: isSimulado ? "Voltar aos simulados" : "Voltar ao início",
+          },
           icon("arrowLeft")
         ),
         h(
@@ -2899,7 +3627,7 @@ function renderQuiz() {
       {
         class: "progress",
         role: "progressbar",
-        "aria-label": "Progresso da sessão",
+        "aria-label": isSimulado ? "Progresso do simulado" : "Progresso da sessão",
         "aria-valuemin": "0",
         "aria-valuemax": String(total),
         "aria-valuenow": String(done),
@@ -2913,6 +3641,7 @@ function renderQuiz() {
       h(
         "div",
         { class: "question-meta" },
+        isSimulado ? h("span", { class: "chip chip--simulado", text: "Simulado" }) : null,
         h("span", { class: "chip", text: question.subject || "Geral" }),
         question.difficulty
           ? h("span", { class: "chip chip--neutral", text: difficultyLabel(question.difficulty) })
@@ -3059,6 +3788,7 @@ function renderFeedback(question, answer) {
   const correctAlternative = question.alternatives.find((item) => item.id === question.correctId);
   const explanation = question.explanation || {};
   const correct = answer.correct;
+  const isSimulado = state.session?.mode === "simulado";
 
   const altExplanations = question.alternatives.map((item) =>
     h(
@@ -3107,7 +3837,15 @@ function renderFeedback(question, answer) {
         h("span", { class: "eyebrow" }, icon("target"), "Resolução"),
         h("p", { class: "prose", style: "margin-top:6px", text: explanation.resolution || correctAlternative?.explanation || "Consulte o comentário das alternativas." })
       ),
-      renderScheduleBlock(question, answer),
+      isSimulado ? null : renderScheduleBlock(question, answer),
+      isSimulado
+        ? h(
+            "div",
+            { class: "notice notice--info" },
+            h("strong", { text: "Simulado: " }),
+            "esta resposta fica apenas no histórico separado por assunto. Progresso, SRS, XP, conquistas, ranking, estatísticas e moedas não são alterados."
+          )
+        : null,
       explanation.theoreticalContent
         ? h(
             "details",
@@ -3149,7 +3887,9 @@ function renderFeedback(question, answer) {
       h(
         "p",
         { class: "hint" },
-        "Esta resposta, a ordem das alternativas e o progresso da questão foram salvos neste dispositivo."
+        isSimulado
+          ? "Resposta, ordem das alternativas e andamento deste simulado foram salvos neste dispositivo, separados do seu progresso normal."
+          : "Esta resposta, a ordem das alternativas e o progresso da questão foram salvos neste dispositivo."
       )
     )
   );
@@ -3157,7 +3897,124 @@ function renderFeedback(question, answer) {
 
 /* Summary ----------------------------------------------------------------- */
 
+function renderSimuladoSubjectTable(subjects) {
+  return h(
+    "div",
+    { class: "simulado-table-wrap" },
+    h(
+      "table",
+      { class: "simulado-table" },
+      h("caption", { class: "sr-only" }, "Resultado deste simulado por assunto"),
+      h(
+        "thead",
+        {},
+        h(
+          "tr",
+          {},
+          h("th", { scope: "col", text: "Assunto" }),
+          h("th", { scope: "col", text: "Questões" }),
+          h("th", { scope: "col", text: "Acertos" }),
+          h("th", { scope: "col", text: "Aproveitamento" })
+        )
+      ),
+      h(
+        "tbody",
+        {},
+        ...subjects.map((row) =>
+          h(
+            "tr",
+            {},
+            h("th", { scope: "row", text: row.subject }),
+            h("td", { text: String(row.total) }),
+            h("td", { text: String(row.correct) }),
+            h("td", { text: `${simuladoAccuracy(row.correct, row.total)}%` })
+          )
+        )
+      )
+    )
+  );
+}
+
+function renderSimuladoSummary() {
+  const session = state.session;
+  const questions = state.sessionMaterial?.questions || [];
+  const summary = summarizeSimulado(session, questions);
+  const pct = simuladoAccuracy(summary.correct, summary.total);
+  const duration = formatDuration(
+    summary.durationMs || (session.startedAt ? Date.now() - session.startedAt : 0)
+  );
+
+  return [
+    h(
+      "section",
+      { class: "summary-hero" },
+      h(
+        "div",
+        { class: "score-ring", style: `--pct:${pct}`, role: "img", "aria-label": `Aproveitamento: ${pct}%` },
+        h(
+          "div",
+          { class: "score-ring__value" },
+          h("strong", { text: `${pct}%` }),
+          h("span", { text: "acertos" })
+        )
+      ),
+      h(
+        "div",
+        { class: "summary-hero__text" },
+        h("span", { class: "eyebrow" }, icon("target"), "Simulado concluído"),
+        h("h1", {
+          text: pct === 100 ? "Simulado perfeito!" : "Resultado do simulado",
+        }),
+        h("p", { text: session.materialTitle }),
+        h("p", {
+          class: "small muted",
+          text: `${plural(summary.correct, "acerto", "acertos")} em ${plural(summary.total, "questão", "questões")} · ${duration}`,
+        })
+      )
+    ),
+
+    h(
+      "div",
+      { class: "notice notice--info" },
+      h("strong", { text: "Histórico separado: " }),
+      "este resultado não alterou XP, moedas, conquistas, SRS, ranking nem estatísticas. Ele foi salvo apenas no histórico de simulados."
+    ),
+
+    h(
+      "div",
+      { class: `summary-stats${summary.unanswered > 0 ? " summary-stats--four" : ""}` },
+      h("div", { class: "summary-stat" }, h("strong", { text: String(summary.correct) }), h("span", { text: "acertos" })),
+      h("div", { class: "summary-stat" }, h("strong", { text: String(summary.wrong) }), h("span", { text: "erros" })),
+      summary.unanswered > 0
+        ? h("div", { class: "summary-stat" }, h("strong", { text: String(summary.unanswered) }), h("span", { text: "não respondidas" }))
+        : null,
+      h("div", { class: "summary-stat" }, h("strong", { text: String(summary.total) }), h("span", { text: "questões" }))
+    ),
+
+    h(
+      "div",
+      { class: "hero__actions" },
+      h("a", { class: "btn btn--primary", href: "#/simulado" }, icon("target"), "Novo simulado"),
+      h("a", { class: "btn btn--ghost", href: "#/inicio" }, icon("home"), "Voltar ao início")
+    ),
+
+    h(
+      "section",
+      { class: "card", "aria-labelledby": "simulado-summary-subjects" },
+      h("h2", { id: "simulado-summary-subjects", text: "Resultado por assunto" }),
+      renderSimuladoSubjectTable(summary.subjects)
+    ),
+
+    h(
+      "p",
+      { class: "hint" },
+      `Simulado iniciado em ${formatDateTime(session.createdAt)}. Histórico por assunto salvo localmente neste dispositivo.`
+    ),
+  ];
+}
+
 function renderSummary() {
+  if (state.session?.mode === "simulado") return renderSimuladoSummary();
   const session = state.session;
   if (!session) {
     return [
