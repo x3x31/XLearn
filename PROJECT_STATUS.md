@@ -31,8 +31,8 @@ O XLearn lê os materiais da pasta `questoes/`, gera um manifesto JSON com os ar
 4. **Persistência local** em IndexedDB de sessões, respostas, progresso, histórico, carteira e simulados, permitindo retomar sessões interrompidas.
 5. **Repetição espaçada** com intervalos automáticos (1, 3, 7, 14 e 30 dias), redução do domínio no erro, escolha manual de intervalo e fila de revisões.
 6. **Gamificação** com XP, níveis, conquistas com recompensas em moedas, meta diária, sequência de estudos, estatísticas e ranking local baseado apenas em dados reais do dispositivo.
-7. **Simulados por assunto** que montam uma prova a partir das disciplinas do acervo, com resumo próprio, cronômetro de prova e histórico separado do estudo normal.
-8. **Configurações** que alteram efetivamente o comportamento: tamanho da sessão, ordem das questões, intervalos de revisão, meta diária, tema, fonte, animações, som, exportação/importação e exclusão de dados.
+7. **Simulados por assunto** que montam uma prova a partir das disciplinas do acervo, com resumo próprio e histórico separado do estudo normal; o cronômetro de prova fica desligado nesse modo.
+8. **Configurações** que alteram efetivamente o comportamento: tamanho da sessão, ordem das questões, intervalos de revisão, meta diária, cronômetro de prova, tema, fonte, animações, som, exportação/importação e exclusão de dados.
 9. **PWA offline** com manifesto, service worker, cache de recursos e das provas já acessadas, além de indicador de conexão.
 
 A interface é em português brasileiro e prioriza telas pequenas, com navegação inferior em dispositivos móveis e layout expandido em telas maiores.
@@ -112,8 +112,8 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 |---|---|---|---|---|
 | REQ-029 | Sons e feedback lúdico | Sons animados para resposta correta/errada, início e fim da prova, e ao atingir conquistas. Alternância configurável em ajustes (som ligado/desligado), sem dependências externas, gerados via Web Audio com primeiro toque, respeitando animações reduzidas. Feedback visual lúdico sem quebrar acessibilidade. | Alta | IMPLEMENTADO |
 | REQ-030 | Moedas e evolução de personagens | Sistema de moedas e evolução de personagem estudioso com imagens de personagens (SVG) em estágios. Ganho de moedas em respostas corretas, conclusão de sessão, meta e conquistas; saldo persistido no IndexedDB. Cartão "Personagem & Moedas" no dashboard com personagem atual, estágio, moedas e barra de evolução. | Alta | IMPLEMENTADO |
-| REQ-031 | Contagem regressiva nas provas | Cronômetro regressivo configurável por sessão de prova (desligado por padrão; 5–120 minutos). Persiste tempo restante ao recarregar/retomar, finaliza a sessão automaticamente ao zerar marcando não respondidas, não aplicado a revisões. Exibido discretamente com acessibilidade e pausa visual ao ficar oculto. | Alta | IMPLEMENTADO |
-| REQ-032 | Simulados por assunto | Rota `#/simulado` para criar simulados configurando quantas questões de cada assunto (agregados dos materiais válidos). Não afeta progresso, XP, conquistas, SRS, ranking ou estatísticas. Apenas registra histórico separado por assunto com total de questões e acertos. Reaproveita fluxo de quiz; resumo distinto. | Alta | IMPLEMENTADO |
+| REQ-031 | Contagem regressiva nas provas | Cronômetro regressivo configurável por sessão de prova (desligado por padrão; 5–120 minutos). Persiste tempo restante ao recarregar/retomar, finaliza a sessão automaticamente ao zerar marcando não respondidas, não aplicado a revisões nem a simulados. Exibido discretamente com acessibilidade e pausa visual ao ficar oculto. | Alta | IMPLEMENTADO |
+| REQ-032 | Simulados por assunto | Rota `#/simulado` para criar simulados configurando quantas questões de cada assunto (agregados dos materiais válidos). Não afeta progresso, sessões normais, XP, conquistas, SRS, ranking, estatísticas nem moedas. Apenas registra histórico separado por assunto com total de questões e acertos. Reaproveita fluxo de quiz; resumo distinto e sem cronômetro de prova. | Alta | IMPLEMENTADO |
 | REQ-033 | Coleta de moedas de conquistas | Animação de moedas nas conquistas desbloqueadas: o usuário deve clicar na conquista para "coletar" as moedas, com animação em cascata e som de moedas. Recompensa única, idempotente, gravada em transação, atualiza saldo e não concede automaticamente. | Alta | IMPLEMENTADO |
 
 ### Critérios de aceitação gerais
@@ -129,7 +129,7 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 
 ---
 
-## D. Arquitetura atual
+## D. Arquitetura
 
 Estado inicial do repositório (antes da implementação):
 
@@ -148,7 +148,7 @@ XLearn/
 └── .git/
 ```
 
-Arquitetura final (após REQ-028):
+Arquitetura atual (estado final, após REQ-033, REQ-027 e REQ-028):
 
 ```
 XLearn/
@@ -180,7 +180,8 @@ XLearn/
 ├── assets/characters/        # IMPLEMENTADO: cinco ilustrações SVG dos estágios do personagem
 ├── questoes/
 │   ├── manifest.json         # IMPLEMENTADO: gerado, não editar à mão
-│   └── *.md                  # materiais originais preservados
+│   └── *.md                  # 10 materiais de estudo preservados
+├── outros/                   # referências e fontes originais (não usadas em runtime)
 ├── README.md                 # IMPLEMENTADO: documentação de uso, materiais, publicação e limitações
 └── PROJECT_STATUS.md
 ```
@@ -242,7 +243,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - `cognitive_skill` observado: `comprehension` (326), `application` (559), `analysis` (306), `memorization` (40) e `recall` (19).
 - 59 questões são `type: "original"` e 1.191 são `type: "generated"`.
 - As 59 questões originais preservam metadados de origem; as 1.191 geradas têm campos de origem nulos.
-- Não há imagens, tabelas ou HTML dentro dos enunciados.
+- Não há imagens, tabelas nem HTML interpretável dentro dos enunciados; a notação `<<include>>` em uma questão é texto literal, exibido sem interpretação.
 
 ### E.5. Estratégia de interpretação
 
@@ -271,7 +272,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Shuffle | Fisher–Yates com PRNG semeado por `sessionId + questionId`; ordem também persistida na sessão. | Ordem aleatória e estável durante a resposta e após retomada. |
 | Correção | Comparação com `correctId`/`answer_key`, nunca com índice visual. | Garante gabarito correto em qualquer ordem. |
 | Rótulos das alternativas | As letras originais A–D acompanham o texto mesmo fora de ordem. | As explicações dos materiais citam letras; remapear rótulos tornaria os comentários incorretos. A posição visual nunca é usada na correção. |
-| Navegação | SPA com rotas em hash (`#/inicio`, `#/estudar`, `#/sessao`, `#/resumo`, `#/revisoes`, `#/progresso`, `#/config`). | Compatível com GitHub Pages sem regras de servidor; configurações acessíveis pelo ícone no topo. |
+| Navegação | SPA com rotas em hash (`#/inicio`, `#/estudar`, `#/simulado`, `#/sessao`, `#/resumo`, `#/revisoes`, `#/progresso`, `#/config`). | Compatível com GitHub Pages sem regras de servidor; configurações acessíveis pelo ícone no topo. |
 | Renderização segura | Todo texto dinâmico usa `textContent`/nós de texto; `innerHTML` só com ícones constantes. | Evita XSS mesmo que um arquivo de questão contenha HTML. |
 | Sessão persistida | Objeto completo em `sessions`, incluindo índice, respostas e ordem das alternativas; restauração automática da sessão ativa. | Garante continuidade mesmo após fechar o navegador, sem reembaralhar. |
 | Persistência | IndexedDB (`xlearn`) com stores `meta`, `progress`, `sessions`, `attempts`; toda a persistência do app usa IndexedDB. | Requisito do projeto; maior capacidade e consultas por chave. |
@@ -292,7 +293,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Cache | App shell em cache na instalação; materiais em cache após o primeiro acesso; navegação com fallback para `index.html`. | Compatível com offline e subdiretórios do GitHub Pages. |
 | Moedas e personagem | `js/coins.js` (puro) concentra a economia: 2 moedas por acerto, 10 por sessão concluída + 5 se perfeita, 15 pela meta diária uma vez por dia e recompensas de conquistas coletadas manualmente. A carteira em `meta/wallet` guarda saldo, total acumulado (`earned`), gasto, sessões pagas, dias de meta e conquistas coletadas. O personagem evolui pelo total acumulado (0, 60, 180, 400 e 800 moedas), não pelo saldo, usando cinco SVGs reais. | Moedas e evolução persistem localmente e continuam corretas após recarregar; usar o total ganho evita regressão ao gastar em uma futura loja. Os pagamentos usam chaves idempotentes por sessão/dia para não duplicar recompensas. |
 | Som | `js/sound.js` (Web Audio, sem arquivos) sintetiza efeitos curtos e mantém um único `AudioContext`, criado apenas após gesto do usuário. Preferências `soundEnabled` e `soundVolume` integram `meta/settings`; o botão do topo e as prévias usam a mesma fonte. Feedback visual usa classes decorativas com `aria-hidden` e é neutralizado por `data-animations="off"`/`prefers-reduced-motion`. | Atende ao requisito lúdico sem dependências, sem autoplay bloqueado e sem alterar o conteúdo acessível ou o gabarito. |
-| Cronômetro da prova | `js/timer.js` (puro) cria um cronômetro desligado por padrão, com duração de 5–120 minutos e padrão de 30. Enquanto corre, guarda `deadlineAt`; ao pausar, congela `remainingSeconds`; ao retomar, recria o limite. A sessão persiste o objeto `timer`, o app atualiza um único nó com `role="timer"` a cada segundo, entra em estado de alerta no último minuto e pausa/retoma ao ocultar/mostrar a aba. Ao zerar, aguarda a gravação da última resposta, encerra a sessão, premia a conclusão e abre o resumo com as não respondidas destacadas. | O instante-limite mantém o tempo correto mesmo com atraso de renderização; a pausa ao ocultar evita punir quem troca de aba. O cronômetro é aplicado só a `mode: "material"`, nunca a revisões ou correções. |
+| Cronômetro da prova | `js/timer.js` (puro) cria um cronômetro desligado por padrão, com duração de 5–120 minutos e padrão de 30. Enquanto corre, guarda `deadlineAt`; ao pausar, congela `remainingSeconds`; ao retomar, recria o limite. A sessão persiste o objeto `timer`, o app atualiza um único nó com `role="timer"` a cada segundo, entra em estado de alerta no último minuto e pausa/retoma ao ocultar/mostrar a aba. Ao zerar, aguarda a gravação da última resposta, encerra a sessão, premia a conclusão e abre o resumo com as não respondidas destacadas. | O instante-limite mantém o tempo correto mesmo com atraso de renderização; a pausa ao ocultar evita punir quem troca de aba. O cronômetro é aplicado só a `mode: "material"`, nunca a revisões, correções ou simulados. |
 | Simulados por assunto | A rota `#/simulado` agrupa os materiais válidos por `subject`, aceita uma quantidade por assunto e monta a sessão com IDs compostos `materialId::questionId` para evitar colisão. O simulado ativo vive em `meta/simuladoSession` com `mode: "simulado"`; a conclusão grava apenas um resumo compacto em `meta/simulados` (datas, duração, totais e acertos por assunto). Nenhum caminho de gravação normal é chamado: sem `progress`, `attempts`, `sessions`, `stats`, gamificação, carteira ou SRS. O quiz reaproveita embaralhamento e correção, mas o resumo é próprio e o cronômetro de prova fica desligado. | Mantém o simulado isolado por definição, permite retomar simulado e sessão normal de forma independente e preserva a precisão dos totais por assunto sem inflar XP, ranking ou estatísticas. |
 | Coleta de conquistas | As conquistas desbloqueadas viram botões “Clique para coletar”. `claimAchievementReward` usa o valor canônico de `ACHIEVEMENTS` e executa, em uma única transação `readwrite` no store `meta`, a leitura da gamificação e da carteira, a verificação de desbloqueio e o registro em `claimedAchievements`. A interface só anima e toca o som de moedas quando o retorno tem ganho; chamadas repetidas retornam `alreadyClaimed` sem alterar o saldo. | Impede concessão automática, adulteração do valor pelo DOM e pagamento duplicado por cliques repetidos ou abas concorrentes; a cascata e o som comemoram somente a coleta efetiva. |
 | Versionamento | Um commit funcional por requisito, Conventional Commits, push após cada entrega; hash registrado no commit seguinte. | Rastreabilidade e histórico incremental. |
@@ -324,6 +325,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.16.1 | — | Correção de publicação: `.nojekyll` impede o Jekyll de converter os materiais Markdown, que respondiam 404 no GitHub Pages | `facf70d` | 2026-11-02 |
 | 0.17.0 | REQ-025 | Indicador online/offline no topo, aviso de contingência com o que continua disponível, anúncio acessível, reconexão com toast e resposta salva localmente enquanto offline | `eeff2aa` | 2026-11-02 |
 | 0.18.0 | REQ-026 | Link de pular desacoplado do roteador, foco após avançar/agendar/cancelar, progresso do quiz como `progressbar`, letras e gabarito anunciados nas alternativas, contraste corrigido nos dois temas, alvos de toque de 44 px e ajuste para 320 px | `0cd60c1` | 2026-11-02 |
+| 0.19.0 | — | Planejamento da fase 8: sons, moedas, personagem, cronômetro e simulados adicionados à especificação | `c1611ab` | 2026-11-02 |
 | 0.20.0 | REQ-029 | Módulo `sound.js` com efeitos de acerto, erro, início/fim de prova, conquista e moeda gerados via Web Audio; volume e alternância persistidos; botão de som no topo, prévias em `#/config`, primeiro gesto libera o áudio e feedback visual lúdico respeitando animações reduzidas | `02b1f12` | 2026-11-02 |
 | 0.21.0 | REQ-030 | Módulo `coins.js` com carteira persistida em `meta/wallet`, moedas por acerto/sessão/meta, estágios do personagem por total acumulado, cinco SVGs reais, recompensas de conquistas preparadas para coleta e cartão “Personagem & Moedas” no dashboard | `3353195` | 2026-11-03 |
 | 0.22.0 | REQ-031 | Módulo `timer.js` com cronômetro regressivo de 5–120 minutos, persistência de `deadlineAt`/`remainingSeconds`, pausa automática ao ocultar a aba, alerta no último minuto, encerramento automático com resumo marcando não respondidas e exclusão de revisões/correções | `369fb6f` | 2026-11-03 |
@@ -346,7 +348,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **Interface:** `index.html` e `css/styles.css` com temas escuro/claro por variáveis, layout responsivo, navegação inferior, foco visível, `prefers-reduced-motion` e componentes de acessibilidade.
 - **REQ-008 — IndexedDB:** `js/db.js` cria o banco `xlearn` (versão 1) com stores `meta`, `progress`, `sessions` e `attempts`. Cada confirmação é gravada em transação atômica com sessão, progresso da questão (acertos, erros, sequência, histórico curto), tentativa completa e estatísticas agregadas por dia/material.
 - **REQ-009 — Retomada:** a sessão é salva no início, a cada resposta e a cada avanço. Ao abrir o app, a sessão ativa mais recente é restaurada, o material é recarregado, a ordem original das alternativas é reproduzida pelo PRNG semeado e o índice é mantido. Se todas as questões já estavam respondidas, o app abre o resumo.
-- **REQ-010 — Progresso:** o dashboard exibe, por prova, quantas questões já foram respondidas e o percentual de acerto; as tentativas ficam disponíveis em `attempts` para histórico e estatísticas futuras. Configurações salvas são carregadas no boot.
+- **REQ-010 — Progresso:** o dashboard exibe, por prova, quantas questões já foram respondidas e o percentual de acerto; as tentativas ficam disponíveis em `attempts` e alimentam o histórico e as estatísticas agregadas da rota `#/progresso`. Configurações salvas são carregadas no boot.
 - **REQ-011 — Agendamento automático:** `js/srs.js` calcula o próximo nível e vencimento sem DOM. Acertos sobem até o nível 5 e usam 1, 3, 7, 14 ou 30 dias; erros descem um nível e agendam nova revisão em 10 minutos. Desativar a repetição espaçada grava a resposta sem data de revisão. O agendamento é salvo atomicamente com a resposta e registrado no histórico da questão.
 - **REQ-012 — Intervalo manual:** no feedback de um acerto, o estudante pode manter o automático ou escolher 10 min, 1 h, 1, 3, 7, 14 ou 30 dias. A alteração é persistida em `progress` com `manualSchedule`, sem reduzir o nível conquistado; voltar ao automático restaura o intervalo automático original e remove a marcação manual.
 - **REQ-013 — Fila de revisões:** a rota `#/revisoes` agrupa por prova, mostra contadores de vencidas e futuras, lista as próximas questões e prioriza as atrasadas ao montar a sessão. O item "Revisões" na navegação exibe um selo com o total vencido, e o dashboard alerta quando há revisões atrasadas.
@@ -364,8 +366,8 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-025 — Indicador de conexão:** o topo mostra “Online” ou “Offline” com `role="status"`, `aria-live="polite"` e rótulo acessível atualizado. Ao ficar offline, uma faixa explica que respostas e dados salvos continuam funcionando e que materiais ainda não acessados podem não carregar. Ao reconectar, a faixa some, o indicador volta a “Online” e um toast confirma que os dados continuam salvos. O estado também é reavaliado quando a página volta a ficar visível.
 - **REQ-026 — Acessibilidade e responsividade:** o link “Pular para o conteúdo” move o foco para `main` sem ser interpretado como rota pelo roteador de hash. Ao entrar em uma sessão ou avançar de questão, o foco vai para o enunciado com `tabindex="-1"` e margem de rolagem sob o topo fixo; após confirmar, vai para o feedback; após reagendar, permanece na opção escolhida; cancelar importação ou exclusão devolve o foco ao botão de origem e `Escape` fecha as confirmações inline. O progresso do quiz é um `progressbar` com mínimo, máximo, valor e texto “X de Y questões respondidas”. As alternativas expõem a letra original e, depois da correção, “resposta correta” ou “sua resposta, incorreta” em texto só para leitores de tela. Os contrastes foram recalibrados nos dois temas para pelo menos 4,5:1 em texto normal, incluindo botão primário, selo de revisões, links, chips e aviso amarelo. Ícones de ação, botões compactos, itens da navegação e alternativas têm alvo de toque de pelo menos 44 px; em telas de até 380 px a assinatura da marca é ocultada para não haver rolagem horizontal, e a navegação reduz a tipografia. O anel de foco das seções expansíveis não é mais cortado pelo `overflow`.
 - **REQ-029 — Sons e feedback lúdico:** `js/sound.js` gera todos os efeitos com Web Audio, sem arquivos ou dependências: acerto (arpejo ascendente), erro (notas graves), início e fim de prova, conquista e moeda. O contexto só é criado depois do primeiro gesto do usuário e é reaproveitado. `soundEnabled` e `soundVolume` (0–100%) ficam em `meta/settings`, com prévias e volume no cartão “Som e ludicidade” de `#/config` e alternância rápida por botão no topo com `aria-pressed` e rótulo atualizado. Acertos disparam uma pequena explosão decorativa e erros uma vibração curta; ambos são ocultos de leitores de tela e neutralizados por `prefers-reduced-motion` ou animações desligadas.
-- **REQ-030 — Moedas e evolução do personagem:** `js/coins.js` define a economia em módulo puro e mantém a carteira em `meta/wallet` com saldo, total acumulado, moedas gastas, sessões já pagas, dias de meta e conquistas coletadas. Cada acerto rende 2 moedas; concluir uma sessão rende 10 + 5 se todas estiverem corretas; atingir a meta diária rende 15 moedas uma única vez por dia; as conquistas têm recompensas próprias, preparadas para coleta manual em REQ-033. Os pagamentos são idempotentes por `sessionId`/dia e ocorrem na mesma transação da resposta ou da conclusão. O personagem evolui pelo total acumulado em cinco estágios — Curioso (0), Estudante (60), Focado (180), Veterano (400) e Mestre dos estudos (800) — cada um com SVG próprio em `assets/characters/`. O dashboard mostra o cartão “Personagem & Moedas” com imagem, saldo, estágio, total acumulado, barra acessível e quanto falta para evoluir. Backup inclui a carteira e apagar progresso também apaga moedas e evolução.
-- **REQ-031 — Contagem regressiva nas provas:** `js/timer.js` mantém o cronômetro como módulo puro. A configuração `timerEnabled`/`timerMinutes` (5–120, padrão 30) integra `meta/settings` e o cartão “Tempo de prova” de `#/config`. Sessões novas de prova (`mode: "material"`) recebem o cronômetro; revisões e correções não. Enquanto corre, a sessão guarda `deadlineAt`; ao ocultar a aba, o tempo é congelado em `remainingSeconds` e retomado ao voltar. O cabeçalho do quiz mostra um `role="timer"` discreto, com `aria-label` em texto, estado de alerta no último minuto e indicação visual de pausa. Ao zerar, o app aguarda a última gravação, encerra a sessão, paga a conclusão uma única vez, toca o som de fim e abre o resumo com aviso de tempo esgotado, contador de não respondidas e marcação individual dessas questões.
+- **REQ-030 — Moedas e evolução do personagem:** `js/coins.js` define a economia em módulo puro e mantém a carteira em `meta/wallet` com saldo, total acumulado, moedas gastas, sessões já pagas, dias de meta e conquistas coletadas. Cada acerto rende 2 moedas; concluir uma sessão rende 10 + 5 se todas estiverem corretas; atingir a meta diária rende 15 moedas uma única vez por dia; as conquistas têm recompensas próprias, coletadas manualmente conforme REQ-033. Os pagamentos são idempotentes por `sessionId`/dia e ocorrem na mesma transação da resposta ou da conclusão. O personagem evolui pelo total acumulado em cinco estágios — Curioso (0), Estudante (60), Focado (180), Veterano (400) e Mestre dos estudos (800) — cada um com SVG próprio em `assets/characters/`. O dashboard mostra o cartão “Personagem & Moedas” com imagem, saldo, estágio, total acumulado, barra acessível e quanto falta para evoluir. Backup inclui a carteira e apagar progresso também apaga moedas e evolução.
+- **REQ-031 — Contagem regressiva nas provas:** `js/timer.js` mantém o cronômetro como módulo puro. A configuração `timerEnabled`/`timerMinutes` (5–120, padrão 30) integra `meta/settings` e o cartão “Tempo de prova” de `#/config`. Sessões novas de prova (`mode: "material"`) recebem o cronômetro; revisões, correções e simulados não. Enquanto corre, a sessão guarda `deadlineAt`; ao ocultar a aba, o tempo é congelado em `remainingSeconds` e retomado ao voltar. O cabeçalho do quiz mostra um `role="timer"` discreto, com `aria-label` em texto, estado de alerta no último minuto e indicação visual de pausa. Ao zerar, o app aguarda a última gravação, encerra a sessão, paga a conclusão uma única vez, toca o som de fim e abre o resumo com aviso de tempo esgotado, contador de não respondidas e marcação individual dessas questões.
 - **REQ-032 — Simulados por assunto:** `js/simulado.js` concentra as funções puras de resumo, histórico idempotente e agregação. A rota `#/simulado` agrupa os materiais válidos por assunto, oferece campos de quantidade por assunto, presets “10 por assunto”/“Limpar”, total em tempo real e início desativado sem questões. O simulado ativo fica em `meta/simuladoSession` com `mode: "simulado"` e IDs compostos; as questões são embaralhadas e o quiz mostra o selo “Simulado”. Concluir grava apenas um resumo compacto em `meta/simulados` (datas, duração, total, acertos e totais/acertos por assunto), limpa o simulado ativo e abre um resumo próprio com resultado por assunto. Nenhum caminho grava progresso, tentativas, sessões normais, estatísticas, XP, conquistas, SRS, ranking ou moedas. Sessão normal e simulado podem ficar ativos ao mesmo tempo e são retomados por banners independentes no início; o backup inclui os dois e apagar progresso remove o histórico de simulados.
 - **REQ-033 — Coleta de moedas de conquistas:** as conquistas desbloqueadas aparecem como botões “Clique para coletar”, com a recompensa em moedas e o XP já recebido. O clique chama `claimAchievementReward` em `js/db.js`, que valida o desbloqueio e usa o valor canônico de `js/gamification.js` dentro de uma transação `readwrite` sobre `meta`; o pagamento é gravado em `wallet.claimedAchievements` e nunca é automático. A resposta atualiza o dashboard e a tela de progresso, toca o som de moeda e dispara uma cascata decorativa de moedas ancorada no cartão, oculta de leitores de tela e neutralizada por animações desligadas ou `prefers-reduced-motion`. Cliques repetidos, inclusive concorrentes, retornam `alreadyClaimed` sem somar saldo; conquistas bloqueadas e valores adulterados são recusados. O chip de conquistas mostra o total pendente de moedas e volta ao XP quando tudo foi coletado.
 - **REQ-027 — Testes abrangentes finais:** campanha executada ao término da fase 8 com 12 suítes temporárias, fora do repositório, em Node com DOM simulado (`happy-dom`), IndexedDB em memória (`fake-indexeddb`), Cache API e rede simuladas. A cobertura unitária validou manifesto (10 materiais/1250 questões), parser e correção por ID em todas as questões, embaralhamento estável, SRS, gamificação, moedas, ranking, cronômetro, simulados, backup, configurações, cache e isolamento de materiais malformados/manifesto inválido. As suítes de integração percorreram configurações e efeitos reais, sessão normal, cronômetro com pausa/retomada e expiração, SRS automático/manual, fila de revisões, estatísticas, XP, meta, sequência, ranking, acessibilidade, exportação/importação, restauração, exclusão de dados, simulados, coleta de conquistas e service worker. A campanha encontrou e corrigiu um defeito real: `renderStudy` aplicava spread em `renderMaterialGrid()`, que devolve um único elemento, e a rota `#/estudar` não renderizava; a chamada passou a ser inserida diretamente no array. Todas as suítes e `npm run check` passaram após a correção.
@@ -386,7 +388,8 @@ Dependências principais:
 - REQ-021 e REQ-022 dependem do modelo de dados.
 - REQ-024 depende de REQ-023.
 - REQ-027 depende de todas as anteriores.
-- REQ-032 e REQ-033 dependem de REQ-008, do registro de tentativas, da gamificação, de REQ-030 e de REQ-031 quando aplicável.
+- REQ-032 depende de REQ-004 a REQ-008 e do fluxo de quiz; não depende de REQ-031, pois simulados não usam cronômetro.
+- REQ-033 depende de REQ-015 (conquistas desbloqueadas), de REQ-030 (carteira) e do registro de tentativas.
 
 ---
 
@@ -403,7 +406,17 @@ Dependências principais:
 
 ## K. Testes
 
-### Verificações durante o desenvolvimento
+### Verificação atual (2026-11-05)
+
+- `npm run check`: 10 materiais válidos, 1.250 questões, 0 erros e 0 avisos.
+- `node --check` em todos os `js/*.js`, `service-worker.js` e `scripts/*.mjs`: sem erros de sintaxe.
+- `service-worker.js` em `v8`, com 28 caminhos no app shell, todos presentes no repositório.
+- `questoes/manifest.json` válido e coerente com os 10 materiais; `package.json` sem dependências de execução.
+- `main` sincronizada com `origin/main` e árvore de trabalho limpa ao final desta revisão.
+
+As verificações abaixo são registros históricos de cada entrega; números e versões de cache citados nelas refletem o momento em que foram executadas.
+
+### Registro histórico das verificações durante o desenvolvimento
 
 - Estrutura do repositório e estado do Git inspecionados.
 - 2 arquivos Markdown encontrados, 150 blocos JSON analisados: 100% válidos, IDs únicos, 4 alternativas por questão, gabarito consistente com `is_correct`.
@@ -461,7 +474,7 @@ Dependências principais:
 
 ### Campanha final (REQ-027)
 
-12 suítes temporárias executadas em `/tmp/opencode/xlearn-test/` (harness de desenvolvimento, não versionado), todas aprovadas:
+12 suítes temporárias executadas em `/tmp/opencode/xlearn-test/` (harness de desenvolvimento, não versionado e já removido), todas aprovadas:
 
 - **Unitária:** manifesto com 10 materiais válidos e 1250 questões; parser e correção por ID nas 1250 questões; alternativas estáveis e gabarito único; material vazio, JSON inválido, ID duplicado e questão sem gabarito isolados; manifesto inválido recusado sem impedir materiais válidos.
 - **SRS e gamificação:** acerto/erro, desativação, intervalo manual e fila priorizada; XP, níveis, meta, sequência, conquistas e bônus de sessão sem duplicação; economia de moedas, meta diária, coleta e cinco estágios; ranking por Wilson e agregação por prova/disciplina.
