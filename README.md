@@ -1,1 +1,288 @@
 # XLearn
+
+PWA educacional para estudar por questões, com alternativas embaralhadas, feedback explicado, repetição espaçada, simulados, XP, conquistas e moedas — tudo salvo no navegador.
+
+**Aplicativo publicado:** <https://x3x31.github.io/XLearn/>  
+**Repositório:** <https://github.com/x3x31/XLearn>
+
+## Sobre
+
+O XLearn lê provas em Markdown padronizado na pasta `questoes/`, gera um manifesto e apresenta os materiais em uma interface responsiva em português brasileiro. Não há cadastro, servidor de aplicação, banco remoto nem ranking global: o progresso pertence ao dispositivo e ao navegador usados.
+
+O projeto usa apenas HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, Cache API, Service Worker e Web App Manifest. Não há frameworks, bibliotecas de execução, fontes externas ou CDNs.
+
+## Funcionalidades
+
+- **Provas reais:** catálogo com disciplina, banca, assunto e quantidade de questões.
+- **Sessão de estudo:** questões e alternativas embaralhadas de forma estável, correção pela identificação da alternativa, bloqueio de resposta duplicada e explicações completas.
+- **Retomada:** sessões interrompidas continuam de onde pararam.
+- **Repetição espaçada:** intervalos automáticos de 1, 3, 7, 14 e 30 dias, revisão curta de 10 minutos no erro, escolha manual após o acerto e fila de revisões vencidas.
+- **Simulados:** montagem por assunto e quantidade de questões, com resumo próprio por disciplina.
+- **Cronômetro opcional:** contagem regressiva de 5 a 120 minutos nas provas, com pausa automática ao trocar de aba e encerramento ao zerar.
+- **Gamificação:** XP, níveis, meta diária, sequência de estudos, conquistas e ranking local.
+- **Moedas e personagem:** recompensas por acerto, sessão e meta; coleta manual das moedas das conquistas; evolução do personagem em cinco estágios.
+- **Som e ludicidade:** efeitos gerados via Web Audio, com volume configurável e respeito a animações reduzidas.
+- **Acessibilidade:** navegação por teclado, foco visível, link de pular, rótulos ARIA, contraste e alvos de toque adequados.
+- **Offline e instalação:** app shell em cache, materiais já acessados disponíveis offline e instalação como PWA.
+- **Dados locais:** backup e restauração em JSON, além de exclusão seletiva do progresso.
+
+## Requisitos
+
+- Navegador moderno: Chrome, Edge, Firefox ou Safari atuais.
+- Para executar localmente: Python 3 ou qualquer servidor HTTP estático.
+- Para regenerar o manifesto: Node.js 18 ou superior.
+- Não é necessário executar `npm install`; o projeto não tem dependências.
+
+## Execução local
+
+O app precisa ser servido por HTTP. Abrir `index.html` diretamente como arquivo (`file://`) impede o carregamento de módulos, do manifesto e do service worker.
+
+Na raiz do projeto, execute:
+
+```bash
+python3 -m http.server 8899 --bind 127.0.0.1
+```
+
+Depois acesse:
+
+```text
+http://127.0.0.1:8899/
+```
+
+Para usar outra porta ou servir a partir de outro diretório estático, mantenha a raiz do repositório como raiz do site para preservar os caminhos relativos.
+
+> O service worker e a instalação como PWA funcionam em `localhost` ou HTTPS. Em produção, o GitHub Pages fornece HTTPS.
+
+## Publicação no GitHub Pages
+
+O projeto já está configurado para publicação estática a partir da branch `main`:
+
+1. Envie as alterações para a branch `main`.
+2. No GitHub, acesse **Settings → Pages**.
+3. Em **Build and deployment**, selecione **Deploy from a branch**.
+4. Escolha a branch `main` e a pasta `/ (root)`.
+
+O arquivo `.nojekyll` impede que o Jekyll processe ou ignore os materiais Markdown. Todos os caminhos são relativos, o que permite hospedar o app na raiz do domínio ou em um subdiretório.
+
+Após a publicação, o endereço padrão é:
+
+```text
+https://<usuario>.github.io/XLearn/
+```
+
+## Instalação como PWA
+
+- **Android/Chrome:** abra o site, use o menu do navegador e escolha **Instalar aplicativo** ou **Adicionar à tela inicial**.
+- **iPhone/iPad/Safari:** toque em **Compartilhar** e depois em **Adicionar à Tela de Início**.
+- **Desktop/Chrome ou Edge:** use o ícone de instalação na barra de endereço.
+
+Depois da primeira visita, o app shell fica disponível offline. Cada material é guardado após ser acessado ao menos uma vez; uma prova ainda não visitada pode não abrir sem conexão.
+
+## Uso
+
+A navegação inferior leva às áreas principais:
+
+| Área | Rota | O que faz |
+|---|---|---|
+| Início | `#/inicio` | Meta diária, XP, sequência, moedas, personagem, sessões em andamento e revisões vencidas. |
+| Provas | `#/estudar` | Lista os materiais disponíveis e inicia uma sessão de estudo. |
+| Revisões | `#/revisoes` | Mostra a fila de revisões vencidas e futuras, agrupada por prova. |
+| Simulado | `#/simulado` | Monta uma prova por assunto, com quantidade configurável de questões. |
+| Progresso | `#/progresso` | Totais, precisão, nível, ranking local, conquistas e tentativas recentes. |
+| Configurações | `#/config` | Ajustes de estudo, aparência, som, dados e backup. |
+
+Durante uma sessão:
+
+1. Escolha uma alternativa e confirme a resposta.
+2. O feedback mostra a alternativa correta, sua escolha e a explicação.
+3. Após um acerto, escolha quando deseja revisar (automático ou um intervalo manual).
+4. Avance para a próxima questão ou abra o resumo ao final.
+
+A correção usa o identificador da alternativa (A, B, C, D), nunca a posição em que ela aparece na tela. As letras originais do gabarito são preservadas.
+
+### Configurações disponíveis
+
+- **Questões por sessão:** 1 a 100 (padrão 10).
+- **Meta diária:** 1 a 500 questões (padrão 20).
+- **Ordem das questões:** aleatória ou sequencial; as alternativas continuam sempre embaralhadas.
+- **Repetição espaçada:** ativação e cinco intervalos crescentes de 1 a 365 dias.
+- **Cronômetro:** desligado por padrão; quando ativado, dura de 5 a 120 minutos (padrão 30) e vale apenas para provas, não para revisões ou correções.
+- **Tema:** sistema, escuro ou claro.
+- **Tamanho do texto:** 14 a 22 px.
+- **Animações:** podem ser desativadas; a preferência do sistema por movimento reduzido também é respeitada.
+- **Som:** ligado/desligado e volume de 0 a 100%, com prévia dos efeitos.
+
+### Cronômetro
+
+Enquanto a prova está em andamento, o tempo restante aparece no cabeçalho. Se a aba for ocultada, o cronômetro pausa; ao voltar, ele retoma. No último minuto, o relógio entra em estado de alerta. Ao chegar a zero, a sessão é encerrada automaticamente, as questões não respondidas são marcadas no resumo e a conclusão é paga uma única vez.
+
+### Simulados
+
+O simulado permite escolher quantas questões usar de cada assunto. Ele tem sessão ativa e histórico próprios, pode coexistir com uma sessão normal e **não** altera progresso, tentativas normais, estatísticas, XP, conquistas, revisões, ranking ou moedas. O resumo do simulado mostra totais e acertos por assunto.
+
+### Moedas, conquistas e personagem
+
+- **2 moedas** por resposta correta.
+- **10 moedas** ao concluir uma sessão, mais **5** se todas as respostas estiverem corretas.
+- **15 moedas** ao atingir a meta diária, uma única vez por dia.
+- As conquistas desbloqueadas têm recompensas próprias em moedas. Elas **não são pagas automaticamente**: toque em “Clique para coletar” no dashboard ou na tela de progresso.
+
+O personagem evolui pelo total de moedas acumuladas: Curioso (0), Estudante (60), Focado (180), Veterano (400) e Mestre dos estudos (800).
+
+### Revisões
+
+Um acerto sobe o nível de domínio e agenda a próxima revisão; um erro reduz o nível e cria uma revisão curta de 10 minutos. A fila de revisões prioriza o que está mais atrasado. A sessão de revisão usa apenas as questões vencidas e não recebe cronômetro de prova.
+
+## Adicionar provas
+
+Os materiais ficam em `questoes/` e podem ser organizados em subpastas. O gerador ignora `manifest.json`, `README.md` e a pasta `outros/`.
+
+### Formato do arquivo
+
+Cada prova é um arquivo `.md` com frontmatter, um título `#` e um bloco ```json por questão:
+
+````markdown
+---
+schema_version: "1.0"
+material_id: "MAT-EXEMPLO-001"
+bank: "Banca Exemplo"
+subject: "Disciplina Exemplo"
+topic: "Assunto principal"
+total_questions: 1
+language: "pt-BR"
+---
+
+# Material de Estudo — Disciplina Exemplo
+
+## Questão 0001
+
+```json
+{
+  "id": "MAT-EXEMPLO-001-Q0001",
+  "type": "original",
+  "subject": "Disciplina Exemplo",
+  "topic": "Assunto principal",
+  "difficulty": "medium",
+  "question_text": "Qual é a alternativa correta?",
+  "alternatives": [
+    { "id": "A", "text": "Alternativa correta.", "is_correct": true },
+    { "id": "B", "text": "Alternativa incorreta.", "is_correct": false },
+    { "id": "C", "text": "Alternativa incorreta.", "is_correct": false },
+    { "id": "D", "text": "Alternativa incorreta.", "is_correct": false }
+  ],
+  "answer_key": "A",
+  "explanation": {
+    "resolution": "Explicação da resolução.",
+    "theoretical_content": "Conteúdo teórico de apoio.",
+    "bank_approach": "Como a banca costuma cobrar o assunto.",
+    "study_tip": "Dica de estudo.",
+    "review_summary": "Resumo para revisão."
+  }
+}
+```
+````
+
+Regras principais:
+
+- `id` deve ser único dentro do material.
+- Cada questão precisa de `question_text` e pelo menos duas alternativas com `text`.
+- A correta pode ser indicada por `answer_key` ou por exatamente um `is_correct: true`. Se ambos existirem, `answer_key` prevalece.
+- `alternatives[].explanation` é opcional e aparece no comentário individual.
+- `subject`, `topic`, `difficulty`, `source`, `type` e os campos de `explanation` são opcionais, mas melhoram a experiência.
+- IDs de alternativa duplicados, JSON inválido, questão sem gabarito ou IDs de questão repetidos são reportados como erro; o material inválido é ignorado no catálogo.
+
+### Gerar e validar o manifesto
+
+Depois de adicionar ou editar materiais:
+
+```bash
+npm run build:manifest
+```
+
+O comando grava `questoes/manifest.json`. Para validar sem gravar:
+
+```bash
+npm run check
+```
+
+O manifesto é a única fonte de descoberta de provas. Se ele não for regenerado, a nova prova não aparece no app.
+
+## Dados, backup e privacidade
+
+Os dados ficam no IndexedDB do navegador, no banco `xlearn`:
+
+- `meta`: configurações, estatísticas, gamificação, carteira, histórico de simulados e simulado ativo.
+- `progress`: domínio e agendamento de revisão por questão.
+- `sessions`: sessões normais, incluindo respostas e ordem das alternativas.
+- `attempts`: histórico de tentativas.
+
+Nada é enviado para servidores. Limpar os dados do site no navegador apaga o progresso; por isso, faça backups periódicos.
+
+Em **Configurações → Dados**:
+
+- **Exportar backup:** baixa um JSON versionado com configurações, estatísticas, XP, conquistas, moedas, personagem, progresso, sessões, tentativas e simulados.
+- **Importar backup:** valida formato, versão e registros antes de mostrar um resumo; somente após a confirmação os dados atuais são substituídos.
+- **Limpar cache do app:** remove apenas os caches `xlearn-*`, preservando respostas e histórico.
+- **Apagar progresso:** remove progresso, sessões, tentativas, estatísticas, gamificação, carteira, histórico de simulados e simulado ativo, mas mantém as configurações de estudo e aparência.
+
+## Estrutura do projeto
+
+```text
+.
+├── index.html
+├── manifest.webmanifest
+├── service-worker.js
+├── css/
+│   └── styles.css
+├── js/
+│   ├── app.js          # rotas e interface
+│   ├── db.js           # IndexedDB e transações
+│   ├── parser.js       # leitura e validação dos materiais
+│   ├── questions.js    # manifesto e carregamento
+│   ├── settings.js     # preferências
+│   ├── srs.js          # repetição espaçada
+│   ├── gamification.js # XP, níveis e conquistas
+│   ├── coins.js        # carteira e personagens
+│   ├── timer.js        # cronômetro
+│   ├── simulado.js     # resumo e histórico de simulados
+│   ├── ranking.js      # ranking local
+│   ├── backup.js       # validação de backup
+│   ├── storage.js      # limpeza de caches
+│   └── sound.js        # efeitos via Web Audio
+├── questoes/           # materiais .md e manifest.json
+├── scripts/            # gerador de manifesto e ícones
+├── icons/              # ícones da PWA
+└── assets/characters/  # estágios do personagem
+```
+
+## Validação e testes
+
+Verificação do catálogo, sem gravar o manifesto:
+
+```bash
+npm run check
+```
+
+Verificação sintática dos arquivos JavaScript:
+
+```bash
+node --check js/app.js
+```
+
+A campanha final de testes está registrada em `PROJECT_STATUS.md`. Os testes automatizados de desenvolvimento usaram DOM simulado, IndexedDB em memória e Cache API simulada, fora do repositório; não há suíte de testes versionada nem dependências de teste no projeto.
+
+## Limitações conhecidas
+
+- **Uma sessão normal por vez:** iniciar outra prova ou revisão substitui a sessão normal ativa. O simulado tem um espaço próprio e pode coexistir com ela. Respostas já gravadas permanecem no progresso e no histórico.
+- **Formato específico:** só materiais Markdown com blocos ```json no padrão descrito são carregados. Markdown livre não é convertido em questão.
+- **Manifesto manual:** adicionar uma prova exige executar `npm run build:manifest`.
+- **Ranking local:** representa apenas o histórico daquele navegador/dispositivo; não existe ranking global nem conta de usuário.
+- **Dados por navegador:** trocar de navegador, limpar o armazenamento ou usar outro dispositivo não transfere o progresso automaticamente. Use o backup JSON.
+- **Offline parcial:** o app shell fica disponível após a primeira visita, mas cada prova só fica offline depois de ser acessada uma vez.
+- **Service worker:** exige HTTPS ou `localhost`.
+- **Som:** depende de suporte a Web Audio e é liberado após o primeiro gesto do usuário, conforme a política dos navegadores.
+- **Sem sincronização:** não há servidor, login, nuvem ou compartilhamento de progresso.
+
+## Licença
+
+Este repositório não declara uma licença de uso. Consulte o autor antes de redistribuir os materiais ou o código.
