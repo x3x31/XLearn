@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.27.0` |
+| **Versão atual** | `0.28.0` |
 | **Data da última atualização** | 2026-11-05 |
 
 ---
@@ -25,12 +25,12 @@
 
 O XLearn lê os materiais da pasta `questoes/`, gera um manifesto JSON com os arquivos disponíveis e apresenta uma experiência de estudo composta por:
 
-1. **Dashboard** com visão rápida de nível, personagem, carteira de moedas, meta diária, sequência e conquistas coletáveis, além de atalhos para o progresso, sessões em andamento e revisões vencidas.
+1. **Dashboard** com visão rápida da temporada, personagem, carteira de moedas, meta diária, sequência e conquistas coletáveis, além de atalhos para o progresso, sessões em andamento e revisões vencidas.
 2. **Seleção de prova** com metadados reais do material (disciplina, assunto, quantidade de questões).
 3. **Tela de resolução** com alternativas embaralhadas por Fisher–Yates, confirmação da resposta, feedback imediato, gabarito, explicação didática e cronômetro opcional de 5–120 minutos.
 4. **Persistência local** em IndexedDB de sessões, respostas, progresso, histórico, carteira e simulados, permitindo retomar sessões interrompidas.
 5. **Repetição espaçada** com intervalos automáticos (1, 3, 7, 14 e 30 dias), redução do domínio no erro, escolha manual de intervalo e fila de revisões.
-6. **Gamificação** com XP, níveis, conquistas com recompensas em moedas, meta diária, sequência de estudos, estatísticas e ranking local baseado apenas em dados reais do dispositivo.
+6. **Gamificação** com temporada, evolução do personagem por moedas acumuladas e dias ativos, conquistas com recompensas em moedas, meta diária, sequência de estudos, estatísticas e ranking local baseado apenas em dados reais do dispositivo. O XP continua sendo calculado e gravado internamente, mas não é exibido nem influencia a evolução.
 7. **Simulados por assunto** que montam uma prova a partir das disciplinas do acervo, com resumo próprio e histórico separado do estudo normal; o cronômetro de prova fica desligado nesse modo.
 8. **Configurações** que alteram efetivamente o comportamento: tamanho da sessão, ordem das questões, intervalos de revisão, meta diária, cronômetro de prova, tema, fonte, animações, som, exportação/importação e exclusão de dados.
 9. **PWA offline** com manifesto, service worker, cache de recursos e das provas já acessadas, além de indicador de conexão.
@@ -41,7 +41,7 @@ A interface é em português brasileiro e prioriza telas pequenas, com navegaç�
 
 ## C. Especificações funcionais
 
-Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Nenhum requisito está `PENDENTE`: todos os 33 estão `IMPLEMENTADO`, conforme a coluna Status abaixo.
+Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Os requisitos REQ-001 a REQ-033 estão `IMPLEMENTADO`; REQ-034 e REQ-035 estão `PENDENTE`, conforme a coluna Status abaixo.
 
 ### Fase 1 — Base funcional
 
@@ -116,6 +116,13 @@ Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`
 | REQ-032 | Simulados por assunto | Rota `#/simulado` para criar simulados configurando quantas questões de cada assunto (agregados dos materiais válidos). Não afeta progresso, sessões normais, XP, conquistas, SRS, ranking, estatísticas nem moedas. Apenas registra histórico separado por assunto com total de questões e acertos. Reaproveita fluxo de quiz; resumo distinto e sem cronômetro de prova. | Alta | IMPLEMENTADO |
 | REQ-033 | Coleta de moedas de conquistas | Animação de moedas nas conquistas desbloqueadas: o usuário deve clicar na conquista para "coletar" as moedas, com animação em cascata e som de moedas. Recompensa única, idempotente, gravada em transação, atualiza saldo e não concede automaticamente. | Alta | IMPLEMENTADO |
 
+### Fase 9 — Temporada e evolução por constância
+
+| ID | Nome | Descrição | Prioridade | Status |
+|---|---|---|---|---|
+| REQ-034 | Temporada 1 e evolução do personagem | Definir a Temporada 1 de 05/11/2026 a 04/12/2026 e evoluir o personagem pelo mínimo acumulado de moedas na temporada e pelo total de dias ativos, com +3 dias ativos por estágio. Faixas confirmadas: 60/150/270/400 moedas e 3/6/9/12 dias. O estágio é o maior que atende simultaneamente aos dois critérios, nunca regride dentro da temporada e congela ao término até que uma nova temporada seja definida. A tela de progresso e a visão rápida do dashboard exibem temporada, estágio, moedas da temporada, dias ativos, dias restantes e o que falta para evoluir. | Alta | PENDENTE |
+| REQ-035 | XP interno e conquistas de temporada | Manter o cálculo e a gravação do XP como dado interno, removendo o XP e os níveis de toda a interface e de qualquer influência na evolução. Substituir as conquistas `nivel-3` e `nivel-5` por “Primeira evolução” (atingir o estágio 2) e “Mestre da temporada” (atingir o estágio máximo), mantendo recompensas em moedas coletadas manualmente. | Alta | PENDENTE |
+
 ### Critérios de aceitação gerais
 
 - Nenhuma prova deve ser cadastrada manualmente no código: a fonte é o manifesto gerado.
@@ -165,8 +172,9 @@ XLearn/
 │   ├── questions.js          # IMPLEMENTADO: manifesto, fetch e cache em memória
 │   ├── settings.js           # IMPLEMENTADO: defaults, normalização, cronômetro, intervalos manuais e aplicação visual
 │   ├── srs.js                # IMPLEMENTADO: repetição espaçada e fila de revisões (puro)
-│   ├── gamification.js       # IMPLEMENTADO: XP, níveis, conquistas com recompensas em moedas, meta e sequência (puro)
-│   ├── coins.js              # IMPLEMENTADO: carteira, economia de moedas, coleta de conquistas e estágios do personagem (puro)
+│   ├── gamification.js       # IMPLEMENTADO: XP interno, conquistas com recompensas em moedas, meta e sequência (puro)
+│   ├── coins.js              # IMPLEMENTADO: carteira, economia de moedas e coleta de conquistas (puro)
+│   ├── season.js             # PLANEJADO: configuração da temporada, ledger de moedas, dias ativos e estágios do personagem (puro)
 │   ├── timer.js              # IMPLEMENTADO: cronômetro regressivo, pausa/retomada e formatação acessível (puro)
 │   ├── simulado.js           # IMPLEMENTADO: resumo, histórico idempotente e agregação por assunto dos simulados (puro)
 │   ├── sound.js              # IMPLEMENTADO: efeitos sonoros via Web Audio e desbloqueio no primeiro gesto
@@ -186,7 +194,7 @@ XLearn/
 └── PROJECT_STATUS.md
 ```
 
-Responsabilidades: `parser.js`, `srs.js`, `gamification.js`, `coins.js`, `timer.js`, `simulado.js`, `ranking.js`, `backup.js` e `storage.js` são módulos puros, sem DOM, testáveis no Node. `db.js` concentra o acesso ao IndexedDB. `app.js` não acessa IndexedDB diretamente. A ordem das alternativas é gerada no início de cada apresentação e persistida na sessão. `questions.js` resolve os caminhos do manifesto a partir da URL do próprio módulo, o que mantém compatibilidade com subdiretórios do GitHub Pages.
+Responsabilidades: `parser.js`, `srs.js`, `gamification.js`, `coins.js`, `season.js`, `timer.js`, `simulado.js`, `ranking.js`, `backup.js` e `storage.js` são módulos puros, sem DOM, testáveis no Node. `db.js` concentra o acesso ao IndexedDB. `app.js` não acessa IndexedDB diretamente. A ordem das alternativas é gerada no início de cada apresentação e persistida na sessão. `questions.js` resolve os caminhos do manifesto a partir da URL do próprio módulo, o que mantém compatibilidade com subdiretórios do GitHub Pages.
 
 ---
 
@@ -279,8 +287,10 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | SRS | Níveis 0–5; acerto avança e usa intervalos 1/3/7/14/30 dias; erro reduz nível e agenda 10 minutos. Intervalos configuráveis. | Simples, auditável e explicitamente não apresentado como validado cientificamente. |
 | Escolha manual de revisão | Após um acerto, o feedback oferece automático ou 10 min, 1 h, 1, 3, 7, 14 e 30 dias; a escolha substitui `dueAt` e grava `manualSchedule`. Retornar ao automático restaura o intervalo original e remove a marcação manual. | Dá controle ao estudante sem alterar o nível de domínio já conquistado. |
 | Fila de revisões | Agrupa o progresso por material, separa vencidas e futuras, ordena vencidas por data e oferece sessão apenas com as questões da fila (limite = tamanho configurado de sessão). | Prioriza o que está atrasado e transforma o agendamento em ação de estudo. |
-| XP | Centralizado em `gamification.js` (puro): 2 XP por participação no erro; 10 XP + 2/4/6 por dificuldade no acerto; bônus de sessão de 25 XP + até 25 por aproveitamento + 25 se perfeita. Níveis em faixas quadráticas de 100 XP. | Evita duplicação, mantém critérios consistentes e recompensa consistência sem depender de dados externos. |
-| Conquistas | Lista declarativa com critérios verificáveis sobre respostas, acertos, sessões, sessões perfeitas e nível. O desbloqueio e a recompensa de XP são resolvidos em laço, uma única vez, na mesma transação da resposta ou da sessão. | Critérios auditáveis, sem dados fictícios e sem risco de pagamento duplicado. |
+| XP | Centralizado em `gamification.js` (puro): 2 XP por participação no erro; 10 XP + 2/4/6 por dificuldade no acerto; bônus de sessão de 25 XP + até 25 por aproveitamento + 25 se perfeita. Níveis em faixas quadráticas de 100 XP. A partir de REQ-035 o cálculo continua sendo gravado, mas o XP e os níveis deixam de aparecer na interface e de influenciar a evolução do personagem. | Mantém o histórico interno consistente sem expor uma métrica que não governa mais a progressão visível. |
+| Conquistas | Lista declarativa com critérios verificáveis sobre respostas, acertos, sessões, sessões perfeitas, meta, sequência e estágio da temporada. As antigas conquistas de nível 3/5 são substituídas por “Primeira evolução” e “Mestre da temporada”. O desbloqueio e a recompensa de XP interno são resolvidos em laço, uma única vez, na mesma transação da resposta, da sessão ou da coleta. | Critérios auditáveis, sem dados fictícios e sem risco de pagamento duplicado. |
+| Temporada e evolução | `season.js` (puro) define a Temporada 1 (`2026-1`, 05/11/2026 a 04/12/2026) e os cinco estágios do personagem com dois requisitos simultâneos: moedas acumuladas na temporada e dias ativos. Faixas: 0/0, 60/3, 150/6, 270/9 e 400/12. O ledger `meta/season` guarda `coinsEarned` e só recebe moedas enquanto a temporada está vigente; os dias ativos são derivados de `stats.daily` dentro do intervalo da temporada. O estágio é o maior que atende aos dois critérios, avança apenas e congela após `endsAt` até uma nova temporada ser configurada. | A progressão reflete constância real, não apenas volume de respostas, e permanece estável quando o jogador gasta moedas. Derivar dias ativos das estatísticas evita um segundo contador divergente. |
+| Moedas da temporada | O total da temporada é um ledger separado de `wallet.earned`, porque a carteira é cumulativa e incluiria ganhos posteriores ao fim da temporada. Respostas, meta diária, conclusão de sessão e coleta de conquistas incrementam `meta/season.coinsEarned` na mesma transação do pagamento. | Mantém a evolução fiel ao intervalo da temporada e à regra de congelamento, sem alterar a economia da carteira. |
 | Meta e sequência | Calculadas de `stats.daily` em módulo puro, usando a chave de dia local. A sequência continua válida no dia seguinte ao último estudo e quebra após um dia inteiro sem respostas; o recorde é persistido na gamificação. Meta configurável define o percentual e a conquista diária. | Reflete o uso real no fuso do dispositivo, sem depender de servidor nem inventar dias. |
 | Tela de estatísticas | Rota `#/progresso` lê `getStats`, `getProgressSummary`, `getGamification` e as 10 tentativas mais recentes. Os totais vêm de estatísticas agregadas; o desempenho por disciplina agrupa os materiais pelo campo `subject`; as conquistas são ordenadas por desbloqueio e o histórico mostra marcada, gabarito, assunto, data e se foi revisão. | Uma única tela auditável, sem recalcular regras no DOM nem inventar métricas; o estado vazio é explícito e os dados continuam locais. |
 | Configurações de estudo | Rota `#/config` com formulário único para tamanho da sessão (1–100), meta diária (1–500), ordem das questões (aleatória/sequencial), ativação do SRS e cinco intervalos crescentes em dias (1–365). A validação ocorre antes de gravar; o objeto normalizado é salvo em `meta/settings` e aplicado em memória. | Controles simples e auditáveis, com efeito imediato na próxima sessão/resposta e sem alterar retroativamente o histórico. Intervalos inválidos são rejeitados com mensagem clara. |
@@ -291,7 +301,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | PWA instalável | `manifest.webmanifest` na raiz declara nome, `lang`, `start_url`/`scope` relativos (`./`), `display: standalone`, cores e três ícones PNG (192, 512 any e 512 maskable), além de Apple Touch 180. `scripts/build-icons.mjs` gera os PNGs sem dependências, com rasterização 4x e margem de segurança no maskable. `index.html` vincula manifesto, ícone Apple e metas móveis. | Instalação em navegadores compatíveis, ícones nítidos e caminhos que funcionam tanto na raiz quanto em subdiretório do GitHub Pages. |
 | Offline | `service-worker.js` usa caches versionadas no formato `xlearn-shell-vN`/`xlearn-runtime-vN`. No install, pré-cacheia o app shell e `questoes/manifest.json`; no activate, remove versões antigas com prefixo `xlearn-` e assume as páginas. Navegação usa rede primeiro com fallback do `index.html`; manifesto/materiais usam rede primeiro com cache de runtime; demais estáticos usam cache primeiro. O app registra o worker em `document.baseURI` com escopo `./` e avisa quando uma nova versão está instalada, sem recarregar à força. | Funciona em subdiretório, mantém o shell consistente por versão, preserva o progresso em IndexedDB e permite atualizar sem interromper uma questão em andamento. Os nomes de cache continuam compatíveis com a limpeza manual. |
 | Cache | App shell em cache na instalação; materiais em cache após o primeiro acesso; navegação com fallback para `index.html`. | Compatível com offline e subdiretórios do GitHub Pages. |
-| Moedas e personagem | `js/coins.js` (puro) concentra a economia: 2 moedas por acerto, 10 por sessão concluída + 5 se perfeita, 15 pela meta diária uma vez por dia e recompensas de conquistas coletadas manualmente. A carteira em `meta/wallet` guarda saldo, total acumulado (`earned`), gasto, sessões pagas, dias de meta e conquistas coletadas. O personagem evolui pelo total acumulado (0, 60, 180, 400 e 800 moedas), não pelo saldo, usando cinco SVGs reais. | Moedas e evolução persistem localmente e continuam corretas após recarregar; usar o total ganho evita regressão ao gastar em uma futura loja. Os pagamentos usam chaves idempotentes por sessão/dia para não duplicar recompensas. |
+| Moedas e personagem | `js/coins.js` (puro) concentra a economia: 2 moedas por acerto, 10 por sessão concluída + 5 se perfeita, 15 pela meta diária uma vez por dia e recompensas de conquistas coletadas manualmente. A carteira em `meta/wallet` guarda saldo, total acumulado (`earned`), gasto, sessões pagas, dias de meta e conquistas coletadas. A evolução do personagem passa a usar o ledger da temporada (`meta/season`) e os dias ativos, com cinco SVGs reais; `wallet.earned` continua sendo o total histórico da carteira. | Moedas e evolução persistem localmente e continuam corretas após recarregar; separar o ledger da temporada evita que ganhos fora do período alterem o personagem congelado. Os pagamentos usam chaves idempotentes por sessão/dia para não duplicar recompensas. |
 | Som | `js/sound.js` (Web Audio, sem arquivos) sintetiza efeitos curtos e mantém um único `AudioContext`, criado apenas após gesto do usuário. Preferências `soundEnabled` e `soundVolume` integram `meta/settings`; o botão do topo e as prévias usam a mesma fonte. Feedback visual usa classes decorativas com `aria-hidden` e é neutralizado por `data-animations="off"`/`prefers-reduced-motion`. | Atende ao requisito lúdico sem dependências, sem autoplay bloqueado e sem alterar o conteúdo acessível ou o gabarito. |
 | Cronômetro da prova | `js/timer.js` (puro) cria um cronômetro desligado por padrão, com duração de 5–120 minutos e padrão de 30. Enquanto corre, guarda `deadlineAt`; ao pausar, congela `remainingSeconds`; ao retomar, recria o limite. A sessão persiste o objeto `timer`, o app atualiza um único nó com `role="timer"` a cada segundo, entra em estado de alerta no último minuto e pausa/retoma ao ocultar/mostrar a aba. Ao zerar, aguarda a gravação da última resposta, encerra a sessão, premia a conclusão e abre o resumo com as não respondidas destacadas. | O instante-limite mantém o tempo correto mesmo com atraso de renderização; a pausa ao ocultar evita punir quem troca de aba. O cronômetro é aplicado só a `mode: "material"`, nunca a revisões, correções ou simulados. |
 | Simulados por assunto | A rota `#/simulado` agrupa os materiais válidos por `subject`, aceita uma quantidade por assunto e monta a sessão com IDs compostos `materialId::questionId` para evitar colisão. O simulado ativo vive em `meta/simuladoSession` com `mode: "simulado"`; a conclusão grava apenas um resumo compacto em `meta/simulados` (datas, duração, totais e acertos por assunto). Nenhum caminho de gravação normal é chamado: sem `progress`, `attempts`, `sessions`, `stats`, gamificação, carteira ou SRS. O quiz reaproveita embaralhamento e correção, mas o resumo é próprio e o cronômetro de prova fica desligado. | Mantém o simulado isolado por definição, permite retomar simulado e sessão normal de forma independente e preserva a precisão dos totais por assunto sem inflar XP, ranking ou estatísticas. |
@@ -335,6 +345,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.26.0 | REQ-028 | README completo com visão geral, funcionalidades, requisitos, execução local, publicação no GitHub Pages, instalação PWA, uso, formato das provas, backup/privacidade, estrutura, validação e limitações | `fb1fe7b` | 2026-11-05 |
 | 0.26.1 | — | Correção do dashboard: a renderização filtra entradas nulas antes de `replaceChildren`, eliminando o texto “null” exibido antes da seção de provas; service worker elevado para `v9` | `29079d7` | 2026-11-05 |
 | 0.27.0 | — | Dashboard simplificado: visão rápida com quatro atalhos para o progresso, remoção das estatísticas do hero, da grade de provas e do aviso “Como funciona”; cartão do personagem movido para `#/progresso`; service worker elevado para `v10` | `58bc65f` | 2026-11-05 |
+| 0.28.0 | REQ-034, REQ-035 | Planejamento da Temporada 1 (05/11 a 04/12/2026): evolução por moedas acumuladas + dias ativos (60/150/270/400 e 3/6/9/12), congelamento ao término, XP interno fora da interface e substituição das conquistas de nível por conquistas de temporada | `—` | 2026-11-05 |
 
 ---
 
@@ -379,7 +390,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 
 ## I. Situação dos requisitos e dependências
 
-Todos os requisitos de REQ-001 a REQ-033 estão implementados — não há pendências funcionais. Isso inclui a fase 8, a campanha final de testes (REQ-027) e a documentação de uso (REQ-028).
+Os requisitos REQ-001 a REQ-033 estão implementados. A fase 9 está pendente: REQ-034 (temporada e evolução) e REQ-035 (XP interno e conquistas de temporada) serão entregues em commits independentes.
 
 Dependências principais:
 
@@ -392,6 +403,8 @@ Dependências principais:
 - REQ-027 depende de todas as anteriores.
 - REQ-032 depende de REQ-004 a REQ-008 e do fluxo de quiz; não depende de REQ-031, pois simulados não usam cronômetro.
 - REQ-033 depende de REQ-015 (conquistas desbloqueadas), de REQ-030 (carteira) e do registro de tentativas.
+- REQ-034 depende de REQ-008 (dados locais), REQ-010 (estatísticas diárias), REQ-030 (carteira) e do registro de respostas/sessões para incrementar o ledger da temporada.
+- REQ-035 depende de REQ-014 (XP interno), REQ-015 (conquistas) e de REQ-034 (estágio da temporada usado como critério das novas conquistas).
 
 ---
 
@@ -403,6 +416,7 @@ Dependências principais:
 | Materiais fora do padrão JSON não são suportados | Provas em Markdown puro não carregam | Limitação documentada; corpus atual está dentro do padrão. |
 | Manifesto precisa ser regenerado ao adicionar provas | Esquecimento pode ocultar material | O gerador detecta e o README orienta o fluxo; a validação acusa no console. |
 | Ranking local tem um único perfil de dispositivo | Não representa ranking global | Comunicado na interface; usa apenas dados reais. |
+| Temporada encerrada sem nova temporada configurada | O personagem fica congelado até o próximo período ser definido | Comportamento intencional de REQ-034: moedas e dias ativos param de contar em 04/12/2026 e a interface informa o congelamento. |
 
 ---
 
@@ -410,6 +424,7 @@ Dependências principais:
 
 ### Verificação atual (2026-11-05)
 
+- Planejamento de REQ-034/REQ-035 registrado; código da temporada ainda não implementado.
 - `npm run check`: 10 materiais válidos, 1.250 questões, 0 erros e 0 avisos.
 - `node --check` em todos os `js/*.js`, `service-worker.js` e `scripts/*.mjs`: sem erros de sintaxe.
 - Renderização do dashboard corrigida: `render()` descarta entradas `null`, `undefined` e `false` antes de `replaceChildren`, evitando nós de texto “null”.
@@ -495,6 +510,12 @@ As verificações abaixo são registros históricos de cada entrega; números e 
 
 ## L. Próxima tarefa recomendada
 
-**Nenhuma tarefa funcional pendente. Projeto concluído.**
+**Implementar REQ-034 — Temporada 1 e evolução do personagem.**
 
-Os requisitos REQ-001 a REQ-033 foram implementados, testados, documentados e publicados. A manutenção recomendada é: regenerar o manifesto ao adicionar provas (`npm run build:manifest`), validar antes de publicar (`npm run check`), manter a versão do app shell do service worker ao alterar arquivos cacheados e repetir a campanha de testes após mudanças estruturais.
+Ordem prevista:
+
+1. Criar `js/season.js` puro com configuração da temporada, normalização, ledger de moedas, dias ativos, dias restantes e avaliação do estágio.
+2. Integrar `meta/season` em `js/db.js`, incluindo os três pontos de premiação, backup e exclusão de progresso.
+3. Atualizar `js/app.js`, `css/styles.css` e o service worker para exibir a temporada, o personagem e as duas barras de evolução.
+4. Validar, atualizar README/PROJECT_STATUS e commitar/pushar.
+5. Em seguida, implementar REQ-035 (XP interno e conquistas de temporada) como entrega separada.
