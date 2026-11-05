@@ -41,7 +41,7 @@ A interface é em português brasileiro e prioriza telas pequenas, com navegaç�
 
 ## C. Especificações funcionais
 
-Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`.
+Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Nenhum requisito está `PENDENTE`: todos os 33 estão `IMPLEMENTADO`, conforme a coluna Status abaixo.
 
 ### Fase 1 — Base funcional
 
@@ -375,9 +375,9 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 
 ---
 
-## I. Funcionalidades pendentes
+## I. Situação dos requisitos e dependências
 
-Não há funcionalidades pendentes. Todos os requisitos de REQ-001 a REQ-033 estão implementados, incluindo a fase 8, a campanha final de testes (REQ-027) e a documentação de uso (REQ-028).
+Todos os requisitos de REQ-001 a REQ-033 estão implementados — não há pendências funcionais. Isso inclui a fase 8, a campanha final de testes (REQ-027) e a documentação de uso (REQ-028).
 
 Dependências principais:
 
