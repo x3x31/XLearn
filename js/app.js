@@ -970,7 +970,8 @@ function render({ focus = false } = {}) {
       content = renderHome();
   }
 
-  main.replaceChildren(...content);
+  const nodes = content.filter((node) => node !== null && node !== undefined && node !== false);
+  main.replaceChildren(...nodes);
   ensureTimerTicker();
   syncTimerDisplay();
   if (state.route === "simulado") syncSimuladoTotal(document.getElementById("simulado-form"));
