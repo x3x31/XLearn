@@ -334,7 +334,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.25.0 | REQ-027 | Campanha final de testes em 12 suítes temporárias (unitárias, DOM/IndexedDB, PWA/estática e regressões), cobrindo 10 materiais/1250 questões; correção da rota `#/estudar`, que quebrava ao aplicar spread em um único elemento | `8f7219a` | 2026-11-04 |
 | 0.26.0 | REQ-028 | README completo com visão geral, funcionalidades, requisitos, execução local, publicação no GitHub Pages, instalação PWA, uso, formato das provas, backup/privacidade, estrutura, validação e limitações | `fb1fe7b` | 2026-11-05 |
 | 0.26.1 | — | Correção do dashboard: a renderização filtra entradas nulas antes de `replaceChildren`, eliminando o texto “null” exibido antes da seção de provas; service worker elevado para `v9` | `29079d7` | 2026-11-05 |
-| 0.27.0 | — | Dashboard simplificado: visão rápida com quatro atalhos para o progresso, remoção das estatísticas do hero, da grade de provas e do aviso “Como funciona”; cartão do personagem movido para `#/progresso`; service worker elevado para `v10` | — | 2026-11-05 |
+| 0.27.0 | — | Dashboard simplificado: visão rápida com quatro atalhos para o progresso, remoção das estatísticas do hero, da grade de provas e do aviso “Como funciona”; cartão do personagem movido para `#/progresso`; service worker elevado para `v10` | `58bc65f` | 2026-11-05 |
 
 ---
 
