@@ -12,7 +12,7 @@
 | **Nome** | XLearn |
 | **Objetivo** | Aplicativo educacional de questões com repetição espaçada e gamificação, executado inteiramente no navegador. |
 | **Descrição** | PWA instalável, responsivo e offline-first para estudar a partir de arquivos Markdown padronizados. Permite selecionar provas, responder questões com alternativas embaralhadas, receber feedback e explicações, retomar sessões, agendar revisões, criar simulados por assunto, usar cronômetro opcional, acumular XP e moedas, evoluir um personagem e acompanhar estatísticas locais. |
-| **Tecnologias** | HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, localStorage, Cache API, Service Worker, Web App Manifest. |
+| **Tecnologias** | HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, Cache API, Service Worker, Web App Manifest e Web Audio. |
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
@@ -25,14 +25,15 @@
 
 O XLearn lê os materiais da pasta `questoes/`, gera um manifesto JSON com os arquivos disponíveis e apresenta uma experiência de estudo composta por:
 
-1. **Dashboard** com meta diária, XP, nível, sequência, sessão em andamento e revisões vencidas.
+1. **Dashboard** com acervo real, XP, nível, personagem, carteira de moedas, conquistas coletáveis, meta diária, sequência, sessões em andamento e revisões vencidas.
 2. **Seleção de prova** com metadados reais do material (disciplina, assunto, quantidade de questões).
-3. **Tela de resolução** com alternativas embaralhadas por Fisher–Yates, confirmação da resposta, feedback imediato, gabarito e explicação didática.
-4. **Persistência local** em IndexedDB de sessões, respostas, progresso e histórico, permitindo retomar sessões interrompidas.
+3. **Tela de resolução** com alternativas embaralhadas por Fisher–Yates, confirmação da resposta, feedback imediato, gabarito, explicação didática e cronômetro opcional de 5–120 minutos.
+4. **Persistência local** em IndexedDB de sessões, respostas, progresso, histórico, carteira e simulados, permitindo retomar sessões interrompidas.
 5. **Repetição espaçada** com intervalos automáticos (1, 3, 7, 14 e 30 dias), redução do domínio no erro, escolha manual de intervalo e fila de revisões.
-6. **Gamificação** com XP, níveis, conquistas, meta diária, sequência de estudos, estatísticas e ranking local baseado apenas em dados reais do dispositivo.
-7. **Configurações** que alteram efetivamente o comportamento: tamanho da sessão, ordem das questões, intervalos de revisão, meta diária, tema, fonte, animações, exportação/importação e exclusão de dados.
-8. **PWA offline** com manifesto, service worker, cache de recursos e das provas já acessadas, além de indicador de conexão.
+6. **Gamificação** com XP, níveis, conquistas com recompensas em moedas, meta diária, sequência de estudos, estatísticas e ranking local baseado apenas em dados reais do dispositivo.
+7. **Simulados por assunto** que montam uma prova a partir das disciplinas do acervo, com resumo próprio, cronômetro de prova e histórico separado do estudo normal.
+8. **Configurações** que alteram efetivamente o comportamento: tamanho da sessão, ordem das questões, intervalos de revisão, meta diária, tema, fonte, animações, som, exportação/importação e exclusão de dados.
+9. **PWA offline** com manifesto, service worker, cache de recursos e das provas já acessadas, além de indicador de conexão.
 
 A interface é em português brasileiro e prioriza telas pequenas, com navegação inferior em dispositivos móveis e layout expandido em telas maiores.
 
@@ -147,7 +148,7 @@ XLearn/
 └── .git/
 ```
 
-Arquitetura atual (após REQ-033):
+Arquitetura final (após REQ-028):
 
 ```
 XLearn/
@@ -169,7 +170,9 @@ XLearn/
 │   ├── timer.js              # IMPLEMENTADO: cronômetro regressivo, pausa/retomada e formatação acessível (puro)
 │   ├── simulado.js           # IMPLEMENTADO: resumo, histórico idempotente e agregação por assunto dos simulados (puro)
 │   ├── sound.js              # IMPLEMENTADO: efeitos sonoros via Web Audio e desbloqueio no primeiro gesto
-│   └── ranking.js            # IMPLEMENTADO: ranking local por prova/disciplina com Wilson (puro)
+│   ├── ranking.js            # IMPLEMENTADO: ranking local por prova/disciplina com Wilson (puro)
+│   ├── backup.js             # IMPLEMENTADO: envelope versionado, validação e exportação/importação (puro)
+│   └── storage.js            # IMPLEMENTADO: limpeza seletiva dos caches do app (puro)
 ├── scripts/
 │   ├── build-manifest.mjs    # IMPLEMENTADO: geração e validação do manifesto
 │   └── build-icons.mjs       # IMPLEMENTADO: geração dos PNGs sem dependências
@@ -178,11 +181,11 @@ XLearn/
 ├── questoes/
 │   ├── manifest.json         # IMPLEMENTADO: gerado, não editar à mão
 │   └── *.md                  # materiais originais preservados
-├── README.md                 # (planejado) documentação de uso
+├── README.md                 # IMPLEMENTADO: documentação de uso, materiais, publicação e limitações
 └── PROJECT_STATUS.md
 ```
 
-Responsabilidades: `parser.js`, `srs.js`, `gamification.js`, `coins.js`, `timer.js` e `simulado.js` são módulos puros, sem DOM, testáveis no Node. `db.js` concentrará o acesso ao IndexedDB. `app.js` não acessará IndexedDB diretamente. A ordem das alternativas será gerada no início de cada apresentação e persistida na sessão. `questions.js` resolve os caminhos do manifesto a partir da URL do próprio módulo, o que mantém compatibilidade com subdiretórios do GitHub Pages.
+Responsabilidades: `parser.js`, `srs.js`, `gamification.js`, `coins.js`, `timer.js`, `simulado.js`, `ranking.js`, `backup.js` e `storage.js` são módulos puros, sem DOM, testáveis no Node. `db.js` concentra o acesso ao IndexedDB. `app.js` não acessa IndexedDB diretamente. A ordem das alternativas é gerada no início de cada apresentação e persistida na sessão. `questions.js` resolve os caminhos do manifesto a partir da URL do próprio módulo, o que mantém compatibilidade com subdiretórios do GitHub Pages.
 
 ---
 
@@ -190,13 +193,13 @@ Responsabilidades: `parser.js`, `srs.js`, `gamification.js`, `coins.js`, `timer.
 
 ### E.1. Estrutura observada
 
-Os dois arquivos atuais seguem o protocolo de `outros/GERAÇÃO_ESTUDO.md`:
+Os dez arquivos atuais seguem o protocolo de `outros/GERAÇÃO_ESTUDO.md`:
 
 1. **Frontmatter YAML** delimitado por `---` no início, com pares `chave: "valor"` ou números.
 2. **Título e texto introdutório em Markdown** (não interpretados como questões).
 3. **Uma seção por questão**, no formato `## Questão NNNN`.
 4. **Um bloco cercado por ```json ... ```** por questão, contendo um objeto JSON completo.
-5. Em `ESTUDO_LEGISLACAO_COMPERVE_100_QUESTOES.md`, ao final há **tabela de gabarito consolidado**, distribuição por documento e nota de atualização. Esses trechos não são questões.
+5. Ao final de cada material há **tabela de gabarito consolidado**, distribuição por documento ou nota de atualização. Esses trechos não são questões.
 
 ### E.2. Frontmatter observado
 
@@ -231,13 +234,14 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 
 ### E.4. Fatos verificados no corpus
 
-- 2 arquivos, 150 questões no total (50 + 100), todas com JSON válido.
+- 10 arquivos, 1.250 questões no total, todas com JSON válido.
 - Todas as questões têm exatamente 4 alternativas, com identificadores `A`–`D` únicos.
 - Em todas, exatamente uma alternativa tem `is_correct: true` e ela coincide com `answer_key`.
-- `question_text` não contém quebras de linha nem referências a letras de alternativas.
-- `difficulty` observado: `easy`, `medium`, `hard`.
-- `cognitive_skill` observado: `comprehension`, `application`, `analysis`, `memorization`.
-- Todo material é `type: "generated"`; campos de origem estão nulos.
+- 93 enunciados contêm quebras de linha; 1 contém referência a letra de alternativa. A renderização preserva as quebras por CSS.
+- `difficulty` observado: `easy` (194), `medium` (908) e `hard` (148).
+- `cognitive_skill` observado: `comprehension` (326), `application` (559), `analysis` (306), `memorization` (40) e `recall` (19).
+- 59 questões são `type: "original"` e 1.191 são `type: "generated"`.
+- As 59 questões originais preservam metadados de origem; as 1.191 geradas têm campos de origem nulos.
 - Não há imagens, tabelas ou HTML dentro dos enunciados.
 
 ### E.5. Estratégia de interpretação
@@ -251,7 +255,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 ### E.6. Limitações identificadas
 
 - O formato depende de blocos JSON; não há suporte a questões apenas em Markdown puro. Isso é adequado ao corpus atual e está documentado.
-- Metadados de origem são nulos nos materiais atuais.
+- As 1.191 questões geradas têm metadados de origem nulos; as 59 originais preservam exame, ano e número da questão quando disponíveis.
 - Arquivos fora do padrão são rejeitados com aviso, mas não interrompem o carregamento.
 - A tabela de gabarito consolidado é ignorada (o gabarito canônico está em cada questão).
 
@@ -270,7 +274,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Navegação | SPA com rotas em hash (`#/inicio`, `#/estudar`, `#/sessao`, `#/resumo`, `#/revisoes`, `#/progresso`, `#/config`). | Compatível com GitHub Pages sem regras de servidor; configurações acessíveis pelo ícone no topo. |
 | Renderização segura | Todo texto dinâmico usa `textContent`/nós de texto; `innerHTML` só com ícones constantes. | Evita XSS mesmo que um arquivo de questão contenha HTML. |
 | Sessão persistida | Objeto completo em `sessions`, incluindo índice, respostas e ordem das alternativas; restauração automática da sessão ativa. | Garante continuidade mesmo após fechar o navegador, sem reembaralhar. |
-| Persistência | IndexedDB (`xlearn`) com stores `meta`, `progress`, `sessions`, `attempts`. localStorage apenas para preferência de tema inicial, se necessário. | Requisito do projeto; maior capacidade e consultas por chave. |
+| Persistência | IndexedDB (`xlearn`) com stores `meta`, `progress`, `sessions`, `attempts`; toda a persistência do app usa IndexedDB. | Requisito do projeto; maior capacidade e consultas por chave. |
 | SRS | Níveis 0–5; acerto avança e usa intervalos 1/3/7/14/30 dias; erro reduz nível e agenda 10 minutos. Intervalos configuráveis. | Simples, auditável e explicitamente não apresentado como validado cientificamente. |
 | Escolha manual de revisão | Após um acerto, o feedback oferece automático ou 10 min, 1 h, 1, 3, 7, 14 e 30 dias; a escolha substitui `dueAt` e grava `manualSchedule`. Retornar ao automático restaura o intervalo original e remove a marcação manual. | Dá controle ao estudante sem alterar o nível de domínio já conquistado. |
 | Fila de revisões | Agrupa o progresso por material, separa vencidas e futuras, ordena vencidas por data e oferece sessão apenas com as questões da fila (limite = tamanho configurado de sessão). | Prioriza o que está atrasado e transforma o agendamento em ação de estudo. |
@@ -353,10 +357,10 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-018 — Ranking local:** `js/ranking.js` calcula o limite inferior de confiança de 95% (Wilson) para cada prova e disciplina, ordenando por esse índice, depois por volume, precisão e título. A tela de progresso mostra duas listas (disciplinas e provas) com posição, questões respondidas, precisão e índice; só entram itens com pelo menos uma resposta, o pódio recebe destaque e a interface explica que o ranking é apenas deste dispositivo. Nenhum estudante ou placar fictício é criado.
 - **REQ-019 — Configurações de estudo:** o ícone de engrenagem no topo abre `#/config`. O formulário ajusta questões por sessão, meta diária, ordem das questões, ativação da repetição espaçada e os cinco intervalos automáticos em dias. Os valores são validados (faixas, inteiros e intervalos crescentes), normalizados, aplicados em memória e gravados em `meta/settings`; a próxima sessão já usa tamanho/ordem e a próxima resposta usa meta e SRS atualizados. O histórico existente não é reescrito.
 - **REQ-020 — Preferências de interface:** a seção Aparência de `#/config` oferece tema do sistema/escuro/claro, controle deslizante de fonte (14–22 px, com valor exibido) e chave de animações. Ao salvar, as preferências são persistidas junto às demais, o tema é resolvido (`data-theme`), as animações são reduzidas (`data-animations="off"`), a variável `--font-size` e o `theme-color` são atualizados sem recarregar. Quando o tema é “sistema”, uma mudança na preferência do dispositivo reaplica a aparência.
-- **REQ-021 — Exportação e importação:** a seção Dados de `#/config` gera um arquivo `xlearn-backup-AAAA-MM-DD.json` com configurações, XP, conquistas, moedas, personagem, progresso, sessões e tentativas. A importação lê o arquivo, limita o tamanho a 25 MB, exige JSON válido e envelope `xlearn-backup` na versão 1, valida todas as listas e chaves antes de escrever e mostra um resumo (tentativas, sessões, questões com progresso, configurações, gamificação e moedas). Só após “Substituir dados” os quatro stores são trocados em uma única transação; cancelar ou usar um arquivo inválido mantém os dados atuais. Ao concluir, o app recarrega configurações, aparência, sessão ativa e progresso e volta ao início.
-- **REQ-022 — Gerenciamento de dados:** o cartão “Armazenamento local” de `#/config` separa duas ações. “Limpar cache do app” remove apenas caches com prefixo `xlearn` (HTML, CSS, JS e questões), informa quando a Cache API não existe ou não há cache e mantém respostas, XP e histórico. “Apagar progresso” abre uma confirmação inline que avisa ser irreversível e lista o que será removido; ao confirmar, apaga `progress`, `sessions`, `attempts`, `stats`, `gamification` e `wallet` em uma transação, preserva `meta/settings`, zera o estado da interface, recarrega o dashboard e volta ao início. Cancelar não altera nada. A próxima resposta recomeça o XP, as estatísticas, as moedas e o personagem do zero.
+- **REQ-021 — Exportação e importação:** a seção Dados de `#/config` gera um arquivo `xlearn-backup-AAAA-MM-DD.json` com configurações, XP, conquistas, moedas, personagem, progresso, sessões, tentativas, histórico de simulados e simulado ativo. A importação lê o arquivo, limita o tamanho a 25 MB, exige JSON válido e envelope `xlearn-backup` na versão 1, valida todas as listas e chaves antes de escrever e mostra um resumo (tentativas, sessões, questões com progresso, configurações, gamificação, moedas e simulados). Só após “Substituir dados” os quatro stores são trocados em uma única transação; cancelar ou usar um arquivo inválido mantém os dados atuais. Ao concluir, o app recarrega configurações, aparência, sessão ativa e progresso e volta ao início.
+- **REQ-022 — Gerenciamento de dados:** o cartão “Armazenamento local” de `#/config` separa duas ações. “Limpar cache do app” remove apenas caches com prefixo `xlearn` (HTML, CSS, JS e questões), informa quando a Cache API não existe ou não há cache e mantém respostas, XP e histórico. “Apagar progresso” abre uma confirmação inline que avisa ser irreversível e lista o que será removido; ao confirmar, apaga `progress`, `sessions`, `attempts`, `stats`, `gamification`, `wallet`, `simuladoSession` e `simulados` em uma transação, preserva `meta/settings`, zera o estado da interface, recarrega o dashboard e volta ao início. Cancelar não altera nada. A próxima resposta recomeça o XP, as estatísticas, as moedas e o personagem do zero.
 - **REQ-023 — Base do PWA:** `manifest.webmanifest` identifica o app como “XLearn — aprenda praticando”, em pt-BR, com `start_url` e `scope` em `./`, `display: standalone`, cores `#070b18` e ícones any de 192/512 px mais um maskable de 512 px com o “X” dentro da área segura. `scripts/build-icons.mjs` gera os quatro PNGs (incluindo Apple Touch 180 opaco) sem dependências. O `index.html` aponta para o manifesto e o ícone Apple e declara as metas de instalação móvel; o servidor entrega o manifesto como `application/manifest+json`.
-- **REQ-024 — Service worker e offline:** `service-worker.js` pré-cacheia o app shell e o manifesto na instalação, em cache versionada com prefixo `xlearn`. Navegações tentam a rede e caem para o `index.html` em cache; `questoes/manifest.json` e os arquivos `.md` usam rede primeiro e são guardados após o primeiro acesso; demais estáticos usam cache primeiro. Na ativação, versões antigas do XLearn são removidas e o worker assume as páginas abertas. O app registra o worker com escopo relativo, verifica atualizações e mostra um aviso quando há nova versão instalada, sem recarregar à força nem perder a sessão. A limpeza manual de cache continua encontrando esses nomes. A versão das caches é incrementada quando o shell muda (atualmente `v7`, com 28 recursos).
+- **REQ-024 — Service worker e offline:** `service-worker.js` pré-cacheia o app shell e o manifesto na instalação, em cache versionada com prefixo `xlearn`. Navegações tentam a rede e caem para o `index.html` em cache; `questoes/manifest.json` e os arquivos `.md` usam rede primeiro e são guardados após o primeiro acesso; demais estáticos usam cache primeiro. Na ativação, versões antigas do XLearn são removidas e o worker assume as páginas abertas. O app registra o worker com escopo relativo, verifica atualizações e mostra um aviso quando há nova versão instalada, sem recarregar à força nem perder a sessão. A limpeza manual de cache continua encontrando esses nomes. A versão das caches é incrementada quando o shell muda (atualmente `v8`, com 28 recursos).
 - **REQ-025 — Indicador de conexão:** o topo mostra “Online” ou “Offline” com `role="status"`, `aria-live="polite"` e rótulo acessível atualizado. Ao ficar offline, uma faixa explica que respostas e dados salvos continuam funcionando e que materiais ainda não acessados podem não carregar. Ao reconectar, a faixa some, o indicador volta a “Online” e um toast confirma que os dados continuam salvos. O estado também é reavaliado quando a página volta a ficar visível.
 - **REQ-026 — Acessibilidade e responsividade:** o link “Pular para o conteúdo” move o foco para `main` sem ser interpretado como rota pelo roteador de hash. Ao entrar em uma sessão ou avançar de questão, o foco vai para o enunciado com `tabindex="-1"` e margem de rolagem sob o topo fixo; após confirmar, vai para o feedback; após reagendar, permanece na opção escolhida; cancelar importação ou exclusão devolve o foco ao botão de origem e `Escape` fecha as confirmações inline. O progresso do quiz é um `progressbar` com mínimo, máximo, valor e texto “X de Y questões respondidas”. As alternativas expõem a letra original e, depois da correção, “resposta correta” ou “sua resposta, incorreta” em texto só para leitores de tela. Os contrastes foram recalibrados nos dois temas para pelo menos 4,5:1 em texto normal, incluindo botão primário, selo de revisões, links, chips e aviso amarelo. Ícones de ação, botões compactos, itens da navegação e alternativas têm alvo de toque de pelo menos 44 px; em telas de até 380 px a assinatura da marca é ocultada para não haver rolagem horizontal, e a navegação reduz a tipografia. O anel de foco das seções expansíveis não é mais cortado pelo `overflow`.
 - **REQ-029 — Sons e feedback lúdico:** `js/sound.js` gera todos os efeitos com Web Audio, sem arquivos ou dependências: acerto (arpejo ascendente), erro (notas graves), início e fim de prova, conquista e moeda. O contexto só é criado depois do primeiro gesto do usuário e é reaproveitado. `soundEnabled` e `soundVolume` (0–100%) ficam em `meta/settings`, com prévias e volume no cartão “Som e ludicidade” de `#/config` e alternância rápida por botão no topo com `aria-pressed` e rótulo atualizado. Acertos disparam uma pequena explosão decorativa e erros uma vibração curta; ambos são ocultos de leitores de tela e neutralizados por `prefers-reduced-motion` ou animações desligadas.
