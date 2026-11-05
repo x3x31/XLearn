@@ -11,13 +11,13 @@
 |---|---|
 | **Nome** | XLearn |
 | **Objetivo** | Aplicativo educacional de questões com repetição espaçada e gamificação, executado inteiramente no navegador. |
-| **Descrição** | PWA instalável, responsivo e offline-first para estudar a partir de arquivos Markdown padronizados. Permite selecionar provas, responder questões com alternativas embaralhadas, receber feedback e explicações, retomar sessões, agendar revisões, acumular XP e acompanhar estatísticas locais. |
+| **Descrição** | PWA instalável, responsivo e offline-first para estudar a partir de arquivos Markdown padronizados. Permite selecionar provas, responder questões com alternativas embaralhadas, receber feedback e explicações, retomar sessões, agendar revisões, criar simulados por assunto, usar cronômetro opcional, acumular XP e moedas, evoluir um personagem e acompanhar estatísticas locais. |
 | **Tecnologias** | HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, localStorage, Cache API, Service Worker, Web App Manifest. |
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.25.0` |
-| **Data da última atualização** | 2026-11-04 |
+| **Versão atual** | `0.26.0` |
+| **Data da última atualização** | 2026-11-05 |
 
 ---
 
@@ -103,7 +103,7 @@ Estados permitidos: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`
 |---|---|---|---|---|
 | REQ-026 | Acessibilidade e responsividade | Navegação por teclado, foco, contraste, `aria-live`, alvos de toque e layout adaptativo. | Média | IMPLEMENTADO |
 | REQ-027 | Testes abrangentes finais | Campanha completa ao término das funcionalidades, com correções documentadas. | Alta | IMPLEMENTADO |
-| REQ-028 | Documentação de uso | README com execução, inclusão de provas, publicação, instalação e limitações. | Média | PENDENTE |
+| REQ-028 | Documentação de uso | README com execução, inclusão de provas, publicação, instalação e limitações. | Média | IMPLEMENTADO |
 
 ### Fase 8 — Ludicidade, moedas, personagens, simulados
 
@@ -326,6 +326,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.23.0 | REQ-032 | Módulo `simulado.js` puro, rota `#/simulado`, construtor por assunto com total em tempo real, sessão ativa separada em `meta/simuladoSession`, histórico idempotente em `meta/simulados`, resumo por assunto e isolamento de progresso/XP/conquistas/SRS/ranking/estatísticas/moedas | `2c67248` | 2026-11-04 |
 | 0.24.0 | REQ-033 | Coleta manual de moedas das conquistas desbloqueadas com botão acessível, valor canônico, transação atômica e idempotente, cascata decorativa de moedas, som de moeda, saldo/pendências atualizados no dashboard e no progresso | `0464c32` | 2026-11-04 |
 | 0.25.0 | REQ-027 | Campanha final de testes em 12 suítes temporárias (unitárias, DOM/IndexedDB, PWA/estática e regressões), cobrindo 10 materiais/1250 questões; correção da rota `#/estudar`, que quebrava ao aplicar spread em um único elemento | `8f7219a` | 2026-11-04 |
+| 0.26.0 | REQ-028 | README completo com visão geral, funcionalidades, requisitos, execução local, publicação no GitHub Pages, instalação PWA, uso, formato das provas, backup/privacidade, estrutura, validação e limitações | `fb1fe7b` | 2026-11-05 |
 
 ---
 
@@ -364,12 +365,13 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-032 — Simulados por assunto:** `js/simulado.js` concentra as funções puras de resumo, histórico idempotente e agregação. A rota `#/simulado` agrupa os materiais válidos por assunto, oferece campos de quantidade por assunto, presets “10 por assunto”/“Limpar”, total em tempo real e início desativado sem questões. O simulado ativo fica em `meta/simuladoSession` com `mode: "simulado"` e IDs compostos; as questões são embaralhadas e o quiz mostra o selo “Simulado”. Concluir grava apenas um resumo compacto em `meta/simulados` (datas, duração, total, acertos e totais/acertos por assunto), limpa o simulado ativo e abre um resumo próprio com resultado por assunto. Nenhum caminho grava progresso, tentativas, sessões normais, estatísticas, XP, conquistas, SRS, ranking ou moedas. Sessão normal e simulado podem ficar ativos ao mesmo tempo e são retomados por banners independentes no início; o backup inclui os dois e apagar progresso remove o histórico de simulados.
 - **REQ-033 — Coleta de moedas de conquistas:** as conquistas desbloqueadas aparecem como botões “Clique para coletar”, com a recompensa em moedas e o XP já recebido. O clique chama `claimAchievementReward` em `js/db.js`, que valida o desbloqueio e usa o valor canônico de `js/gamification.js` dentro de uma transação `readwrite` sobre `meta`; o pagamento é gravado em `wallet.claimedAchievements` e nunca é automático. A resposta atualiza o dashboard e a tela de progresso, toca o som de moeda e dispara uma cascata decorativa de moedas ancorada no cartão, oculta de leitores de tela e neutralizada por animações desligadas ou `prefers-reduced-motion`. Cliques repetidos, inclusive concorrentes, retornam `alreadyClaimed` sem somar saldo; conquistas bloqueadas e valores adulterados são recusados. O chip de conquistas mostra o total pendente de moedas e volta ao XP quando tudo foi coletado.
 - **REQ-027 — Testes abrangentes finais:** campanha executada ao término da fase 8 com 12 suítes temporárias, fora do repositório, em Node com DOM simulado (`happy-dom`), IndexedDB em memória (`fake-indexeddb`), Cache API e rede simuladas. A cobertura unitária validou manifesto (10 materiais/1250 questões), parser e correção por ID em todas as questões, embaralhamento estável, SRS, gamificação, moedas, ranking, cronômetro, simulados, backup, configurações, cache e isolamento de materiais malformados/manifesto inválido. As suítes de integração percorreram configurações e efeitos reais, sessão normal, cronômetro com pausa/retomada e expiração, SRS automático/manual, fila de revisões, estatísticas, XP, meta, sequência, ranking, acessibilidade, exportação/importação, restauração, exclusão de dados, simulados, coleta de conquistas e service worker. A campanha encontrou e corrigiu um defeito real: `renderStudy` aplicava spread em `renderMaterialGrid()`, que devolve um único elemento, e a rota `#/estudar` não renderizava; a chamada passou a ser inserida diretamente no array. Todas as suítes e `npm run check` passaram após a correção.
+- **REQ-028 — Documentação de uso:** `README.md` reúne visão geral, funcionalidades, requisitos, execução local por servidor HTTP, publicação no GitHub Pages, instalação como PWA em Android/iOS/desktop, rotas e uso das telas, configurações, cronômetro, simulados, economia de moedas e personagens, revisões, formato completo dos materiais com exemplo, geração/validação do manifesto, modelo de dados local, backup/importação/exclusão, estrutura do projeto, comandos de validação e limitações conhecidas. O documento também explica a correção por identificador, o funcionamento offline e a ausência de sincronização ou ranking global.
 
 ---
 
 ## I. Funcionalidades pendentes
 
-Todas as funcionalidades listadas na seção C estão implementadas, exceto REQ-028. A fase 8 e a campanha de testes abrangentes finais (REQ-027) estão concluídas; resta apenas o README de uso (REQ-028).
+Não há funcionalidades pendentes. Todos os requisitos de REQ-001 a REQ-033 estão implementados, incluindo a fase 8, a campanha final de testes (REQ-027) e a documentação de uso (REQ-028).
 
 Dependências principais:
 
@@ -388,10 +390,9 @@ Dependências principais:
 
 | Problema | Impacto | Situação |
 |---|---|---|
-| `README.md` vazio no estado inicial | Falta de instruções de uso | Será resolvido em REQ-028. |
 | Uma sessão normal ativa por vez | Iniciar outra prova ou revisão substitui a sessão normal em andamento; o simulado tem slot próprio e coexiste com ela | Comportamento atual do modelo de sessão; respostas já gravadas permanecem no progresso e no histórico, e o simulado não interfere nelas. |
 | Materiais fora do padrão JSON não são suportados | Provas em Markdown puro não carregam | Limitação documentada; corpus atual está dentro do padrão. |
-| Manifesto precisa ser regenerado ao adicionar provas | Esquecimento pode ocultar material | O gerador detecta e o README orientará; a validação acusa no console. |
+| Manifesto precisa ser regenerado ao adicionar provas | Esquecimento pode ocultar material | O gerador detecta e o README orienta o fluxo; a validação acusa no console. |
 | Ranking local tem um único perfil de dispositivo | Não representa ranking global | Comunicado na interface; usa apenas dados reais. |
 
 ---
@@ -473,6 +474,6 @@ Dependências principais:
 
 ## L. Próxima tarefa recomendada
 
-**REQ-028 — documentação de uso (README).**
+**Nenhuma tarefa funcional pendente. Projeto concluído.**
 
-Motivo: todas as funcionalidades e a campanha final de testes estão concluídas. Falta documentar execução local, inclusão de provas, publicação no GitHub Pages, instalação como PWA, uso das telas e limitações conhecidas. O README encerrará a documentação de uso e permitirá declarar o projeto concluído.
+Os requisitos REQ-001 a REQ-033 foram implementados, testados, documentados e publicados. A manutenção recomendada é: regenerar o manifesto ao adicionar provas (`npm run build:manifest`), validar antes de publicar (`npm run check`), manter a versão do app shell do service worker ao alterar arquivos cacheados e repetir a campanha de testes após mudanças estruturais.
