@@ -504,32 +504,87 @@ button:disabled {
   margin-top: 20px;
 }
 
-.hero__stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-top: 22px;
+/* Quick overview ---------------------------------------------------------- */
+
+.quick-panel__head {
+  align-items: center;
 }
 
-.stat-mini {
-  padding: 12px 14px;
+.quick-panel__head h2 {
+  margin-top: 6px;
+  font-size: 1.05rem;
+}
+
+.quick-panel__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.quick-panel__link:hover {
+  text-decoration: underline;
+}
+
+.quick-panel__link svg {
+  width: 14px;
+  height: 14px;
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.quick-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  background: var(--surface-2);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
-.stat-mini strong {
-  display: block;
-  font-size: 1.3rem;
-  letter-spacing: -0.02em;
+.quick-item:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
 }
 
-.stat-mini span {
+.quick-item:active {
+  transform: scale(0.98);
+}
+
+.quick-item__icon {
+  display: inline-flex;
+  color: var(--primary);
+  font-size: 1rem;
+}
+
+.quick-item__value {
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.quick-item__label {
   color: var(--muted);
   font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  line-height: 1.3;
+}
+
+@media (max-width: 600px) {
+  .quick-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* XP / levels ------------------------------------------------------------- */
@@ -617,21 +672,6 @@ button:disabled {
 }
 
 /* Achievements ------------------------------------------------------------ */
-
-.achievements-card .section-head {
-  align-items: center;
-}
-
-.achievements-card .section-head h2 {
-  margin-top: 6px;
-  font-size: 1.02rem;
-}
-
-.achievement-mini-grid {
-  display: grid;
-  gap: 10px;
-  margin-top: 16px;
-}
 
 .achievement-mini {
   display: flex;
@@ -815,10 +855,6 @@ button.achievement-mini {
   margin-top: 4px;
   color: var(--muted);
   font-size: 0.7rem;
-}
-
-.achievements-card > .hint {
-  margin-top: 12px;
 }
 
 /* Character & coins ------------------------------------------------------- */
@@ -2768,18 +2804,6 @@ button.achievement-mini {
   .quiz-timer svg {
     width: 13px;
     height: 13px;
-  }
-
-  .hero__stats {
-    gap: 7px;
-  }
-
-  .stat-mini {
-    padding: 10px;
-  }
-
-  .stat-mini strong {
-    font-size: 1.12rem;
   }
 
   .summary-hero {

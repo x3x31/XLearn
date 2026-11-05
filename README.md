@@ -84,11 +84,11 @@ A navegação inferior leva às áreas principais:
 
 | Área | Rota | O que faz |
 |---|---|---|
-| Início | `#/inicio` | Meta diária, XP, sequência, moedas, personagem, sessões em andamento e revisões vencidas. |
+| Início | `#/inicio` | Visão rápida de nível, moedas, meta/sequência e conquistas, com atalhos para o progresso, sessões em andamento e revisões vencidas. |
 | Provas | `#/estudar` | Lista os materiais disponíveis e inicia uma sessão de estudo. |
 | Revisões | `#/revisoes` | Mostra a fila de revisões vencidas e futuras, agrupada por prova. |
 | Simulado | `#/simulado` | Monta uma prova por assunto, com quantidade configurável de questões. |
-| Progresso | `#/progresso` | Totais, precisão, nível, ranking local, conquistas e tentativas recentes. |
+| Progresso | `#/progresso` | Totais, precisão, nível, meta/sequência, personagem e moedas, ranking local, conquistas e tentativas recentes. |
 | Configurações | `#/config` | Ajustes de estudo, aparência, som, dados e backup. |
 
 Durante uma sessão:
@@ -125,7 +125,7 @@ O simulado permite escolher quantas questões usar de cada assunto. Ele tem sess
 - **2 moedas** por resposta correta.
 - **10 moedas** ao concluir uma sessão, mais **5** se todas as respostas estiverem corretas.
 - **15 moedas** ao atingir a meta diária, uma única vez por dia.
-- As conquistas desbloqueadas têm recompensas próprias em moedas. Elas **não são pagas automaticamente**: toque em “Clique para coletar” no dashboard ou na tela de progresso.
+- As conquistas desbloqueadas têm recompensas próprias em moedas. Elas **não são pagas automaticamente**: toque em “Clique para coletar” na tela de progresso.
 
 O personagem evolui pelo total de moedas acumuladas: Curioso (0), Estudante (60), Focado (180), Veterano (400) e Mestre dos estudos (800).
 

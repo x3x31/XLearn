@@ -1032,7 +1032,6 @@ function renderHome() {
   }
 
   const summary = state.manifest.summary;
-  const settings = getSettings();
   const normalActive =
     state.normalSession && !state.normalSession.finishedAt ? state.normalSession : null;
   const simuladoActive =
@@ -1072,20 +1071,10 @@ function renderHome() {
               "Continuar sessão"
             )
           : null
-      ),
-      h(
-        "div",
-        { class: "hero__stats", "aria-label": "Resumo do acervo" },
-        h("div", { class: "stat-mini" }, h("strong", { text: String(summary.materials) }), h("span", { text: "provas" })),
-        h("div", { class: "stat-mini" }, h("strong", { text: String(summary.questions) }), h("span", { text: "questões" })),
-        h("div", { class: "stat-mini" }, h("strong", { text: String(settings.sessionSize) }), h("span", { text: "por sessão" }))
       )
     ),
 
-    renderLevelCard(),
-    renderCharacterCard(),
-    renderAchievementsCard(),
-    renderHabitCard(),
+    renderQuickStats(),
 
     normalActive
       ? h(
@@ -1162,18 +1151,6 @@ function renderHome() {
         )
       : null,
 
-    h(
-      "section",
-      { id: "provas", "aria-labelledby": "provas-title" },
-      h(
-        "div",
-        { class: "section-head" },
-        h("div", {}, h("h2", { id: "provas-title", text: "Escolha uma prova" }), h("p", { text: "Conteúdo carregado do manifesto de questões." })),
-        h("span", { class: "chip chip--neutral", text: `${summary.validMaterials} válidas` })
-      ),
-      renderMaterialGrid()
-    ),
-
     state.manifest.summary.invalidMaterials > 0
       ? h(
           "div",
@@ -1182,14 +1159,89 @@ function renderHome() {
           `${summary.invalidMaterials} material(is) do manifesto foram ignorados por erro de formato.`
         )
       : null,
+  ];
+}
 
+function renderQuickStats() {
+  const gamification = state.gamification || createGamification();
+  const wallet = state.wallet || createWallet();
+  const settings = getSettings();
+  const level = levelFromXp(gamification.xp);
+  const character = characterFromCoins(wallet.earned);
+  const stage = character.stage;
+  const goal = dailyProgress(state.stats || {}, settings.dailyGoal);
+  const streak = computeStreak(state.stats?.daily || {});
+  const achievements = listAchievements(gamification);
+  const unlocked = achievements.filter((item) => item.unlockedAt);
+  const pendingCoins = pendingAchievementCoins(unlocked);
+
+  const items = [
+    {
+      icon: "sparkles",
+      value: `Nível ${level.level}`,
+      label: `${level.title} · ${gamification.xp} XP`,
+    },
+    {
+      icon: "coin",
+      value: `${wallet.balance} moedas`,
+      label: `${stage.name} · estágio ${character.stageNumber} de ${character.totalStages}`,
+    },
+    {
+      icon: "flame",
+      value: `${goal.answered}/${goal.target}`,
+      label: `${goal.reached ? "meta concluída" : "meta de hoje"} · ${plural(
+        streak.current,
+        "dia",
+        "dias"
+      )} de sequência`,
+    },
+    {
+      icon: "award",
+      value: `${unlocked.length}/${achievements.length}`,
+      label:
+        pendingCoins > 0
+          ? plural(pendingCoins, "moeda a coletar", "moedas a coletar")
+          : "conquistas desbloqueadas",
+    },
+  ];
+
+  return h(
+    "section",
+    { class: "card quick-panel", "aria-labelledby": "quick-title" },
     h(
       "div",
-      { class: "notice notice--info" },
-      h("strong", { text: "Como funciona: " }),
-      "a ordem das alternativas é sorteada em cada sessão, mas as letras A–D permanecem as originais do gabarito. A correção usa o identificador da alternativa, nunca a posição na tela."
+      { class: "section-head quick-panel__head" },
+      h(
+        "div",
+        {},
+        h("span", { class: "eyebrow" }, icon("chart"), "Visão rápida"),
+        h("h2", { id: "quick-title", text: "Seu ritmo de estudo" })
+      ),
+      h(
+        "a",
+        { class: "quick-panel__link", href: "#/progresso" },
+        "Ver progresso",
+        icon("arrowRight")
+      )
     ),
-  ];
+    h(
+      "div",
+      { class: "quick-grid" },
+      ...items.map((item) =>
+        h(
+          "a",
+          {
+            class: "quick-item",
+            href: "#/progresso",
+            "aria-label": `${item.value}. ${item.label}. Abrir progresso.`,
+          },
+          h("span", { class: "quick-item__icon", "aria-hidden": "true" }, icon(item.icon)),
+          h("strong", { class: "quick-item__value", text: item.value }),
+          h("span", { class: "quick-item__label", text: item.label })
+        )
+      )
+    )
+  );
 }
 
 function renderLevelCard() {
@@ -1321,47 +1373,6 @@ function renderCharacterCard() {
         text: `Ganhe ${COIN_RULES.correctAnswer} moedas por acerto, ${COIN_RULES.sessionBase} ao concluir uma sessão e ${COIN_RULES.dailyGoal} ao bater a meta diária.`,
       })
     )
-  );
-}
-
-function renderAchievementsCard() {
-  const all = listAchievements(state.gamification);
-  const unlocked = all
-    .filter((achievement) => achievement.unlockedAt)
-    .sort((a, b) => String(b.unlockedAt).localeCompare(String(a.unlockedAt)));
-  const visible = unlocked.length > 0 ? unlocked.slice(0, 3) : all.slice(0, 3);
-  const pendingCoins = pendingAchievementCoins(unlocked);
-
-  return h(
-    "section",
-    { class: "card achievements-card", "aria-labelledby": "achievements-title" },
-    h(
-      "div",
-      { class: "section-head" },
-      h(
-        "div",
-        {},
-        h("span", { class: "eyebrow" }, icon("award"), "Conquistas"),
-        h("h2", { id: "achievements-title", text: `${unlocked.length} de ${all.length} desbloqueadas` })
-      ),
-      unlocked.length > 0
-        ? h("span", {
-            class: pendingCoins > 0 ? "chip chip--coin" : "chip chip--success",
-            text:
-              pendingCoins > 0
-                ? `${pendingCoins} moedas a coletar`
-                : `+${unlocked.reduce((sum, item) => sum + item.xp, 0)} XP`,
-          })
-        : h("span", { class: "chip chip--neutral", text: "comece agora" })
-    ),
-    h(
-      "div",
-      { class: "achievement-mini-grid" },
-      ...visible.map((achievement) => renderAchievementItem(achievement))
-    ),
-    unlocked.length === 0
-      ? h("p", { class: "hint", text: "Responda questões para desbloquear as primeiras conquistas." })
-      : null
   );
 }
 
@@ -3130,6 +3141,7 @@ function renderProgress() {
 
     renderLevelCard(),
     renderHabitCard(),
+    renderCharacterCard(),
 
     h(
       "section",
