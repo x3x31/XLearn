@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.26.0` |
+| **Versão atual** | `0.26.1` |
 | **Data da última atualização** | 2026-11-05 |
 
 ---
@@ -333,6 +333,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.24.0 | REQ-033 | Coleta manual de moedas das conquistas desbloqueadas com botão acessível, valor canônico, transação atômica e idempotente, cascata decorativa de moedas, som de moeda, saldo/pendências atualizados no dashboard e no progresso | `0464c32` | 2026-11-04 |
 | 0.25.0 | REQ-027 | Campanha final de testes em 12 suítes temporárias (unitárias, DOM/IndexedDB, PWA/estática e regressões), cobrindo 10 materiais/1250 questões; correção da rota `#/estudar`, que quebrava ao aplicar spread em um único elemento | `8f7219a` | 2026-11-04 |
 | 0.26.0 | REQ-028 | README completo com visão geral, funcionalidades, requisitos, execução local, publicação no GitHub Pages, instalação PWA, uso, formato das provas, backup/privacidade, estrutura, validação e limitações | `fb1fe7b` | 2026-11-05 |
+| 0.26.1 | — | Correção do dashboard: a renderização filtra entradas nulas antes de `replaceChildren`, eliminando o texto “null” exibido antes da seção de provas; service worker elevado para `v9` | `29079d7` | 2026-11-05 |
 
 ---
 
@@ -410,6 +411,7 @@ Dependências principais:
 
 - `npm run check`: 10 materiais válidos, 1.250 questões, 0 erros e 0 avisos.
 - `node --check` em todos os `js/*.js`, `service-worker.js` e `scripts/*.mjs`: sem erros de sintaxe.
+- Renderização do dashboard corrigida: `render()` descarta entradas `null`, `undefined` e `false` antes de `replaceChildren`, evitando nós de texto “null”.
 - `service-worker.js` em `v9`, com 28 caminhos no app shell, todos presentes no repositório.
 - `questoes/manifest.json` válido e coerente com os 10 materiais; `package.json` sem dependências de execução.
 - `main` sincronizada com `origin/main` e árvore de trabalho limpa ao final desta revisão.
