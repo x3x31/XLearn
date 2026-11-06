@@ -587,37 +587,7 @@ button:disabled {
   }
 }
 
-/* XP / levels ------------------------------------------------------------- */
-
-.level-card__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.level-card__head h2 {
-  margin-top: 6px;
-  font-size: 1.12rem;
-}
-
-.level-card__head p {
-  margin-top: 4px;
-}
-
-.level-card__badge {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
-  background: var(--primary-soft);
-  color: var(--primary);
-  font-size: 1.15rem;
-  font-weight: 800;
-}
+/* Progress ---------------------------------------------------------------- */
 
 .progress {
   overflow: hidden;
@@ -637,38 +607,6 @@ button:disabled {
 
 [data-animations="off"] .progress__bar {
   transition: none;
-}
-
-.level-card > .hint {
-  margin-top: 8px;
-}
-
-.level-card__stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.level-card__stats > div {
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-2);
-  text-align: center;
-}
-
-.level-card__stats strong {
-  display: block;
-  font-size: 1.05rem;
-}
-
-.level-card__stats span {
-  color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 /* Achievements ------------------------------------------------------------ */

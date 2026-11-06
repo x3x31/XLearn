@@ -13,6 +13,7 @@
 import {
   ACHIEVEMENTS,
   applyAnswerRewards,
+  applySeasonAchievements,
   applySessionRewards,
   normalizeGamification,
 } from "./gamification.js";
@@ -316,11 +317,17 @@ export async function claimAchievementReward(achievementId, { now = new Date() }
       const beforeStage = seasonStageFrom(season.coinsEarned, activeDays);
       const seasonResult = applySeasonCoins(season, claim.gain, { now: nowDate });
       const seasonStage = seasonStageFrom(seasonResult.season.coinsEarned, activeDays);
+      const seasonRewards = applySeasonAchievements(gamification, {
+        seasonStage: seasonStage.stageNumber,
+        now: nowDate,
+      });
 
       result = {
         ...claim,
         notUnlocked: false,
         achievement,
+        gamification: seasonRewards.gamification,
+        newAchievements: seasonRewards.newAchievements,
         season: seasonResult.season,
         seasonStage,
         seasonEvolved: seasonStage.stageNumber > beforeStage.stageNumber,
@@ -338,6 +345,13 @@ export async function claimAchievementReward(achievementId, { now = new Date() }
           key: "season",
           value: seasonResult.season,
           updatedAt: seasonResult.season.updatedAt,
+        });
+      }
+      if (seasonRewards.newAchievements.length > 0) {
+        store.put({
+          key: "gamification",
+          value: seasonRewards.gamification,
+          updatedAt: seasonRewards.gamification.updatedAt,
         });
       }
     };
@@ -528,10 +542,20 @@ export async function recordAnswer({
         value: result.gamification,
         updatedAt: result.gamification.updatedAt,
       });
+      applySeason();
     };
 
     const applySeason = () => {
-      if (seasonApplied || !walletApplied || !seasonReady || !statsSnapshot) return;
+      if (
+        seasonApplied ||
+        !gamificationReady ||
+        !savedGamification ||
+        !walletApplied ||
+        !seasonReady ||
+        !statsSnapshot
+      ) {
+        return;
+      }
       seasonApplied = true;
       const now = new Date(answeredAt);
       const season = normalizeSeason(seasonSnapshot, now);
@@ -547,6 +571,20 @@ export async function recordAnswer({
           key: "season",
           value: result.season,
           updatedAt: result.season.updatedAt,
+        });
+      }
+
+      const seasonRewards = applySeasonAchievements(savedGamification, {
+        seasonStage: seasonStage.stageNumber,
+        now,
+      });
+      if (seasonRewards.newAchievements.length > 0) {
+        savedGamification = seasonRewards.gamification;
+        newAchievements = [...newAchievements, ...seasonRewards.newAchievements];
+        metaStore.put({
+          key: "gamification",
+          value: savedGamification,
+          updatedAt: savedGamification.updatedAt,
         });
       }
     };
@@ -786,7 +824,20 @@ export async function awardSessionCompletion(session, { now = new Date() } = {})
       seasonStage = seasonStageFrom(seasonResult.season.coinsEarned, activeDays);
       seasonEvolved = seasonStage.stageNumber > beforeStage.stageNumber;
 
-      if (!result.alreadyAwarded) {
+      const seasonRewards = applySeasonAchievements(result.gamification, {
+        seasonStage: seasonStage.stageNumber,
+        now: nowDate,
+      });
+      result = {
+        ...result,
+        gamification: seasonRewards.gamification,
+        newAchievements: [
+          ...(result.newAchievements || []),
+          ...seasonRewards.newAchievements,
+        ],
+      };
+
+      if (!result.alreadyAwarded || seasonRewards.newAchievements.length > 0) {
         store.put({
           key: "gamification",
           value: result.gamification,

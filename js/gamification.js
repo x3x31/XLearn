@@ -1,18 +1,20 @@
 /**
- * gamification.js — XP e níveis do XLearn.
+ * gamification.js — XP interno, níveis e conquistas do XLearn.
  *
  * Módulo puro: não acessa DOM nem IndexedDB. As regras são centralizadas aqui
- * para que respostas, sessões e (nas próximas etapas) conquistas usem a mesma
- * fonte de verdade.
+ * para que respostas, sessões e conquistas usem a mesma fonte de verdade.
  *
  * Regras atuais:
  *   - resposta errada: 2 XP de participação;
  *   - resposta correta: 10 XP + bônus por dificuldade (2/4/6);
  *   - sessão concluída: 25 XP + até 25 XP por aproveitamento + 25 XP se 100%.
  *
- * O nível cresce em faixas quadráticas: 0, 100, 400, 900, 1600... XP. Assim o
- * começo é rápido e a progressão fica mais exigente sem um teto artificial.
+ * O XP e os níveis continuam sendo calculados e gravados para manter o
+ * histórico interno, mas não são exibidos na interface nem governam a
+ * evolução do personagem. A progressão visível pertence a `season.js`.
  */
+
+import { SEASON_STAGES } from "./season.js";
 
 export const PARTICIPATION_XP = 2;
 export const CORRECT_BASE_XP = 10;
@@ -101,22 +103,22 @@ export const ACHIEVEMENTS = Object.freeze([
     check: (context) => context.perfectSessions >= 1,
   },
   {
-    id: "nivel-3",
-    title: "Praticante",
-    description: "Alcance o nível 3.",
+    id: "primeira-evolucao",
+    title: "Primeira evolução",
+    description: "Alcance o estágio 2 da temporada.",
     icon: "chart",
     xp: 25,
     coins: 15,
-    check: (context) => context.level >= 3,
+    check: (context) => (context.seasonStage || 0) >= 2,
   },
   {
-    id: "nivel-5",
-    title: "Avançado",
-    description: "Alcance o nível 5.",
+    id: "mestre-temporada",
+    title: "Mestre da temporada",
+    description: "Alcance o estágio máximo da temporada.",
     icon: "sparkles",
     xp: 50,
     coins: 25,
-    check: (context) => context.level >= 5,
+    check: (context) => (context.seasonStage || 0) >= SEASON_STAGES.length,
   },
   {
     id: "meta-diaria",
@@ -317,8 +319,9 @@ export function dailyProgress(stats = {}, goal = 20, now = new Date()) {
 }
 
 /**
- * Desbloqueia conquistas pendentes e paga suas recompensas.
- * O laço permite que o XP de uma conquista desbloqueie outra (ex.: nível).
+ * Desbloqueia conquistas pendentes e soma suas recompensas internas de XP.
+ * O laço mantém a reconciliação aberta para novas conquistas que dependam do
+ * estado atualizado, sem pagar moedas automaticamente.
  */
 function reconcileAchievements(gamification, context, now) {
   const achievements = { ...gamification.achievements };
@@ -329,10 +332,9 @@ function reconcileAchievements(gamification, context, now) {
 
   while (changed) {
     changed = false;
-    const level = levelFromXp(xp).level;
     for (const achievement of ACHIEVEMENTS) {
       if (achievements[achievement.id]) continue;
-      if (achievement.check({ ...context, xp, level })) {
+      if (achievement.check({ ...context, xp })) {
         achievements[achievement.id] = unlockedAt;
         xp += achievement.xp;
         newAchievements.push({ ...achievement, unlockedAt });
@@ -365,6 +367,27 @@ export function listAchievements(gamification = {}) {
     ...achievement,
     unlockedAt: normalized.achievements[achievement.id] || null,
   }));
+}
+
+/**
+ * Reconcilia as conquistas depois de o ledger da temporada ser atualizado.
+ * Chamar em respostas, sessões e coletas garante que “Primeira evolução” e
+ * “Mestre da temporada” sejam desbloqueadas no mesmo evento que muda o estágio.
+ * O XP interno pode aumentar, mas as moedas continuam exigindo coleta manual.
+ */
+export function applySeasonAchievements(
+  current,
+  { seasonStage = 0, now = new Date() } = {}
+) {
+  const gamification = normalizeGamification(current);
+  if (!seasonStage) {
+    return { gamification, newAchievements: [] };
+  }
+  return reconcileAchievements(
+    gamification,
+    gamificationContext(gamification, { seasonStage }),
+    now
+  );
 }
 
 /** XP recebido por uma resposta, já refletido no registro de gamificação. */

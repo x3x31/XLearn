@@ -118,7 +118,7 @@ Enquanto a prova está em andamento, o tempo restante aparece no cabeçalho. Se 
 
 ### Simulados
 
-O simulado permite escolher quantas questões usar de cada assunto. Ele tem sessão ativa e histórico próprios, pode coexistir com uma sessão normal e **não** altera progresso, tentativas normais, estatísticas, XP, conquistas, revisões, ranking ou moedas. O resumo do simulado mostra totais e acertos por assunto.
+O simulado permite escolher quantas questões usar de cada assunto. Ele tem sessão ativa e histórico próprios, pode coexistir com uma sessão normal e **não** altera progresso, tentativas normais, estatísticas, conquistas, revisões, ranking ou moedas. O resumo do simulado mostra totais e acertos por assunto.
 
 ### Moedas, conquistas e personagem
 
@@ -139,9 +139,11 @@ A **Temporada 1** vai de **05/11/2026 a 04/12/2026**. O personagem evolui pelo m
 
 Gastar moedas não reduz o acumulado da temporada. Ao final de 04/12/2026, o personagem congela no último estágio alcançado e só volta a evoluir quando uma nova temporada for definida.
 
+As conquistas de temporada são **Primeira evolução** (alcançar o estágio 2) e **Mestre da temporada** (alcançar o estágio máximo). O XP continua sendo calculado e gravado como métrica interna, mas não aparece na interface nem influencia a evolução do personagem.
+
 ### Revisões
 
-Um acerto sobe o nível de domínio e agenda a próxima revisão; um erro reduz o nível e cria uma revisão curta de 10 minutos. A fila de revisões prioriza o que está mais atrasado. A sessão de revisão usa apenas as questões vencidas e não recebe cronômetro de prova.
+Um acerto aumenta o domínio e agenda a próxima revisão; um erro reduz o domínio e cria uma revisão curta de 10 minutos. A fila de revisões prioriza o que está mais atrasado. A sessão de revisão usa apenas as questões vencidas e não recebe cronômetro de prova.
 
 ## Adicionar provas
 

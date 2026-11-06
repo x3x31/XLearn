@@ -357,10 +357,10 @@ function renderAchievementItem(achievement) {
       h("span", { text: achievement.description }),
       h("small", {
         text: !achievement.unlockedAt
-          ? `Recompensa: ${achievement.xp} XP · ${plural(achievement.coins, "moeda", "moedas")}`
+          ? `Recompensa: ${plural(achievement.coins, "moeda", "moedas")}`
           : claimedAt
-            ? `Moedas coletadas em ${formatDateTime(claimedAt)} · ${achievement.xp} XP recebidos`
-            : `Clique para coletar ${plural(achievement.coins, "moeda", "moedas")} · ${achievement.xp} XP recebidos`,
+            ? `Moedas coletadas em ${formatDateTime(claimedAt)}`
+            : `Clique para coletar ${plural(achievement.coins, "moeda", "moedas")}`,
       })
     ),
     achievement.unlockedAt
@@ -446,8 +446,11 @@ async function collectAchievement(button, achievement) {
       const evolved = result.seasonEvolved && result.seasonStage
         ? ` Personagem evoluiu para ${result.seasonStage.stage.name}.`
         : "";
+      const unlocked = result.newAchievements?.length
+        ? ` Conquista desbloqueada: ${result.newAchievements.map((item) => item.title).join(", ")}.`
+        : "";
       toast(
-        `+${plural(result.gain, "moeda coletada", "moedas coletadas")} da conquista “${achievement.title}”.${evolved}`,
+        `+${plural(result.gain, "moeda coletada", "moedas coletadas")} da conquista “${achievement.title}”.${evolved}${unlocked}`,
         "success"
       );
     } else if (result?.alreadyClaimed) {
@@ -1427,7 +1430,7 @@ function renderHabitCard() {
         h("p", {
           class: "small muted",
           text: goal.reached
-            ? "Meta de hoje concluída. Continue se quiser, o XP continua contando."
+            ? "Meta de hoje concluída. Continue se quiser, as moedas continuam contando."
             : `Faltam ${plural(goal.remaining, "questão", "questões")} para bater a meta.`,
         })
       ),
@@ -1679,7 +1682,7 @@ function renderSimuladoHistory(aggregate) {
       : null,
     h("p", {
       class: "hint",
-      text: "Este histórico é independente: simulados não alteram progresso, XP, conquistas, revisões, ranking, estatísticas nem moedas.",
+      text: "Este histórico é independente: simulados não alteram progresso, conquistas, revisões, ranking, estatísticas nem moedas.",
     })
   );
 }
@@ -1847,7 +1850,7 @@ function renderSimulado() {
       "div",
       { class: "notice notice--info" },
       h("strong", { text: "Histórico separado: " }),
-      "simulados não contam para XP, moedas, conquistas, SRS, ranking nem estatísticas. Apenas o total de questões e acertos por assunto é guardado."
+      "simulados não contam para moedas, conquistas, SRS, ranking nem estatísticas. Apenas o total de questões e acertos por assunto é guardado."
     ),
     form,
     renderSimuladoHistory(aggregate),
@@ -2166,7 +2169,7 @@ function renderReviews() {
               { class: "review-item__text" },
               h("strong", { text: item.topic || "Questão sem assunto" }),
               h("span", {
-                text: `${isOverdue ? "Vencida" : "Agendada"} ${formatDueLabel(item.dueAt)} · nível ${item.srsLevel}/5`,
+                text: `${isOverdue ? "Vencida" : "Agendada"} ${formatDueLabel(item.dueAt)} · domínio ${item.srsLevel}/5`,
               })
             )
           );
@@ -2212,7 +2215,7 @@ function renderReviews() {
       "div",
       { class: "notice notice--info" },
       h("strong", { text: "Sobre o agendamento: " }),
-      "os intervalos automáticos são 1, 3, 7, 14 e 30 dias após acertos consecutivos. Um erro reduz o nível e agenda nova revisão em 10 minutos. Após acertar, você pode escolher outro intervalo no feedback da questão."
+      "os intervalos automáticos são 1, 3, 7, 14 e 30 dias após acertos consecutivos. Um erro reduz o domínio e agenda nova revisão em 10 minutos. Após acertar, você pode escolher outro intervalo no feedback da questão."
     ),
   ];
 }
@@ -2602,7 +2605,7 @@ function renderSettings() {
       ),
       h("p", {
         class: "hint",
-        text: "O backup inclui configurações, estatísticas, XP, conquistas, moedas, personagem, progresso das questões, sessões e tentativas deste dispositivo.",
+        text: "O backup inclui configurações, estatísticas, temporada, conquistas, moedas, personagem, progresso das questões, sessões e tentativas deste dispositivo.",
       }),
       h(
         "div",
@@ -2729,7 +2732,7 @@ function renderSettings() {
       ),
       h("p", {
         class: "hint",
-        text: "Limpar o cache remove apenas arquivos baixados (HTML, CSS, JS e questões). Seu progresso, XP, moedas e histórico continuam salvos no navegador.",
+        text: "Limpar o cache remove apenas arquivos baixados (HTML, CSS, JS e questões). Seu progresso, moedas e histórico continuam salvos no navegador.",
       }),
       state.pendingReset
         ? h(
@@ -2747,7 +2750,7 @@ function renderSettings() {
             }),
             h("p", {
               id: "reset-confirm-desc",
-              text: "Serão apagados respostas, sessões, tentativas, XP, níveis, conquistas, moedas, evolução do personagem, histórico de simulados, meta diária e sequência. Esta ação não pode ser desfeita.",
+              text: "Serão apagados respostas, sessões, tentativas, estatísticas, temporada, conquistas, moedas, evolução do personagem, histórico de simulados, meta diária e sequência. Esta ação não pode ser desfeita.",
             }),
             h("p", {
               id: "reset-confirm-hint",
@@ -2823,7 +2826,7 @@ function renderSettings() {
     h(
       "p",
       { class: "hint" },
-      "A meta diária e os intervalos alteram o cálculo de XP, conquistas e revisões. O histórico já registrado não é reescrito."
+      "A meta diária e os intervalos alteram conquistas, revisões e moedas. O histórico já registrado não é reescrito."
     ),
   ];
 }
@@ -3218,7 +3221,9 @@ function renderProgress() {
           text:
             pendingCoins > 0
               ? `${pendingCoins} moedas a coletar`
-              : `${unlocked.reduce((sum, item) => sum + item.xp, 0)} XP recebidos`,
+              : unlocked.length > 0
+                ? "recompensas coletadas"
+                : "sem pendências",
         })
       ),
       h(
@@ -3607,7 +3612,6 @@ async function finishSession({ expired = false } = {}) {
     if (award?.newAchievements?.length > 0) playSound("achievement");
     if (award?.coinsGain > 0) playSound("coin");
     const parts = [];
-    if (award?.xpGain > 0) parts.push(`Sessão concluída: +${award.xpGain} XP`);
     if (award?.coinsGain > 0) parts.push(`+${award.coinsGain} moedas`);
     if (award?.newAchievements?.length > 0) {
       parts.push(`conquistas: ${award.newAchievements.map((item) => item.title).join(", ")}`);
@@ -3889,7 +3893,7 @@ function renderScheduleBlock(question, answer) {
       h("span", {
         class: "hint",
         text: schedule?.dueAt
-          ? `Próxima revisão ${dueText}${schedule.level != null ? ` · nível ${schedule.level}/5` : ""}`
+          ? `Próxima revisão ${dueText}${schedule.level != null ? ` · domínio ${schedule.level}/5` : ""}`
           : "Nenhuma revisão agendada.",
       })
     ),
@@ -4003,7 +4007,7 @@ function renderFeedback(question, answer) {
             "div",
             { class: "notice notice--info" },
             h("strong", { text: "Simulado: " }),
-            "esta resposta fica apenas no histórico separado por assunto. Progresso, SRS, XP, conquistas, ranking, estatísticas e moedas não são alterados."
+            "esta resposta fica apenas no histórico separado por assunto. Progresso, SRS, conquistas, ranking, estatísticas e moedas não são alterados."
           )
         : null,
       explanation.theoreticalContent
@@ -4137,7 +4141,7 @@ function renderSimuladoSummary() {
       "div",
       { class: "notice notice--info" },
       h("strong", { text: "Histórico separado: " }),
-      "este resultado não alterou XP, moedas, conquistas, SRS, ranking nem estatísticas. Ele foi salvo apenas no histórico de simulados."
+      "este resultado não alterou moedas, conquistas, SRS, ranking nem estatísticas. Ele foi salvo apenas no histórico de simulados."
     ),
 
     h(
