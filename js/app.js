@@ -102,6 +102,9 @@ const state = {
   lastAnswerSave: null,
   scheduling: null,
   timerInterval: null,
+  feedbackModalOpen: false,
+  feedbackModal: null,
+  feedbackModalPausedTimer: false,
   finishingSession: false,
   storageWarned: false,
   route: "inicio",
@@ -119,6 +122,7 @@ const ICONS = {
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  eye: '<path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>',
   layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
   sparkles: '<path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>',
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
@@ -306,20 +310,11 @@ async function toggleSound() {
 function playAnswerEffects(correct) {
   playSound(correct ? "correct" : "wrong");
   if (!getSettings().animations) return;
-  const feedback = document.querySelector(".feedback");
-  if (!feedback) return;
-  feedback.classList.add(correct ? "feedback--celebrate" : "feedback--shake");
-  if (correct) {
-    const burst = h("span", { class: "answer-burst", "aria-hidden": "true" });
-    for (let index = 0; index < 8; index += 1) {
-      burst.append(h("span", { class: "answer-burst__spark", style: `--i:${index}` }));
-    }
-    feedback.append(burst);
-    window.setTimeout(() => burst.remove(), 1200);
-  }
-  window.setTimeout(() => {
-    feedback.classList.remove("feedback--celebrate", "feedback--shake");
-  }, 800);
+  const target = document.querySelector('[data-role="feedback-open"]');
+  if (!target) return;
+  const effect = correct ? "is-celebrate" : "is-shake";
+  target.classList.add(effect);
+  window.setTimeout(() => target.classList.remove(effect), 800);
 }
 
 /* Conquistas: coleta manual de moedas ------------------------------------- */
@@ -750,12 +745,42 @@ function handleTimerVisibility() {
     }
     return;
   }
+  if (state.feedbackModalOpen) return;
   if (session.timer.paused) {
     session.timer = resumeTimer(session.timer);
     session.updatedAt = new Date().toISOString();
     persistSession(session);
   }
   startTimerTicker();
+}
+
+function pauseTimerForFeedback() {
+  const session = state.session;
+  state.feedbackModalPausedTimer = false;
+  if (!session?.timer?.enabled || session.finishedAt || session.timer.expiredAt) return;
+  if (!session.timer.paused) {
+    session.timer = pauseTimer(session.timer);
+    session.updatedAt = new Date().toISOString();
+    state.feedbackModalPausedTimer = true;
+    persistSession(session);
+  }
+  stopTimerTicker();
+  syncTimerDisplay();
+}
+
+function resumeTimerAfterFeedback() {
+  const pausedByModal = state.feedbackModalPausedTimer;
+  state.feedbackModalPausedTimer = false;
+  const session = state.session;
+  if (!pausedByModal || !session?.timer?.enabled || session.finishedAt || session.timer.expiredAt) {
+    return;
+  }
+  if (document.hidden || !session.timer.paused) return;
+  session.timer = resumeTimer(session.timer);
+  session.updatedAt = new Date().toISOString();
+  persistSession(session);
+  startTimerTicker();
+  syncTimerDisplay();
 }
 
 async function loadPersistedSettings() {
@@ -925,7 +950,10 @@ function boot() {
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    if (state.pendingReset) {
+    if (state.feedbackModalOpen) {
+      event.preventDefault();
+      closeFeedbackModal();
+    } else if (state.pendingReset) {
       event.preventDefault();
       cancelProgressReset();
     } else if (state.pendingImport) {
@@ -941,6 +969,7 @@ function boot() {
   });
   state.route = currentRoute();
   window.addEventListener("hashchange", () => {
+    if (state.feedbackModalOpen) closeFeedbackModal({ restoreFocus: false });
     state.route = currentRoute();
     render({ focus: true });
   });
@@ -954,6 +983,9 @@ function render({ focus = false } = {}) {
   const main = document.getElementById("main");
   if (!main) return;
   state.route = currentRoute();
+  if (state.feedbackModalOpen && state.route !== "sessao") {
+    closeFeedbackModal({ restoreFocus: false });
+  }
 
   let content;
   switch (state.route) {
@@ -984,6 +1016,7 @@ function render({ focus = false } = {}) {
 
   const nodes = content.filter((node) => node !== null && node !== undefined && node !== false);
   main.replaceChildren(...nodes);
+  if (state.feedbackModalOpen) refreshFeedbackModal();
   ensureTimerTicker();
   syncTimerDisplay();
   if (state.route === "simulado") syncSimuladoTotal(document.getElementById("simulado-form"));
@@ -3498,9 +3531,8 @@ function confirmAnswer(question) {
   session.updatedAt = new Date().toISOString();
   render();
   requestAnimationFrame(() => {
-    const feedback = document.querySelector(".feedback");
-    feedback?.setAttribute("tabindex", "-1");
-    feedback?.focus({ preventScroll: false });
+    const feedbackButton = document.querySelector('[data-role="feedback-open"]');
+    feedbackButton?.focus({ preventScroll: false });
     playAnswerEffects(correct);
   });
 
@@ -3845,7 +3877,35 @@ function renderQuiz() {
   ];
 
   if (answered) {
-    content.push(renderFeedback(question, answered));
+    content.push(
+      h(
+        "div",
+        { class: "feedback-cta" },
+        h(
+          "div",
+          { class: "feedback-cta__text" },
+          h("strong", { text: "Resposta registrada" }),
+          h("p", {
+            class: "hint",
+            text: session.timer?.enabled
+              ? "Abra o feedback para ver a resolução. O cronômetro pausa enquanto a janela estiver aberta."
+              : "Abra o feedback para ver a resolução e os comentários das alternativas.",
+          })
+        ),
+        h(
+          "button",
+          {
+            class: "btn feedback-cta__button",
+            type: "button",
+            "data-role": "feedback-open",
+            "aria-haspopup": "dialog",
+            onclick: (event) => openFeedbackModal(question, answered, event.currentTarget),
+          },
+          icon("eye"),
+          "Mostrar feedback"
+        )
+      )
+    );
   }
 
   return content;
@@ -4057,6 +4117,188 @@ function renderFeedback(question, answer) {
       )
     )
   );
+}
+
+/* Feedback em modal ------------------------------------------------------- */
+
+function feedbackContext() {
+  const session = state.session;
+  const question = currentQuestion();
+  const answer = question && session?.answers ? session.answers[question.id] : null;
+  return question && answer ? { question, answer } : null;
+}
+
+function setFeedbackBackgroundInert(inert) {
+  document.querySelectorAll("#main, .topbar, .bottom-nav").forEach((node) => {
+    if (inert) node.setAttribute("inert", "");
+    else node.removeAttribute("inert");
+  });
+}
+
+function feedbackTimerHint() {
+  const timer = state.session?.timer;
+  if (!timer?.enabled) return "Esta prova está sem cronômetro.";
+  if (timer.expiredAt) return "O tempo da prova já havia acabado.";
+  return "Cronômetro pausado enquanto esta janela estiver aberta.";
+}
+
+function refreshFeedbackModal() {
+  if (!state.feedbackModalOpen) return;
+  const overlay = document.querySelector('[data-role="feedback-modal"]');
+  const body = overlay?.querySelector('[data-role="feedback-modal-body"]');
+  if (!overlay || !body) return;
+  const context = feedbackContext();
+  if (!context) {
+    closeFeedbackModal({ restoreFocus: false });
+    return;
+  }
+  body.replaceChildren(renderFeedback(context.question, context.answer));
+  const hint = overlay.querySelector('[data-role="feedback-modal-timer-text"]');
+  if (hint) hint.textContent = feedbackTimerHint();
+}
+
+function playFeedbackModalEffects(correct) {
+  if (!getSettings().animations) return;
+  const feedback = document.querySelector('[data-role="feedback-modal"] .feedback');
+  if (!feedback) return;
+  feedback.classList.add(correct ? "feedback--celebrate" : "feedback--shake");
+  if (correct) {
+    const burst = h("span", { class: "answer-burst", "aria-hidden": "true" });
+    for (let index = 0; index < 8; index += 1) {
+      burst.append(h("span", { class: "answer-burst__spark", style: `--i:${index}` }));
+    }
+    feedback.append(burst);
+    window.setTimeout(() => burst.remove(), 1200);
+  }
+  window.setTimeout(() => {
+    feedback.classList.remove("feedback--celebrate", "feedback--shake");
+  }, 900);
+}
+
+function handleFeedbackModalKeydown(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    closeFeedbackModal();
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const overlay = event.currentTarget;
+  const focusables = Array.from(
+    overlay.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
+    )
+  );
+  if (focusables.length === 0) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (event.shiftKey) {
+    if (
+      document.activeElement === first ||
+      document.activeElement === overlay.firstElementChild ||
+      !overlay.contains(document.activeElement)
+    ) {
+      event.preventDefault();
+      last.focus();
+    }
+  } else if (document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function openFeedbackModal(question, answer, trigger) {
+  const context = feedbackContext();
+  if (!context) return;
+  if (state.feedbackModalOpen) {
+    state.feedbackModal = { trigger: trigger || state.feedbackModal?.trigger || null };
+    refreshFeedbackModal();
+    return;
+  }
+
+  state.feedbackModalOpen = true;
+  state.feedbackModal = { trigger: trigger || null };
+  pauseTimerForFeedback();
+  setFeedbackBackgroundInert(true);
+  document.body.classList.add("has-modal");
+
+  const dialog = h(
+    "div",
+    {
+      class: "feedback-modal",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "feedback-modal-heading feedback-title",
+      tabindex: "-1",
+    },
+    h(
+      "div",
+      { class: "feedback-modal__bar" },
+      h(
+        "span",
+        { class: "eyebrow", id: "feedback-modal-heading" },
+        icon("eye"),
+        "Feedback da questão"
+      ),
+      h(
+        "div",
+        { class: "feedback-modal__actions" },
+        h(
+          "span",
+          { class: "feedback-modal__timer" },
+          icon("clock"),
+          h("span", {
+            "data-role": "feedback-modal-timer-text",
+            text: feedbackTimerHint(),
+          })
+        ),
+        h(
+          "button",
+          {
+            class: "icon-btn feedback-modal__close",
+            type: "button",
+            "aria-label": "Fechar feedback",
+            title: "Fechar feedback (Esc)",
+            onclick: () => closeFeedbackModal(),
+          },
+          icon("x")
+        )
+      )
+    ),
+    h(
+      "div",
+      { class: "feedback-modal__body", "data-role": "feedback-modal-body" },
+      renderFeedback(context.question, context.answer)
+    )
+  );
+
+  const overlay = h(
+    "div",
+    { class: "feedback-modal-backdrop", "data-role": "feedback-modal" },
+    dialog
+  );
+  overlay.addEventListener("keydown", handleFeedbackModalKeydown);
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closeFeedbackModal();
+  });
+  document.body.append(overlay);
+  requestAnimationFrame(() => dialog.focus({ preventScroll: true }));
+  playFeedbackModalEffects(context.answer.correct);
+}
+
+function closeFeedbackModal({ restoreFocus = true } = {}) {
+  if (!state.feedbackModalOpen) return;
+  const trigger = state.feedbackModal?.trigger || null;
+  document.querySelector('[data-role="feedback-modal"]')?.remove();
+  document.body.classList.remove("has-modal");
+  setFeedbackBackgroundInert(false);
+  state.feedbackModalOpen = false;
+  state.feedbackModal = null;
+  resumeTimerAfterFeedback();
+  if (restoreFocus) {
+    const fallback = document.querySelector('[data-role="feedback-open"]');
+    (trigger?.isConnected ? trigger : fallback)?.focus({ preventScroll: true });
+  }
 }
 
 /* Summary ----------------------------------------------------------------- */
