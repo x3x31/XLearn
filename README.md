@@ -1,6 +1,6 @@
 # XLearn
 
-PWA educacional para estudar por questões, com alternativas embaralhadas, feedback explicado, repetição espaçada, simulados, XP, conquistas e moedas — tudo salvo no navegador.
+PWA educacional para estudar por questões, com alternativas embaralhadas, feedback explicado, repetição espaçada, simulados, temporada, conquistas e moedas — tudo salvo no navegador.
 
 **Aplicativo publicado:** <https://x3x31.github.io/XLearn/>  
 **Repositório:** <https://github.com/x3x31/XLearn>
@@ -19,8 +19,8 @@ O projeto usa apenas HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, Cache
 - **Repetição espaçada:** intervalos automáticos de 1, 3, 7, 14 e 30 dias, revisão curta de 10 minutos no erro, escolha manual após o acerto e fila de revisões vencidas.
 - **Simulados:** montagem por assunto e quantidade de questões, com resumo próprio por disciplina.
 - **Cronômetro opcional:** contagem regressiva de 5 a 120 minutos nas provas, com pausa automática ao trocar de aba e encerramento ao zerar.
-- **Gamificação:** XP, níveis, meta diária, sequência de estudos, conquistas e ranking local.
-- **Moedas e personagem:** recompensas por acerto, sessão e meta; coleta manual das moedas das conquistas; evolução do personagem em cinco estágios.
+- **Gamificação:** temporada com evolução por moedas acumuladas e dias ativos, meta diária, sequência de estudos, conquistas e ranking local.
+- **Moedas e personagem:** recompensas por acerto, sessão e meta; coleta manual das moedas das conquistas; personagem com cinco estágios que evolui apenas dentro da temporada e congela ao término.
 - **Som e ludicidade:** efeitos gerados via Web Audio, com volume configurável e respeito a animações reduzidas.
 - **Acessibilidade:** navegação por teclado, foco visível, link de pular, rótulos ARIA, contraste e alvos de toque adequados.
 - **Offline e instalação:** app shell em cache, materiais já acessados disponíveis offline e instalação como PWA.
@@ -84,11 +84,11 @@ A navegação inferior leva às áreas principais:
 
 | Área | Rota | O que faz |
 |---|---|---|
-| Início | `#/inicio` | Visão rápida de nível, moedas, meta/sequência e conquistas, com atalhos para o progresso, sessões em andamento e revisões vencidas. |
+| Início | `#/inicio` | Visão rápida da temporada, estágio, moedas, meta/sequência e conquistas, com atalhos para o progresso, sessões em andamento e revisões vencidas. |
 | Provas | `#/estudar` | Lista os materiais disponíveis e inicia uma sessão de estudo. |
 | Revisões | `#/revisoes` | Mostra a fila de revisões vencidas e futuras, agrupada por prova. |
 | Simulado | `#/simulado` | Monta uma prova por assunto, com quantidade configurável de questões. |
-| Progresso | `#/progresso` | Totais, precisão, nível, meta/sequência, personagem e moedas, ranking local, conquistas e tentativas recentes. |
+| Progresso | `#/progresso` | Totais, precisão, temporada, personagem, moedas, dias ativos, meta/sequência, ranking local, conquistas e tentativas recentes. |
 | Configurações | `#/config` | Ajustes de estudo, aparência, som, dados e backup. |
 
 Durante uma sessão:
@@ -127,7 +127,17 @@ O simulado permite escolher quantas questões usar de cada assunto. Ele tem sess
 - **15 moedas** ao atingir a meta diária, uma única vez por dia.
 - As conquistas desbloqueadas têm recompensas próprias em moedas. Elas **não são pagas automaticamente**: toque em “Clique para coletar” na tela de progresso.
 
-O personagem evolui pelo total de moedas acumuladas: Curioso (0), Estudante (60), Focado (180), Veterano (400) e Mestre dos estudos (800).
+A **Temporada 1** vai de **05/11/2026 a 04/12/2026**. O personagem evolui pelo mínimo de moedas acumuladas na temporada e pelo total de dias ativos com pelo menos uma questão respondida. Os dois requisitos precisam ser atendidos ao mesmo tempo:
+
+| Estágio | Personagem | Moedas na temporada | Dias ativos |
+|---|---|---|---|
+| 1 | Curioso | 0 | 0 |
+| 2 | Estudante | 60 | 3 |
+| 3 | Focado | 150 | 6 |
+| 4 | Veterano | 270 | 9 |
+| 5 | Mestre dos estudos | 400 | 12 |
+
+Gastar moedas não reduz o acumulado da temporada. Ao final de 04/12/2026, o personagem congela no último estágio alcançado e só volta a evoluir quando uma nova temporada for definida.
 
 ### Revisões
 
@@ -211,7 +221,7 @@ O manifesto é a única fonte de descoberta de provas. Se ele não for regenerad
 
 Os dados ficam no IndexedDB do navegador, no banco `xlearn`:
 
-- `meta`: configurações, estatísticas, gamificação, carteira, histórico de simulados e simulado ativo.
+- `meta`: configurações, estatísticas, temporada, gamificação, carteira, histórico de simulados e simulado ativo.
 - `progress`: domínio e agendamento de revisão por questão.
 - `sessions`: sessões normais, incluindo respostas e ordem das alternativas.
 - `attempts`: histórico de tentativas.
@@ -220,10 +230,10 @@ Nada é enviado para servidores. Limpar os dados do site no navegador apaga o pr
 
 Em **Configurações → Dados**:
 
-- **Exportar backup:** baixa um JSON versionado com configurações, estatísticas, XP, conquistas, moedas, personagem, progresso, sessões, tentativas e simulados.
+- **Exportar backup:** baixa um JSON versionado com configurações, estatísticas, temporada, gamificação, conquistas, moedas, personagem, progresso, sessões, tentativas e simulados.
 - **Importar backup:** valida formato, versão e registros antes de mostrar um resumo; somente após a confirmação os dados atuais são substituídos.
 - **Limpar cache do app:** remove apenas os caches `xlearn-*`, preservando respostas e histórico.
-- **Apagar progresso:** remove progresso, sessões, tentativas, estatísticas, gamificação, carteira, histórico de simulados e simulado ativo, mas mantém as configurações de estudo e aparência.
+- **Apagar progresso:** remove progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, histórico de simulados e simulado ativo, mas mantém as configurações de estudo e aparência.
 
 ## Estrutura do projeto
 
@@ -241,8 +251,9 @@ Em **Configurações → Dados**:
 │   ├── questions.js    # manifesto e carregamento
 │   ├── settings.js     # preferências
 │   ├── srs.js          # repetição espaçada
-│   ├── gamification.js # XP, níveis e conquistas
-│   ├── coins.js        # carteira e personagens
+│   ├── gamification.js # XP interno, níveis e conquistas
+│   ├── coins.js        # carteira e economia de moedas
+│   ├── season.js       # temporada, dias ativos e estágios do personagem
 │   ├── timer.js        # cronômetro
 │   ├── simulado.js     # resumo e histórico de simulados
 │   ├── ranking.js      # ranking local

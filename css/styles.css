@@ -917,6 +917,40 @@ button.achievement-mini {
   margin-top: 8px;
 }
 
+.season-card__bars {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.season-bar__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.season-bar__head strong {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.season-bar .progress {
+  margin-top: 6px;
+}
+
+.season-card__frozen {
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+}
+
 .chip--coin {
   background: color-mix(in srgb, #fbbf24 18%, var(--surface-2));
   border: 1px solid color-mix(in srgb, #fbbf24 45%, transparent);

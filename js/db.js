@@ -22,6 +22,12 @@ import {
   claimAchievementCoins as applyAchievementClaim,
   normalizeWallet,
 } from "./coins.js";
+import {
+  activeDaysInSeason,
+  applySeasonCoins,
+  normalizeSeason,
+  seasonStageFrom,
+} from "./season.js";
 
 const DB_NAME = "xlearn";
 const DB_VERSION = 1;
@@ -182,6 +188,7 @@ export async function clearProgressData() {
       meta.delete("stats");
       meta.delete("gamification");
       meta.delete("wallet");
+      meta.delete("season");
       meta.delete("simuladoSession");
       meta.delete("simulados");
     } catch (error) {
@@ -244,6 +251,15 @@ export async function getWallet() {
 }
 
 /**
+ * Lê a temporada atual. Registros antigos permanecem congelados; quando uma
+ * nova temporada configurada já começou, o formato normalizado reinicia o
+ * ledger. A gravação ocorre no primeiro pagamento de moedas.
+ */
+export async function getSeason(now = new Date()) {
+  return normalizeSeason(await getMeta("season"), now);
+}
+
+/**
  * Coleta a recompensa em moedas de uma conquista desbloqueada.
  * A leitura da gamificação e da carteira, a validação do desbloqueio e a
  * gravação acontecem na mesma transação `readwrite`, portanto cliques
@@ -261,13 +277,19 @@ export async function claimAchievementReward(achievementId, { now = new Date() }
     const store = tx.objectStore("meta");
     const gamificationRequest = store.get("gamification");
     const walletRequest = store.get("wallet");
+    const statsRequest = store.get("stats");
+    const seasonRequest = store.get("season");
     let gamificationReady = false;
     let walletReady = false;
+    let statsReady = false;
+    let seasonReady = false;
     let applied = false;
     let result = null;
 
     const apply = () => {
-      if (applied || !gamificationReady || !walletReady) return;
+      if (applied || !gamificationReady || !walletReady || !statsReady || !seasonReady) {
+        return;
+      }
       applied = true;
       const gamification = normalizeGamification(gamificationRequest.result?.value);
       const wallet = normalizeWallet(walletRequest.result?.value);
@@ -288,12 +310,34 @@ export async function claimAchievementReward(achievementId, { now = new Date() }
         amount: achievement.coins,
         now,
       });
-      result = { ...claim, notUnlocked: false, achievement };
+      const nowDate = now instanceof Date ? now : new Date(now);
+      const season = normalizeSeason(seasonRequest.result?.value, nowDate);
+      const activeDays = activeDaysInSeason(statsRequest.result?.value?.daily || {}, season);
+      const beforeStage = seasonStageFrom(season.coinsEarned, activeDays);
+      const seasonResult = applySeasonCoins(season, claim.gain, { now: nowDate });
+      const seasonStage = seasonStageFrom(seasonResult.season.coinsEarned, activeDays);
+
+      result = {
+        ...claim,
+        notUnlocked: false,
+        achievement,
+        season: seasonResult.season,
+        seasonStage,
+        seasonEvolved: seasonStage.stageNumber > beforeStage.stageNumber,
+        seasonGain: seasonResult.gain,
+      };
       if (!claim.alreadyClaimed) {
         store.put({
           key: "wallet",
           value: claim.wallet,
           updatedAt: claim.wallet.updatedAt,
+        });
+      }
+      if (seasonResult.gain > 0) {
+        store.put({
+          key: "season",
+          value: seasonResult.season,
+          updatedAt: seasonResult.season.updatedAt,
         });
       }
     };
@@ -304,6 +348,14 @@ export async function claimAchievementReward(achievementId, { now = new Date() }
     };
     walletRequest.onsuccess = () => {
       walletReady = true;
+      apply();
+    };
+    statsRequest.onsuccess = () => {
+      statsReady = true;
+      apply();
+    };
+    seasonRequest.onsuccess = () => {
+      seasonReady = true;
       apply();
     };
 
@@ -443,6 +495,13 @@ export async function recordAnswer({
   let walletSnapshot = null;
   let walletReady = false;
   let walletApplied = false;
+  let seasonSnapshot = null;
+  let seasonReady = false;
+  let seasonApplied = false;
+  let savedSeason = null;
+  let seasonGain = 0;
+  let seasonStage = null;
+  let seasonEvolved = false;
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["sessions", "progress", "attempts", "meta"], "readwrite");
@@ -471,6 +530,27 @@ export async function recordAnswer({
       });
     };
 
+    const applySeason = () => {
+      if (seasonApplied || !walletApplied || !seasonReady || !statsSnapshot) return;
+      seasonApplied = true;
+      const now = new Date(answeredAt);
+      const season = normalizeSeason(seasonSnapshot, now);
+      const activeDays = activeDaysInSeason(statsSnapshot.daily, season);
+      const beforeStage = seasonStageFrom(season.coinsEarned, activeDays);
+      const result = applySeasonCoins(season, coinsGain, { now });
+      savedSeason = result.season;
+      seasonGain = result.gain;
+      seasonStage = seasonStageFrom(result.season.coinsEarned, activeDays);
+      seasonEvolved = seasonStage.stageNumber > beforeStage.stageNumber;
+      if (result.gain > 0) {
+        metaStore.put({
+          key: "season",
+          value: result.season,
+          updatedAt: result.season.updatedAt,
+        });
+      }
+    };
+
     const applyWallet = () => {
       if (walletApplied || !statsSnapshot || !walletReady) return;
       walletApplied = true;
@@ -491,6 +571,7 @@ export async function recordAnswer({
           updatedAt: result.wallet.updatedAt,
         });
       }
+      applySeason();
     };
 
     sessionsStore.put(sessionSnapshot);
@@ -617,6 +698,13 @@ export async function recordAnswer({
       applyWallet();
     };
 
+    const seasonRequest = metaStore.get("season");
+    seasonRequest.onsuccess = () => {
+      seasonSnapshot = seasonRequest.result?.value ?? null;
+      seasonReady = true;
+      applySeason();
+    };
+
     tx.oncomplete = () =>
       resolve({
         attempt,
@@ -624,6 +712,10 @@ export async function recordAnswer({
         progress: savedProgress,
         gamification: savedGamification,
         wallet: savedWallet,
+        season: savedSeason,
+        seasonStage,
+        seasonEvolved,
+        seasonGain,
         xpGain,
         coinsGain,
         goalCoinAwarded,
@@ -649,14 +741,29 @@ export async function awardSessionCompletion(session, { now = new Date() } = {})
     const store = tx.objectStore("meta");
     const gamificationRequest = store.get("gamification");
     const walletRequest = store.get("wallet");
+    const statsRequest = store.get("stats");
+    const seasonRequest = store.get("season");
     let result = null;
     let walletResult = null;
+    let seasonResult = null;
+    let seasonStage = null;
+    let seasonEvolved = false;
     let gamificationReady = false;
     let walletReady = false;
+    let statsReady = false;
+    let seasonReady = false;
     let applied = false;
 
     const apply = () => {
-      if (applied || !gamificationReady || !walletReady) return;
+      if (
+        applied ||
+        !gamificationReady ||
+        !walletReady ||
+        !statsReady ||
+        !seasonReady
+      ) {
+        return;
+      }
       applied = true;
       result = applySessionRewards(gamificationRequest.result?.value, {
         sessionId: session?.id,
@@ -670,6 +777,15 @@ export async function awardSessionCompletion(session, { now = new Date() } = {})
         total,
         now,
       });
+      const nowDate = now instanceof Date ? now : new Date(now);
+      const season = normalizeSeason(seasonRequest.result?.value, nowDate);
+      const daily = statsRequest.result?.value?.daily || {};
+      const activeDays = activeDaysInSeason(daily, season);
+      const beforeStage = seasonStageFrom(season.coinsEarned, activeDays);
+      seasonResult = applySeasonCoins(season, walletResult.gain, { now: nowDate });
+      seasonStage = seasonStageFrom(seasonResult.season.coinsEarned, activeDays);
+      seasonEvolved = seasonStage.stageNumber > beforeStage.stageNumber;
+
       if (!result.alreadyAwarded) {
         store.put({
           key: "gamification",
@@ -684,6 +800,13 @@ export async function awardSessionCompletion(session, { now = new Date() } = {})
           updatedAt: walletResult.wallet.updatedAt,
         });
       }
+      if (seasonResult.gain > 0) {
+        store.put({
+          key: "season",
+          value: seasonResult.season,
+          updatedAt: seasonResult.season.updatedAt,
+        });
+      }
     };
 
     gamificationRequest.onsuccess = () => {
@@ -692,6 +815,14 @@ export async function awardSessionCompletion(session, { now = new Date() } = {})
     };
     walletRequest.onsuccess = () => {
       walletReady = true;
+      apply();
+    };
+    statsRequest.onsuccess = () => {
+      statsReady = true;
+      apply();
+    };
+    seasonRequest.onsuccess = () => {
+      seasonReady = true;
       apply();
     };
 
@@ -703,6 +834,10 @@ export async function awardSessionCompletion(session, { now = new Date() } = {})
               wallet: walletResult?.wallet ?? null,
               coinsGain: walletResult?.gain ?? 0,
               coinsAlreadyAwarded: Boolean(walletResult?.alreadyAwarded),
+              season: seasonResult?.season ?? null,
+              seasonStage,
+              seasonEvolved,
+              seasonGain: seasonResult?.gain ?? 0,
             }
           : null
       );

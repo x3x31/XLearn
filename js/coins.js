@@ -2,8 +2,8 @@
  * coins.js — moedas e evolução do personagem estudioso.
  *
  * Módulo puro: não acessa DOM nem IndexedDB. A carteira guarda o saldo atual,
- * o total histórico de moedas ganhas (usado para evoluir o personagem) e os
- * registros que impedem pagamentos duplicados.
+ * o total histórico de moedas ganhas e os registros que impedem pagamentos
+ * duplicados. A evolução do personagem pertence a `season.js`.
  *
  * Regras atuais:
  *   - resposta correta: 2 moedas;
@@ -23,45 +23,6 @@ export const COIN_RULES = Object.freeze({
 });
 
 export const MAX_WALLET_HISTORY = 200;
-
-/** Estágios do personagem, do mais simples ao mestre dos estudos. */
-export const CHARACTER_STAGES = Object.freeze([
-  {
-    id: "curioso",
-    name: "Curioso",
-    minCoins: 0,
-    image: "assets/characters/curioso.svg",
-    description: "Todo grande estudo começa com uma pergunta.",
-  },
-  {
-    id: "estudante",
-    name: "Estudante",
-    minCoins: 60,
-    image: "assets/characters/estudante.svg",
-    description: "Caderno na mão e ritmo constante.",
-  },
-  {
-    id: "focado",
-    name: "Focado",
-    minCoins: 180,
-    image: "assets/characters/focado.svg",
-    description: "Concentração de quem já conhece o próprio método.",
-  },
-  {
-    id: "veterano",
-    name: "Veterano",
-    minCoins: 400,
-    image: "assets/characters/veterano.svg",
-    description: "Experiência acumulada questão após questão.",
-  },
-  {
-    id: "mestre",
-    name: "Mestre dos estudos",
-    minCoins: 800,
-    image: "assets/characters/mestre.svg",
-    description: "Constância, domínio e vontade de ensinar.",
-  },
-]);
 
 function nonNegative(value) {
   const number = Number(value);
@@ -204,31 +165,5 @@ export function claimAchievementCoins(
     wallet: addToWallet({ ...wallet, claimedAchievements }, gain, now),
     gain,
     alreadyClaimed: false,
-  };
-}
-
-/** Converte o total histórico de moedas no estágio atual do personagem. */
-export function characterFromCoins(totalCoins) {
-  const total = nonNegative(totalCoins);
-  let index = 0;
-  for (let cursor = 0; cursor < CHARACTER_STAGES.length; cursor += 1) {
-    if (total >= CHARACTER_STAGES[cursor].minCoins) index = cursor;
-  }
-
-  const stage = CHARACTER_STAGES[index];
-  const nextStage = CHARACTER_STAGES[index + 1] || null;
-  const span = nextStage ? nextStage.minCoins - stage.minCoins : 0;
-  const progress = nextStage
-    ? Math.min(1, Math.max(0, (total - stage.minCoins) / span))
-    : 1;
-
-  return {
-    stage,
-    stageNumber: index + 1,
-    totalStages: CHARACTER_STAGES.length,
-    nextStage,
-    progress,
-    coinsToNext: nextStage ? Math.max(0, nextStage.minCoins - total) : 0,
-    isMax: !nextStage,
   };
 }

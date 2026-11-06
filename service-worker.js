@@ -12,7 +12,7 @@
  * Ao alterar arquivos do shell, incremente VERSION para invalidar as caches.
  */
 
-const VERSION = "v10";
+const VERSION = "v11";
 const SHELL_CACHE = `xlearn-shell-${VERSION}`;
 const RUNTIME_CACHE = `xlearn-runtime-${VERSION}`;
 
@@ -29,6 +29,7 @@ const SHELL_PATHS = [
   "js/srs.js",
   "js/gamification.js",
   "js/coins.js",
+  "js/season.js",
   "js/timer.js",
   "js/simulado.js",
   "js/ranking.js",

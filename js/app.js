@@ -19,6 +19,7 @@ import {
   getActiveSession,
   getGamification,
   getProgressSummary,
+  getSeason,
   getSettingsRecord,
   getSimuladoHistory,
   getSimuladoSession,
@@ -36,14 +37,10 @@ import {
   computeStreak,
   createGamification,
   dailyProgress,
-  levelFromXp,
   listAchievements,
 } from "./gamification.js";
-import {
-  COIN_RULES,
-  characterFromCoins,
-  createWallet,
-} from "./coins.js";
+import { COIN_RULES, createWallet } from "./coins.js";
+import { createSeason, summarizeSeason } from "./season.js";
 import {
   buildReviewQueue,
   computeSchedule,
@@ -97,6 +94,7 @@ const state = {
   reviewQueue: { groups: [], counts: { overdue: 0, upcoming: 0 } },
   gamification: createGamification(),
   wallet: createWallet(),
+  season: createSeason(),
   stats: { answered: 0, correct: 0, daily: {}, byMaterial: {} },
   recentAttempts: [],
   pendingImport: null,
@@ -199,6 +197,11 @@ function formatDateTime(iso) {
   } catch {
     return "";
   }
+}
+
+function formatSeasonDay(key) {
+  const parts = String(key || "").split("-");
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : String(key || "");
 }
 
 function difficultyLabel(value) {
@@ -440,8 +443,11 @@ async function collectAchievement(button, achievement) {
     if (result?.gain > 0) {
       playSound("coin");
       playCoinCascade(rect, result.gain);
+      const evolved = result.seasonEvolved && result.seasonStage
+        ? ` Personagem evoluiu para ${result.seasonStage.stage.name}.`
+        : "";
       toast(
-        `+${plural(result.gain, "moeda coletada", "moedas coletadas")} da conquista “${achievement.title}”.`,
+        `+${plural(result.gain, "moeda coletada", "moedas coletadas")} da conquista “${achievement.title}”.${evolved}`,
         "success"
       );
     } else if (result?.alreadyClaimed) {
@@ -760,18 +766,20 @@ async function loadPersistedSettings() {
 
 async function refreshProgress() {
   try {
-    const [progress, gamification, stats, recentAttempts, wallet] = await Promise.all([
+    const [progress, gamification, stats, recentAttempts, wallet, season] = await Promise.all([
       getProgressSummary(),
       getGamification(),
       getStats(),
       listAttempts(10),
       getWallet(),
+      getSeason(),
     ]);
     state.progress = progress;
     state.gamification = gamification;
     state.stats = stats;
     state.recentAttempts = recentAttempts;
     state.wallet = wallet;
+    state.season = season;
     state.reviewQueue = buildReviewQueue(state.progress.records || []);
   } catch (error) {
     warnStorageOnce(error);
@@ -780,6 +788,7 @@ async function refreshProgress() {
     state.stats = { answered: 0, correct: 0, daily: {}, byMaterial: {} };
     state.recentAttempts = [];
     state.wallet = createWallet();
+    state.season = createSeason();
     state.reviewQueue = { groups: [], counts: { overdue: 0, upcoming: 0 } };
   }
   updateNav();
@@ -1166,9 +1175,15 @@ function renderQuickStats() {
   const gamification = state.gamification || createGamification();
   const wallet = state.wallet || createWallet();
   const settings = getSettings();
-  const level = levelFromXp(gamification.xp);
-  const character = characterFromCoins(wallet.earned);
-  const stage = character.stage;
+  const season = summarizeSeason(state.season, state.stats?.daily || {});
+  const status = season.status;
+  const seasonLabel = status.isActive
+    ? status.daysRemaining > 0
+      ? `${plural(status.daysRemaining, "dia restante", "dias restantes")}`
+      : "último dia"
+    : status.hasEnded
+      ? "personagem congelado"
+      : "em breve";
   const goal = dailyProgress(state.stats || {}, settings.dailyGoal);
   const streak = computeStreak(state.stats?.daily || {});
   const achievements = listAchievements(gamification);
@@ -1177,14 +1192,14 @@ function renderQuickStats() {
 
   const items = [
     {
-      icon: "sparkles",
-      value: `Nível ${level.level}`,
-      label: `${level.title} · ${gamification.xp} XP`,
+      icon: "target",
+      value: `Estágio ${season.stageNumber}`,
+      label: `${season.stage.name} · ${seasonLabel}`,
     },
     {
       icon: "coin",
       value: `${wallet.balance} moedas`,
-      label: `${stage.name} · estágio ${character.stageNumber} de ${character.totalStages}`,
+      label: `${plural(season.season.coinsEarned, "moeda na temporada", "moedas na temporada")}`,
     },
     {
       icon: "flame",
@@ -1244,65 +1259,49 @@ function renderQuickStats() {
   );
 }
 
-function renderLevelCard() {
-  const gamification = state.gamification || createGamification();
-  const level = levelFromXp(gamification.xp);
-  const accuracy =
-    gamification.answered > 0
-      ? Math.round((gamification.correct / gamification.answered) * 100)
-      : 0;
-  const percent = Math.round(level.progress * 100);
-
+function renderSeasonBar({ label, value, percent, ariaLabel, ariaText }) {
   return h(
-    "section",
-    { class: "card level-card", "aria-labelledby": "level-title" },
+    "div",
+    { class: "season-bar" },
     h(
       "div",
-      { class: "level-card__head" },
-      h(
-        "div",
-        {},
-        h("span", { class: "eyebrow" }, icon("sparkles"), "Seu progresso"),
-        h("h2", { id: "level-title", text: `Nível ${level.level} · ${level.title}` }),
-        h("p", { class: "small muted", text: `${gamification.xp} XP acumulados` })
-      ),
-      h("span", { class: "level-card__badge", text: String(level.level), "aria-label": `Nível ${level.level}` })
+      { class: "season-bar__head" },
+      h("span", { text: label }),
+      h("strong", { text: value })
     ),
     h(
       "div",
       {
         class: "progress",
         role: "progressbar",
-        "aria-label": "Progresso para o próximo nível",
+        "aria-label": ariaLabel,
         "aria-valuemin": "0",
         "aria-valuemax": "100",
         "aria-valuenow": String(percent),
+        "aria-valuetext": ariaText,
       },
       h("span", { class: "progress__bar", style: `width:${percent}%` })
-    ),
-    h("p", {
-      class: "hint",
-      text: `Faltam ${level.xpToNext} XP para o nível ${level.level + 1}.`,
-    }),
-    h(
-      "div",
-      { class: "level-card__stats" },
-      h("div", {}, h("strong", { text: String(gamification.answered) }), h("span", { text: "respondidas" })),
-      h("div", {}, h("strong", { text: `${accuracy}%` }), h("span", { text: "precisão" })),
-      h("div", {}, h("strong", { text: String(gamification.sessionsCompleted) }), h("span", { text: "sessões" }))
     )
   );
 }
 
-function renderCharacterCard() {
+function renderSeasonCard() {
   const wallet = state.wallet || createWallet();
-  const character = characterFromCoins(wallet.earned);
-  const percent = Math.round(character.progress * 100);
-  const stage = character.stage;
+  const summary = summarizeSeason(state.season, state.stats?.daily || {});
+  const { season, status, stage, nextStage } = summary;
+  const coinPercent = Math.round(summary.coinProgress * 100);
+  const dayPercent = Math.round(summary.dayProgress * 100);
+  const statusLabel = status.isActive
+    ? status.daysRemaining > 0
+      ? plural(status.daysRemaining, "dia restante", "dias restantes")
+      : "último dia"
+    : status.hasEnded
+      ? "encerrada"
+      : "em breve";
 
   return h(
     "section",
-    { class: "card character-card", "aria-labelledby": "character-title" },
+    { class: "card character-card season-card", "aria-labelledby": "season-title" },
     h(
       "div",
       { class: "character-card__art" },
@@ -1324,50 +1323,82 @@ function renderCharacterCard() {
         h(
           "div",
           {},
-          h("span", { class: "eyebrow" }, icon("sparkles"), "Personagem & moedas"),
-          h("h2", { id: "character-title", text: stage.name })
+          h("span", { class: "eyebrow" }, icon("sparkles"), `${season.name} · personagem`),
+          h("h2", { id: "season-title", text: stage.name }),
+          h("p", { class: "small muted", text: stage.description })
         ),
-        h(
-          "span",
-          { class: "chip chip--coin", "aria-label": `${wallet.balance} moedas disponíveis` },
-          icon("coin"),
-          h("span", { text: `${wallet.balance} moedas` })
-        )
+        h("span", {
+          class: `chip ${status.isActive ? "chip--success" : "chip--neutral"}`,
+          text: statusLabel,
+        })
       ),
-      h("p", { class: "small muted", text: stage.description }),
       h(
         "div",
         { class: "character-card__meta" },
         h("span", {
           class: "chip chip--neutral",
-          text: `Estágio ${character.stageNumber} de ${character.totalStages}`,
+          text: `Estágio ${summary.stageNumber} de ${summary.totalStages}`,
         }),
+        h(
+          "span",
+          { class: "chip chip--coin", "aria-label": `${wallet.balance} moedas disponíveis` },
+          icon("coin"),
+          h("span", { text: `${wallet.balance} moedas` })
+        ),
         h("span", {
           class: "chip chip--neutral",
-          text: `${wallet.earned} moedas acumuladas`,
+          text: `${formatSeasonDay(season.startsAt)} a ${formatSeasonDay(season.endsAt)}`,
         })
       ),
       h(
         "div",
-        {
-          class: "progress character-card__progress",
-          role: "progressbar",
-          "aria-label": "Evolução do personagem",
-          "aria-valuemin": "0",
-          "aria-valuemax": "100",
-          "aria-valuenow": String(percent),
-          "aria-valuetext": character.nextStage
-            ? `${stage.name}: ${percent}% para ${character.nextStage.name}`
-            : `${stage.name}: estágio máximo`,
-        },
-        h("span", { class: "progress__bar", style: `width:${percent}%` })
+        { class: "season-card__bars" },
+        renderSeasonBar({
+          label: "Moedas na temporada",
+          value: nextStage
+            ? `${season.coinsEarned} / ${nextStage.minCoins}`
+            : String(season.coinsEarned),
+          percent: coinPercent,
+          ariaLabel: "Moedas acumuladas na temporada",
+          ariaText: nextStage
+            ? `${season.coinsEarned} de ${nextStage.minCoins} moedas para o próximo estágio`
+            : `${season.coinsEarned} moedas na temporada`,
+        }),
+        renderSeasonBar({
+          label: "Dias ativos",
+          value: nextStage
+            ? `${summary.activeDays} / ${nextStage.minActiveDays}`
+            : String(summary.activeDays),
+          percent: dayPercent,
+          ariaLabel: "Dias ativos na temporada",
+          ariaText: nextStage
+            ? `${summary.activeDays} de ${nextStage.minActiveDays} dias ativos para o próximo estágio`
+            : `${summary.activeDays} dias ativos na temporada`,
+        })
       ),
       h("p", {
         class: "hint",
-        text: character.nextStage
-          ? `Faltam ${plural(character.coinsToNext, "moeda", "moedas")} para evoluir para ${character.nextStage.name}.`
-          : "Estágio máximo alcançado. Continue estudando para manter o ritmo!",
+        text: nextStage
+          ? `Faltam ${plural(summary.missingCoins, "moeda", "moedas")} e ${plural(
+              summary.missingDays,
+              "dia ativo",
+              "dias ativos"
+            )} para evoluir para ${nextStage.name}.`
+          : "Estágio máximo da temporada alcançado. Continue estudando para manter o ritmo!",
       }),
+      status.hasEnded
+        ? h("p", {
+            class: "hint season-card__frozen",
+            text: `A temporada terminou em ${formatSeasonDay(
+              season.endsAt
+            )}. O personagem está congelado até uma nova temporada ser definida.`,
+          })
+        : h("p", {
+            class: "hint",
+            text: `Moedas e dias ativos contam apenas dentro da temporada, até ${formatSeasonDay(
+              season.endsAt
+            )}.`,
+          }),
       h("p", {
         class: "hint",
         text: `Ganhe ${COIN_RULES.correctAnswer} moedas por acerto, ${COIN_RULES.sessionBase} ao concluir uma sessão e ${COIN_RULES.dailyGoal} ao bater a meta diária.`,
@@ -3139,9 +3170,8 @@ function renderProgress() {
       h("div", { class: "summary-stat" }, h("strong", { text: String(gamification.sessionsCompleted) }), h("span", { text: "sessões" }))
     ),
 
-    renderLevelCard(),
+    renderSeasonCard(),
     renderHabitCard(),
-    renderCharacterCard(),
 
     h(
       "section",
@@ -3492,6 +3522,9 @@ function confirmAnswer(question) {
         playSound("coin");
         extras.push(`+${COIN_RULES.dailyGoal} moedas pela meta diária`);
       }
+      if (result?.seasonEvolved && result.seasonStage) {
+        extras.push(`Personagem evoluiu para ${result.seasonStage.stage.name}`);
+      }
       announceAchievements(result?.newAchievements, extras);
       return result;
     })
@@ -3578,6 +3611,9 @@ async function finishSession({ expired = false } = {}) {
     if (award?.coinsGain > 0) parts.push(`+${award.coinsGain} moedas`);
     if (award?.newAchievements?.length > 0) {
       parts.push(`conquistas: ${award.newAchievements.map((item) => item.title).join(", ")}`);
+    }
+    if (award?.seasonEvolved && award.seasonStage) {
+      parts.push(`personagem evoluiu para ${award.seasonStage.stage.name}`);
     }
     if (parts.length > 0) toast(`${parts.join(" · ")}.`, "success");
   } catch (error) {
