@@ -348,7 +348,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.28.0 | REQ-034, REQ-035 | Planejamento da Temporada 1 (05/11 a 04/12/2026): evolução por moedas acumuladas + dias ativos (60/150/270/400 e 3/6/9/12), congelamento ao término, XP interno fora da interface e substituição das conquistas de nível por conquistas de temporada | `—` | 2026-11-05 |
 | 0.29.0 | REQ-034 | Temporada 1 (05/11 a 04/12/2026) com `season.js` puro, ledger `meta/season` incrementado nas respostas, sessões e coletas, dias ativos derivados de `stats.daily`, cinco estágios com dois requisitos simultâneos, congelamento ao término, card de temporada com duas barras e limpeza junto do progresso | `05078e8` | 2026-11-05 |
 | 0.30.0 | REQ-035 | XP e níveis restritos ao armazenamento interno, remoção de XP/níveis da interface, conquistas `primeira-evolucao` e `mestre-temporada` no lugar de `nivel-3`/`nivel-5`, reconciliação pós-ledger em respostas, sessões e coletas, service worker `v12` e textos de SRS como “domínio” | `d41e913` | 2026-11-05 |
-| 0.30.1 | — | Correção do posicionamento dos toasts: a animação de entrada sobrescrevia o `translateX(-50%)`, deslocando as mensagens para a direita; a animação `toast-rise` passou a preservar a centralização horizontal, com service worker `v13` | `69f481d` | 2026-11-05 |
+| 0.30.1 | — | Correção do posicionamento dos toasts: a animação de entrada sobrescrevia o `translateX(-50%)`, deslocando as mensagens para a direita; a animação `toast-rise` passou a preservar a centralização horizontal, com service worker `v13` | `ea4da69` | 2026-11-05 |
 
 ---
 
