@@ -396,18 +396,14 @@ function renderAchievementItem(achievement) {
   );
 }
 
-function playCoinCascade(rect, amount) {
-  if (!getSettings().animations || !rect || typeof rect.left !== "number") return;
-  const width = Math.max(120, Math.round(rect.width || 0));
-  const count = Math.max(5, Math.min(12, Math.ceil(amount / 2)));
-  const layer = h("div", {
-    class: "coin-cascade",
-    "aria-hidden": "true",
-    style: `left:${Math.round(rect.left)}px;top:${Math.round(rect.top)}px;width:${width}px;`,
-  });
+function playCoinCascade(amount) {
+  if (!getSettings().animations) return false;
+  const count = Math.max(6, Math.min(14, Math.ceil(amount / 2)));
+  const spacing = 26;
+  const layer = h("div", { class: "coin-cascade", "aria-hidden": "true" });
   for (let index = 0; index < count; index += 1) {
-    const x = Math.round(((index + 0.5) / count) * width) - 10;
-    const drift = ((index % 5) - 2) * 9;
+    const x = Math.round((index - (count - 1) / 2) * spacing);
+    const drift = ((index % 5) - 2) * 11;
     const delay = (index % 4) * 70 + Math.floor(index / 4) * 45;
     layer.append(
       h("span", {
@@ -418,13 +414,16 @@ function playCoinCascade(rect, amount) {
   }
   document.body.append(layer);
   window.setTimeout(() => layer.remove(), 1500);
+  return true;
 }
 
 async function collectAchievement(button, achievement) {
   if (state.claimingAchievement) return;
-  const rect = button?.getBoundingClientRect?.() || null;
   state.claimingAchievement = achievement.id;
-  if (button) button.disabled = true;
+  if (button) {
+    button.disabled = true;
+    button.classList.add("is-collecting");
+  }
   try {
     const result = await claimAchievementReward(achievement.id);
     if (result?.notUnlocked) {
@@ -434,10 +433,10 @@ async function collectAchievement(button, achievement) {
       return;
     }
     await refreshProgress();
-    render();
+    let cascade = false;
     if (result?.gain > 0) {
       playSound("coin");
-      playCoinCascade(rect, result.gain);
+      cascade = playCoinCascade(result.gain);
       const evolved = result.seasonEvolved && result.seasonStage
         ? ` Personagem evoluiu para ${result.seasonStage.stage.name}.`
         : "";
@@ -451,8 +450,16 @@ async function collectAchievement(button, achievement) {
     } else if (result?.alreadyClaimed) {
       toast("Essa recompensa já foi coletada.", "info");
     }
+    if (cascade) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1300));
+    }
+    render();
     const target = document.querySelector(`[data-achievement="${achievement.id}"]`);
-    target?.focus?.({ preventScroll: true });
+    const fallback =
+      document.querySelector('[data-role="home-achievements"] [data-achievement]') ||
+      document.querySelector('[data-role="home-achievements"]') ||
+      document.getElementById("main");
+    (target || fallback)?.focus?.({ preventScroll: true });
   } catch (error) {
     warnStorageOnce(error);
   } finally {
@@ -1121,6 +1128,8 @@ function renderHome() {
 
     renderQuickStats(),
 
+    renderHomeAchievements(),
+
     normalActive
       ? h(
           "section",
@@ -1291,6 +1300,48 @@ function renderQuickStats() {
           h("span", { class: "quick-item__label", text: item.label })
         )
       )
+    )
+  );
+}
+
+function renderHomeAchievements() {
+  const gamification = state.gamification || createGamification();
+  const pending = listAchievements(gamification).filter(
+    (achievement) => achievementClaim(achievement).collectible
+  );
+  if (pending.length === 0) return null;
+  const pendingCoins = pendingAchievementCoins(pending);
+
+  return h(
+    "section",
+    {
+      class: "card home-achievements",
+      "aria-labelledby": "home-achievements-title",
+      "data-role": "home-achievements",
+      tabindex: "-1",
+    },
+    h(
+      "div",
+      { class: "section-head" },
+      h(
+        "div",
+        {},
+        h("span", { class: "eyebrow" }, icon("award"), "Recompensas pendentes"),
+        h("h2", { id: "home-achievements-title", text: "Conquistas para coletar" }),
+        h("p", {
+          class: "hint",
+          text: "Toque em uma conquista para receber as moedas.",
+        })
+      ),
+      h("span", {
+        class: "chip chip--coin",
+        text: plural(pendingCoins, "moeda pendente", "moedas pendentes"),
+      })
+    ),
+    h(
+      "div",
+      { class: "achievement-grid" },
+      ...pending.map((achievement) => renderAchievementItem(achievement))
     )
   );
 }

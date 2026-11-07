@@ -20,7 +20,7 @@ O projeto usa apenas HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, Cache
 - **Simulados:** montagem por assunto e quantidade de questões, com resumo próprio por disciplina.
 - **Cronômetro opcional:** contagem regressiva de 5 a 120 minutos nas provas, com pausa automática ao trocar de aba, pausa enquanto o feedback está aberto e encerramento ao zerar.
 - **Gamificação:** temporada com evolução por moedas acumuladas e dias ativos, meta diária, sequência de estudos, conquistas e ranking local.
-- **Moedas e personagem:** recompensas por acerto, sessão e meta; coleta manual das moedas das conquistas; personagem com cinco estágios que evolui apenas dentro da temporada e congela ao término.
+- **Moedas e personagem:** recompensas por acerto, sessão e meta; coleta manual das moedas das conquistas, com pendências destacadas na tela inicial e animação centralizada ao coletar; personagem com cinco estágios que evolui apenas dentro da temporada e congela ao término.
 - **Som e ludicidade:** efeitos gerados via Web Audio, com volume configurável e respeito a animações reduzidas.
 - **Acessibilidade:** navegação por teclado, foco visível, link de pular, rótulos ARIA, contraste e alvos de toque adequados.
 - **Offline e instalação:** app shell em cache, materiais já acessados disponíveis offline e instalação como PWA.
@@ -84,7 +84,7 @@ A navegação inferior leva às áreas principais:
 
 | Área | Rota | O que faz |
 |---|---|---|
-| Início | `#/inicio` | Visão rápida da temporada, estágio, moedas, meta/sequência e conquistas, com atalhos para o progresso, sessões em andamento e revisões vencidas. |
+| Início | `#/inicio` | Visão rápida da temporada, estágio, moedas, meta/sequência e conquistas pendentes de coleta, com atalhos para o progresso, sessões em andamento e revisões vencidas. |
 | Provas | `#/estudar` | Lista os materiais disponíveis e inicia uma sessão de estudo. |
 | Revisões | `#/revisoes` | Mostra a fila de revisões vencidas e futuras, agrupada por prova. |
 | Simulado | `#/simulado` | Monta uma prova por assunto, com quantidade configurável de questões. |
@@ -126,6 +126,7 @@ O simulado permite escolher quantas questões usar de cada assunto. Ele tem sess
 - **10 moedas** ao concluir uma sessão, mais **5** se todas as respostas estiverem corretas.
 - **15 moedas** ao atingir a meta diária, uma única vez por dia.
 - As conquistas desbloqueadas têm recompensas próprias em moedas. Elas **não são pagas automaticamente**: toque em “Clique para coletar” na tela de progresso.
+- As conquistas desbloqueadas e ainda não coletadas também aparecem no início, na seção **Conquistas para coletar**. A seção permanece visível durante a animação de moedas centralizada na tela e desaparece quando todas as recompensas forem coletadas.
 
 A **Temporada 1** vai de **05/11/2026 a 04/12/2026**. O personagem evolui pelo mínimo de moedas acumuladas na temporada e pelo total de dias ativos com pelo menos uma questão respondida. Os dois requisitos precisam ser atendidos ao mesmo tempo:
 
