@@ -1491,11 +1491,19 @@ button.achievement-mini {
 }
 
 .quiz-head {
+  position: sticky;
+  top: var(--topbar-height);
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-inline: -16px;
   margin-bottom: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(14px);
 }
 
 .quiz-head__title {
@@ -2859,6 +2867,11 @@ body.has-modal {
 @media (min-width: 720px) {
   .view {
     padding: 28px 24px 120px;
+  }
+
+  .quiz-head {
+    margin-inline: -24px;
+    padding-inline: 24px;
   }
 
   .hero {

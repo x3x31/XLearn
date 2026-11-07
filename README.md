@@ -18,7 +18,7 @@ O projeto usa apenas HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, Cache
 - **Retomada:** sessões interrompidas continuam de onde pararam.
 - **Repetição espaçada:** intervalos automáticos de 1, 3, 7, 14 e 30 dias, revisão curta de 10 minutos no erro, escolha manual após o acerto e fila de revisões vencidas.
 - **Simulados:** montagem por assunto e quantidade de questões, com resumo próprio por disciplina.
-- **Cronômetro opcional:** contagem regressiva de 5 a 120 minutos nas provas, com pausa automática ao trocar de aba, pausa enquanto o feedback está aberto e encerramento ao zerar.
+- **Cronômetro opcional:** contagem regressiva de 5 a 120 minutos nas provas, exibida em um cabeçalho fixo com o contador de questões, com pausa automática ao trocar de aba, pausa enquanto o feedback está aberto e encerramento ao zerar.
 - **Gamificação:** temporada com evolução por moedas acumuladas e dias ativos, meta diária, sequência de estudos, conquistas e ranking local.
 - **Moedas e personagem:** recompensas por acerto, sessão e meta; coleta manual das moedas das conquistas, com pendências destacadas na tela inicial e animação centralizada ao coletar; personagem com cinco estágios que evolui apenas dentro da temporada e congela ao término.
 - **Som e ludicidade:** efeitos gerados via Web Audio, com volume configurável e respeito a animações reduzidas.
@@ -114,7 +114,7 @@ A correção usa o identificador da alternativa (A, B, C, D), nunca a posição 
 
 ### Cronômetro
 
-Enquanto a prova está em andamento, o tempo restante aparece no cabeçalho. Se a aba for ocultada, o cronômetro pausa; ao voltar, ele retoma. O relógio também fica pausado enquanto a janela de feedback estiver aberta e volta a contar somente depois que ela for fechada. No último minuto, o relógio entra em estado de alerta. Ao chegar a zero, a sessão é encerrada automaticamente, as questões não respondidas são marcadas no resumo e a conclusão é paga uma única vez.
+Enquanto a prova está em andamento, o tempo restante aparece no cabeçalho fixo da questão, junto do título da prova e do contador de questões; o cabeçalho permanece visível mesmo quando o conteúdo rola. Se a aba for ocultada, o cronômetro pausa; ao voltar, ele retoma. O relógio também fica pausado enquanto a janela de feedback estiver aberta e volta a contar somente depois que ela for fechada. No último minuto, o relógio entra em estado de alerta. Ao chegar a zero, a sessão é encerrada automaticamente, as questões não respondidas são marcadas no resumo e a conclusão é paga uma única vez.
 
 ### Simulados
 
