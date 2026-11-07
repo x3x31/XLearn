@@ -4129,30 +4129,6 @@ function renderFeedback(question, answer) {
             h("div", { class: "details__content" }, h("p", { class: "prose", text: explanation.theoreticalContent }))
           )
         : null,
-      explanation.bankApproach
-        ? h(
-            "details",
-            { class: "details" },
-            h("summary", {}, icon("target"), "Como a banca cobra"),
-            h("div", { class: "details__content" }, h("p", { class: "prose", text: explanation.bankApproach }))
-          )
-        : null,
-      explanation.studyTip
-        ? h(
-            "details",
-            { class: "details" },
-            h("summary", {}, icon("sparkles"), "Dica de estudo"),
-            h("div", { class: "details__content" }, h("p", { class: "prose", text: explanation.studyTip }))
-          )
-        : null,
-      explanation.reviewSummary
-        ? h(
-            "details",
-            { class: "details" },
-            h("summary", {}, icon("layers"), "Resumo para revisão"),
-            h("div", { class: "details__content" }, h("p", { class: "prose", text: explanation.reviewSummary }))
-          )
-        : null,
       h(
         "details",
         { class: "details" },

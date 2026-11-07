@@ -186,9 +186,6 @@ export function normalizeQuestion(raw, context = {}) {
   const explanation = {
     resolution: asString(explanationRaw.resolution),
     theoreticalContent: asString(explanationRaw.theoretical_content),
-    bankApproach: asString(explanationRaw.bank_approach),
-    studyTip: asString(explanationRaw.study_tip),
-    reviewSummary: asString(explanationRaw.review_summary),
   };
 
   const sourceRaw = raw.source && typeof raw.source === "object" ? raw.source : {};

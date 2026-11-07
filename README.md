@@ -186,10 +186,7 @@ language: "pt-BR"
   "answer_key": "A",
   "explanation": {
     "resolution": "Explicação da resolução.",
-    "theoretical_content": "Conteúdo teórico de apoio.",
-    "bank_approach": "Como a banca costuma cobrar o assunto.",
-    "study_tip": "Dica de estudo.",
-    "review_summary": "Resumo para revisão."
+    "theoretical_content": "Conteúdo teórico de apoio."
   }
 }
 ```
@@ -201,7 +198,8 @@ Regras principais:
 - Cada questão precisa de `question_text` e pelo menos duas alternativas com `text`.
 - A correta pode ser indicada por `answer_key` ou por exatamente um `is_correct: true`. Se ambos existirem, `answer_key` prevalece.
 - `alternatives[].explanation` é opcional e aparece no comentário individual.
-- `subject`, `topic`, `difficulty`, `source`, `type` e os campos de `explanation` são opcionais, mas melhoram a experiência.
+- `subject`, `topic`, `difficulty`, `source`, `type` e os campos `resolution`/`theoretical_content` de `explanation` são opcionais, mas melhoram a experiência.
+- Os campos legados `bank_approach`, `study_tip` e `review_summary` não são mais lidos nem exibidos; materiais antigos que ainda os contenham continuam válidos, mas esses textos são ignorados.
 - IDs de alternativa duplicados, JSON inválido, questão sem gabarito ou IDs de questão repetidos são reportados como erro; o material inválido é ignorado no catálogo.
 
 ### Gerar e validar o manifesto
