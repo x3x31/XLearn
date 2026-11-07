@@ -357,7 +357,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.31.0 | REQ-036 | Feedback de respostas certas e erradas movido para janela modal acessível, aberta pelo botão “Mostrar feedback”, com pausa e retomada do cronômetro, persistência da sessão, foco preso, `Escape`, retorno de foco, toasts acima da modal e service worker `v14` | `9ffb950` | 2026-11-06 |
 | 0.32.0 | REQ-037 | Seção de conquistas desbloqueadas e ainda não coletadas na tela inicial, removida após a animação da coleta, com cascata de moedas centralizada na viewport e foco preservado; service worker `v15` | `57a1d06` | 2026-11-06 |
 | 0.33.0 | REQ-038 | Cabeçalho da prova fixo com `position: sticky` sob o topo do app, mantendo título, contador de questões e cronômetro visíveis durante a rolagem, com fundo translúcido, borda e ajuste de largura no mobile; service worker `v16` | `43aac93` | 2026-11-06 |
-| 0.34.0 | REQ-039 | Remoção de `bank_approach`, `study_tip` e `review_summary` do parser e do feedback; explicação restrita a resolução, conteúdo teórico e comentários das alternativas; documentação do novo formato e service worker `v17` | `—` | 2026-11-06 |
+| 0.34.0 | REQ-039 | Remoção de `bank_approach`, `study_tip` e `review_summary` do parser e do feedback; explicação restrita a resolução, conteúdo teórico e comentários das alternativas; documentação do novo formato e service worker `v17` | `e0295a6` | 2026-11-06 |
 
 ---
 
