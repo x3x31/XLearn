@@ -133,10 +133,10 @@ A **Temporada 1** vai de **05/11/2026 a 04/12/2026**. O personagem evolui pelo m
 | Estágio | Personagem | Moedas na temporada | Dias ativos |
 |---|---|---|---|
 | 1 | Curioso | 0 | 0 |
-| 2 | Estudante | 60 | 3 |
-| 3 | Focado | 150 | 6 |
-| 4 | Veterano | 270 | 9 |
-| 5 | Mestre dos estudos | 400 | 12 |
+| 2 | Estudante | 300 | 3 |
+| 3 | Focado | 600 | 6 |
+| 4 | Veterano | 1000 | 9 |
+| 5 | Mestre dos estudos | 1500 | 12 |
 
 Gastar moedas não reduz o acumulado da temporada. Ao final de 04/12/2026, o personagem congela no último estágio alcançado e só volta a evoluir quando uma nova temporada for definida.
 

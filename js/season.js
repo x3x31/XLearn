@@ -27,7 +27,7 @@ export const SEASON_STAGES = Object.freeze([
   {
     id: "estudante",
     name: "Estudante",
-    minCoins: 60,
+    minCoins: 300,
     minActiveDays: 3,
     image: "assets/characters/estudante.svg",
     description: "Caderno na mão e ritmo constante.",
@@ -35,7 +35,7 @@ export const SEASON_STAGES = Object.freeze([
   {
     id: "focado",
     name: "Focado",
-    minCoins: 150,
+    minCoins: 600,
     minActiveDays: 6,
     image: "assets/characters/focado.svg",
     description: "Concentração de quem já conhece o próprio método.",
@@ -43,7 +43,7 @@ export const SEASON_STAGES = Object.freeze([
   {
     id: "veterano",
     name: "Veterano",
-    minCoins: 270,
+    minCoins: 1000,
     minActiveDays: 9,
     image: "assets/characters/veterano.svg",
     description: "Experiência acumulada questão após questão.",
@@ -51,7 +51,7 @@ export const SEASON_STAGES = Object.freeze([
   {
     id: "mestre",
     name: "Mestre dos estudos",
-    minCoins: 400,
+    minCoins: 1500,
     minActiveDays: 12,
     image: "assets/characters/mestre.svg",
     description: "Constância, domínio e vontade de ensinar.",
