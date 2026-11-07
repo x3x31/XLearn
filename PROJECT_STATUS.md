@@ -16,8 +16,8 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.35.0` |
-| **Data da última atualização** | 2026-11-06 |
+| **Versão atual** | `0.36.0` (em desenvolvimento) |
+| **Data da última atualização** | 2026-11-07 |
 
 ---
 
@@ -25,15 +25,16 @@
 
 O XLearn lê os materiais da pasta `questoes/`, gera um manifesto JSON com os arquivos disponíveis e apresenta uma experiência de estudo composta por:
 
-1. **Dashboard** com visão rápida da temporada, personagem, carteira de moedas, meta diária, sequência e conquistas coletáveis, além de atalhos para o progresso, sessões em andamento e revisões vencidas.
+1. **Dashboard** com visão rápida da temporada, personagem, carteira de moedas, meta diária, sequência, conquistas coletáveis e o ranking global da Temporada 1 (top 5 e posição do próprio usuário), além de atalhos para o progresso, sessões em andamento e revisões vencidas.
 2. **Seleção de prova** com metadados reais do material (disciplina, assunto, quantidade de questões).
 3. **Tela de resolução** com alternativas embaralhadas por Fisher–Yates, confirmação da resposta, botão “Mostrar feedback” para respostas certas e erradas, gabarito, explicação didática em janela modal e cronômetro opcional de 5–120 minutos em um cabeçalho fixo com o contador de questões, pausado enquanto o feedback está aberto.
 4. **Persistência local** em IndexedDB de sessões, respostas, progresso, histórico, carteira e simulados, permitindo retomar sessões interrompidas.
 5. **Repetição espaçada** com intervalos automáticos (1, 3, 7, 14 e 30 dias), redução do domínio no erro, escolha manual de intervalo e fila de revisões.
-6. **Gamificação** com temporada, evolução do personagem por moedas acumuladas e dias ativos, conquistas com recompensas em moedas, meta diária, sequência de estudos, estatísticas e ranking local baseado apenas em dados reais do dispositivo. O XP continua sendo calculado e gravado internamente, mas não é exibido nem influencia a evolução.
+6. **Gamificação** com temporada, evolução do personagem por moedas acumuladas e dias ativos, conquistas com recompensas em moedas, meta diária, sequência de estudos, estatísticas, ranking local por prova/disciplina e ranking global da temporada com conta Supabase. O XP continua sendo calculado e gravado internamente, mas não é exibido nem influencia a evolução.
 7. **Simulados por assunto** que montam uma prova a partir das disciplinas do acervo, com resumo próprio e histórico separado do estudo normal; o cronômetro de prova fica desligado nesse modo.
 8. **Configurações** que alteram efetivamente o comportamento: tamanho da sessão, ordem das questões, intervalos de revisão, meta diária, cronômetro de prova, tema, fonte, animações, som, exportação/importação e exclusão de dados.
 9. **PWA offline** com manifesto, service worker, cache de recursos e das provas já acessadas, além de indicador de conexão.
+10. **Conta e ranking da temporada** com cadastro/login por apelido, e-mail e senha via Supabase Auth, sessão persistida em IndexedDB, envio do nível e das moedas da temporada e ranking público por moedas. Sem conexão, o estudo continua normalmente e a sincronização ocorre quando a rede volta.
 
 A interface é em português brasileiro e prioriza telas pequenas, com navegação inferior em dispositivos móveis e layout expandido em telas maiores.
 
@@ -41,7 +42,7 @@ A interface é em português brasileiro e prioriza telas pequenas, com navegaç�
 
 ## C. Especificações funcionais
 
-Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Os requisitos REQ-001 a REQ-040 estão `IMPLEMENTADO`, conforme a coluna Status abaixo.
+Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Os requisitos REQ-001 a REQ-040 estão `IMPLEMENTADO`; REQ-041 a REQ-043 estão `EM DESENVOLVIMENTO`, conforme a coluna Status abaixo.
 
 ### Fase 1 — Base funcional
 
@@ -128,6 +129,14 @@ Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`
 | REQ-039 | Feedback sem campos legados | Deixar de ler, normalizar e exibir os campos `bank_approach`, `study_tip` e `review_summary` das explicações. O feedback passa a mostrar apenas a resolução, o conteúdo teórico e os comentários das alternativas. Materiais antigos que ainda contenham esses campos continuam válidos, mas os textos são ignorados. | Média | IMPLEMENTADO |
 | REQ-040 | Ajuste das moedas de evolução | Elevar as faixas de moedas da Temporada 1 para 300/600/1000/1500 nos estágios Estudante, Focado, Veterano e Mestre dos estudos, mantendo 0 no Curioso e os mesmos requisitos de dias ativos (0/3/6/9/12). A evolução continua exigindo os dois critérios simultâneos e o congelamento após o término permanece inalterado. | Alta | IMPLEMENTADO |
 
+### Fase 10 — Conta Supabase e ranking global da temporada
+
+| ID | Nome | Descrição | Prioridade | Status |
+|---|---|---|---|---|
+| REQ-041 | Conta Supabase e sessão sazonal | Solicitar cadastro/login ao iniciar a primeira prova de uma sessão normal, pedindo apelido, e-mail e senha. O cadastro é automático quando o e-mail ainda não existe, e a sessão é persistida em IndexedDB com tokens de acesso/renovação durante a Temporada 1. Sem internet, o estudo continua e o login pode ser feito depois. Simulados permanecem isolados e não exigem conta. | Alta | EM DESENVOLVIMENTO |
+| REQ-042 | Sincronização de nível e moedas | Enviar ao Supabase o apelido, o estágio (número e nome) e as moedas acumuladas na temporada, além dos dias ativos, sempre que o progresso mudar (respostas, conclusão de sessão, coleta de conquista e acesso à home). A gravação usa UPSERT por `user_id`/`season_id`, é limitada ao próprio usuário por RLS, tolera falhas de rede e reenvia quando a conexão volta. | Alta | EM DESENVOLVIMENTO |
+| REQ-043 | Ranking da temporada na home | Exibir na tela inicial os cinco primeiros usuários ativos da Temporada 1 com posição, apelido, nível e moedas; quando o usuário estiver fora do top 5, mostrar também a posição dele. O ranking é atualizado a cada acesso à home, tem cache local para consulta offline e informa quando está desatualizado ou indisponível. | Alta | EM DESENVOLVIMENTO |
+
 ### Critérios de aceitação gerais
 
 - Nenhuma prova deve ser cadastrada manualmente no código: a fonte é o manifesto gerado.
@@ -137,6 +146,9 @@ Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`
 - Configurações exibidas devem alterar o comportamento real.
 - Dados de ranking devem ser reais e locais; não criar estudantes fictícios.
 - O aplicativo deve continuar funcionando para os materiais válidos quando um arquivo estiver malformado.
+- O estudo nunca pode ser bloqueado por falta de internet ou por indisponibilidade do Supabase.
+- O ranking global só pode expor apelido, nível e moedas; e-mail e tokens jamais aparecem para outros usuários.
+- Cada usuário autenticado só pode gravar a própria pontuação, mesmo que a chave pública seja conhecida.
 - A progressão deve ocorrer em commits funcionais independentes, com push após cada entrega.
 
 ---
@@ -169,10 +181,12 @@ XLearn/
 ├── .nojekyll                 # IMPLEMENTADO: evita conversão Jekyll dos .md no GitHub Pages
 ├── service-worker.js         # IMPLEMENTADO: app shell, runtime e atualização versionada
 ├── package.json              # scripts de desenvolvimento; sem dependências de execução
-├── css/styles.css            # IMPLEMENTADO: temas, layout, componentes e ajustes de acessibilidade
+├── css/styles.css            # IMPLEMENTADO: temas, layout, componentes, modal de conta, ranking e ajustes de acessibilidade
 ├── js/
-│   ├── app.js                # IMPLEMENTADO: rotas, estado de UI, dashboard, temporada/personagem/moedas, quiz, simulados por assunto, resumo, revisões, estatísticas, ranking, configurações, backup, limpeza, PWA, conexão e foco acessível
+│   ├── app.js                # IMPLEMENTADO: rotas, estado de UI, dashboard, temporada/personagem/moedas, conta e ranking global, quiz, simulados por assunto, resumo, revisões, estatísticas, configurações, backup, limpeza, PWA, conexão e foco acessível
 │   ├── db.js                 # IMPLEMENTADO: IndexedDB, progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira de moedas, simulado ativo/histórico, reagendamento, backup e exclusão
+│   ├── cloud.js              # NOVO: cliente REST do Supabase Auth/PostgREST, validação, sessão, erros e normalização do ranking (sem DOM)
+│   ├── cloud-config.js       # NOVO: URL e chave publishable do projeto Supabase
 │   ├── parser.js             # IMPLEMENTADO: frontmatter + JSON + normalização (puro)
 │   ├── questions.js          # IMPLEMENTADO: manifesto, fetch e cache em memória
 │   ├── settings.js           # IMPLEMENTADO: defaults, normalização, cronômetro, intervalos manuais e aplicação visual
@@ -194,12 +208,14 @@ XLearn/
 ├── questoes/
 │   ├── manifest.json         # IMPLEMENTADO: gerado, não editar à mão
 │   └── *.md                  # 10 materiais de estudo preservados
+├── supabase/
+│   └── schema.sql            # NOVO: tabela, view, índices, grants, RLS e políticas do ranking
 ├── outros/                   # referências e fontes originais (não usadas em runtime)
 ├── README.md                 # IMPLEMENTADO: documentação de uso, materiais, publicação e limitações
 └── PROJECT_STATUS.md
 ```
 
-Responsabilidades: `parser.js`, `srs.js`, `gamification.js`, `coins.js`, `season.js`, `timer.js`, `simulado.js`, `ranking.js`, `backup.js` e `storage.js` são módulos puros, sem DOM, testáveis no Node. `db.js` concentra o acesso ao IndexedDB. `app.js` não acessa IndexedDB diretamente. A ordem das alternativas é gerada no início de cada apresentação e persistida na sessão. `questions.js` resolve os caminhos do manifesto a partir da URL do próprio módulo, o que mantém compatibilidade com subdiretórios do GitHub Pages.
+Responsabilidades: `parser.js`, `srs.js`, `gamification.js`, `coins.js`, `season.js`, `timer.js`, `simulado.js`, `ranking.js`, `backup.js`, `storage.js`, `cloud.js` e `cloud-config.js` não acessam o DOM. `cloud.js` concentra o protocolo REST do Supabase e é testável no Node com `fetch` simulado; `db.js` concentra o acesso ao IndexedDB. `app.js` não acessa IndexedDB diretamente nem usa SDK do Supabase. A ordem das alternativas é gerada no início de cada apresentação e persistida na sessão. `questions.js` resolve os caminhos do manifesto a partir da URL do próprio módulo, o que mantém compatibilidade com subdiretórios do GitHub Pages.
 
 ---
 
@@ -312,6 +328,10 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | Conquistas pendentes na home | `renderHomeAchievements()` filtra `listAchievements` por `achievementClaim(...).collectible` e insere a seção logo após a visão rápida, com a mesma grade e o mesmo botão acessível da tela de progresso. Ao coletar, `collectAchievement` mantém a seção renderizada durante os 1300 ms da cascata, aguarda a animação e só então chama `render()`; sem pendências, a seção deixa de existir e o foco vai para a próxima conquista, para a própria seção ou para o conteúdo da home. A cascata usa uma camada `position: fixed` no centro da viewport (`top/left: 50%`) e distribui as moedas por `--x`, `--drift` e `--delay`. | Torna as recompensas visíveis sem exigir que o estudante abra a tela de progresso e evita que o item desapareça antes da comemoração. O centro fixo impede que a animação seja cortada ou deslocada em telas pequenas e mantém a comemoração independente do layout do cartão. |
 | Cabeçalho fixo da prova | A `.quiz-head` de `renderQuiz` usa `position: sticky` com `top: var(--topbar-height)`, `z-index: 30`, fundo translúcido com `backdrop-filter`, borda inferior e margens negativas equivalentes ao padding do conteúdo (16 px no mobile e 24 px em telas maiores). O bloco contém o título, o contador de progresso e o cronômetro, que continuam acessíveis durante a rolagem. | Mantém o tempo e o avanço visíveis sem criar uma segunda barra fixa, sem cobrir o topo do app e sem exigir posicionamento absoluto que quebraria o fluxo do documento ou a rolagem em telas pequenas. |
 | Campos de explicação | `normalizeQuestion` monta `explanation` apenas com `resolution` e `theoreticalContent`; `bank_approach`, `study_tip` e `review_summary` não são lidos. `renderFeedback` exibe a resolução, o bloco opcional “Aula completa” e o comentário de cada alternativa, sem seções de banca, dica ou resumo. | Alinha o app ao novo formato de geração dos estudos, reduz o payload em memória e evita depender de campos que deixarão de existir. Materiais antigos continuam carregando porque os campos extras são simplesmente ignorados. |
+| Conta Supabase | `js/cloud.js` fala diretamente com GoTrue (`/auth/v1/signup`, `/auth/v1/token`, `/auth/v1/user`, `/auth/v1/logout`) e PostgREST (`/rest/v1/season_scores`, `/rest/v1/season_leaderboard`) via `fetch`, sem SDK ou dependência de runtime. O cadastro tenta entrar primeiro e cria a conta se as credenciais não existirem; apelido, e-mail e senha são validados no cliente e no servidor. A sessão (access token, refresh token, validade, `user_id` e apelido) fica em `meta/cloudAuth`; a senha nunca é armazenada. Tokens são renovados antes de expirar e erros de autenticação limpam a sessão local. | Mantém o projeto em JavaScript puro, reduz o shell e deixa o fluxo testável com `fetch` simulado. A renovação evita interromper o estudo e a sessão persistida atende à temporada inteira. |
+| Ranking da temporada | `supabase/schema.sql` cria `season_scores` com PK `(user_id, season_id)`, apelido, nível, moedas, dias ativos e `updated_at`, além da view `season_leaderboard` com `row_number()` por moedas, dias ativos e antiguidade. RLS permite leitura pública e escrita apenas de `auth.uid() = user_id`; o e-mail permanece em `auth.users`. O app consulta o top 5 e a linha do próprio usuário, destaca “Você” quando aparecer no top 5 e mostra a posição separada quando estiver fora. | Ranking auditável, sem perfis fictícios e sem expor e-mail. A view concentra a ordenação para que todos os clientes vejam a mesma posição. |
+| Sincronização e offline | O placar é montado a partir de `summarizeSeason` (estágio, moedas da temporada e dias ativos) e enviado com `POST` + `Prefer: resolution=merge-duplicates`. O envio é agendado após respostas, conclusão de sessão, coleta de conquistas e boot, com debounce; ao abrir a home, o app tenta sincronizar e então atualiza o ranking. Falhas de rede não bloqueiam o estudo, mantêm o placar local e são reenviadas quando `online` volta. O ranking consultado é cacheado em `meta/cloudRank` para exibição offline. | O ranking reflete o mesmo ledger local já usado pelo personagem, sem criar uma segunda contabilidade. Cache e debounce evitam chamadas excessivas e permitem estudar sem internet. |
+| Privacidade e segurança do ranking | A chave publishable é pública e fica em `js/cloud-config.js`; a proteção depende de RLS. A view expõe somente `user_id`, apelido, nível, moedas, dias ativos e datas; nenhum e-mail é retornado. O backup exporta `meta` sem `cloudAuth`, para não vazar tokens, e importações não restauram sessões antigas. | A chave pública é necessária no cliente; limitar a escrita ao próprio UUID e omitir e-mail/tokens reduz o impacto de vazamento. |
 | Versionamento | Um commit funcional por requisito, Conventional Commits, push após cada entrega; hash registrado no commit seguinte. | Rastreabilidade e histórico incremental. |
 | Entrega conjunta REQ-004..007 | Seleção, exibição, embaralhamento e correção entregues juntos. | São inseparáveis para que exista um fluxo utilizável; um commit intermediário sem correção ou sem shuffle seria uma funcionalidade parcial, o que o projeto proíbe. |
 | Entrega conjunta REQ-011..013 | Agendamento automático, escolha manual e fila de revisões entregues juntos. | O agendamento só tem efeito observável na fila; a escolha manual precisa do agendamento para existir. Separar produziria estados inutilizáveis. |
@@ -360,6 +380,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.33.0 | REQ-038 | Cabeçalho da prova fixo com `position: sticky` sob o topo do app, mantendo título, contador de questões e cronômetro visíveis durante a rolagem, com fundo translúcido, borda e ajuste de largura no mobile; service worker `v16` | `43aac93` | 2026-11-06 |
 | 0.34.0 | REQ-039 | Remoção de `bank_approach`, `study_tip` e `review_summary` do parser e do feedback; explicação restrita a resolução, conteúdo teórico e comentários das alternativas; documentação do novo formato e service worker `v17` | `e0295a6` | 2026-11-06 |
 | 0.35.0 | REQ-040 | Elevação das faixas de moedas da Temporada 1 para 300/600/1000/1500, mantendo 0 no Curioso e os dias ativos em 0/3/6/9/12; README, PROJECT_STATUS e service worker `v18` atualizados | `7044f75` | 2026-11-06 |
+| 0.36.0 | REQ-041, REQ-042, REQ-043 | Planejamento da conta Supabase, da sessão sazonal e do ranking global da Temporada 1; criação de `supabase/schema.sql` (tabela, view, RLS e grants) e dos módulos `js/cloud-config.js` e `js/cloud.js`; integração de UI, sincronização e cache em andamento | `—` | 2026-11-07 |
 
 ---
 
@@ -404,6 +425,9 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-038 — Cabeçalho fixo da prova:** o bloco `.quiz-head` de `renderQuiz` passou a usar `position: sticky` logo abaixo do topo fixo do app (`top: var(--topbar-height)`) com `z-index: 30`. O título da prova, o contador de questões respondidas e o cronômetro permanecem visíveis enquanto o enunciado e as alternativas rolam. O cabeçalho usa fundo translúcido com `backdrop-filter`, borda inferior e margens negativas de 16 px no mobile e 24 px em telas maiores para cobrir toda a largura útil sem criar rolagem horizontal; o espaçamento do enunciado e a navegação inferior permanecem intactos.
 - **REQ-039 — Feedback sem campos legados:** `js/parser.js` passou a normalizar `explanation` somente com `resolution` e `theoreticalContent`; `bank_approach`, `study_tip` e `review_summary` não são mais lidos, mesmo que existam no JSON. `renderFeedback` removeu os blocos “Como a banca cobra”, “Dica de estudo” e “Resumo para revisão”, mantendo a resolução, a “Aula completa” opcional, o agendamento de revisão e o comentário de cada alternativa. Os materiais atuais continuam válidos e apenas ignoram os textos legados; o README e o esquema documentado passam a apresentar somente os dois campos mantidos.
 - **REQ-040 — Ajuste das moedas de evolução:** `SEASON_STAGES` em `js/season.js` passou a exigir 300 moedas no Estudante, 600 no Focado, 1000 no Veterano e 1500 no Mestre dos estudos, mantendo o Curioso em 0 e os dias ativos em 0/3/6/9/12. As barras de progresso, as mensagens de moedas restantes, as conquistas de temporada e o congelamento após 04/12/2026 continuam usando o mesmo cálculo: o maior estágio que atende simultaneamente às moedas acumuladas na temporada e aos dias ativos. `README.md` e este documento foram atualizados com as novas faixas, e o service worker passou a `v18` para invalidar o shell.
+- **REQ-041 — Conta Supabase e sessão sazonal (em implementação):** ao iniciar uma sessão normal sem conta conectada, `startSession` abre uma modal acessível com apelido, e-mail e senha antes de carregar o material. O envio tenta entrar; se as credenciais não existirem, cria a conta automaticamente com o apelido informado. A sessão do GoTrue é salva em `meta/cloudAuth` com access token, refresh token e validade, sem guardar a senha; a renovação ocorre antes do vencimento e a sessão permanece durante a temporada. A modal oferece “Continuar offline” e, sem rede, o estudo prossegue com sincronização posterior. Simulados não passam pelo gate. O cadastro imediato depende de desativar a confirmação de e-mail no painel Supabase; quando ela está ativa, o app orienta a confirmar o e-mail.
+- **REQ-042 — Sincronização de nível e moedas (em implementação):** `summarizeSeason` fornece o estágio (número e nome), as moedas acumuladas e os dias ativos. Após respostas, conclusão de sessão, coleta de conquista, login e boot, o app agenda com debounce um UPSERT em `season_scores` usando `POST` com `Prefer: resolution=merge-duplicates`; o registro é limitado ao `user_id` da sessão pelas políticas RLS. Falhas de rede mantêm o placar local, marcam a sincronização como pendente e são reenviadas quando o evento `online` ocorre. A tela de configurações mostra a conta conectada, o último envio, um botão de sincronização manual e a saída da conta.
+- **REQ-043 — Ranking da temporada na home (em implementação):** a home consulta a view `season_leaderboard` para a Temporada 1, exibe uma lista com posição, apelido, nível e moedas dos cinco primeiros e destaca a linha do usuário quando ele aparece no top 5. Fora do top 5, uma linha “Sua posição” mostra a colocação do próprio usuário. O ranking é refeito a cada acesso à home, tem cache em `meta/cloudRank` para consulta offline, informa a data da última atualização e exibe estados explícitos de carregamento, ranking indisponível e servidor ainda não configurado. Sem conta, o top 5 público continua visível e um botão abre o login.
 - **REQ-027 — Testes abrangentes finais:** campanha executada ao término da fase 8 com 12 suítes temporárias, fora do repositório, em Node com DOM simulado (`happy-dom`), IndexedDB em memória (`fake-indexeddb`), Cache API e rede simuladas. A cobertura unitária validou manifesto (10 materiais/1250 questões), parser e correção por ID em todas as questões, embaralhamento estável, SRS, gamificação, moedas, ranking, cronômetro, simulados, backup, configurações, cache e isolamento de materiais malformados/manifesto inválido. As suítes de integração percorreram configurações e efeitos reais, sessão normal, cronômetro com pausa/retomada e expiração, SRS automático/manual, fila de revisões, estatísticas, XP, meta, sequência, ranking, acessibilidade, exportação/importação, restauração, exclusão de dados, simulados, coleta de conquistas e service worker. A campanha encontrou e corrigiu um defeito real: `renderStudy` aplicava spread em `renderMaterialGrid()`, que devolve um único elemento, e a rota `#/estudar` não renderizava; a chamada passou a ser inserida diretamente no array. Todas as suítes e `npm run check` passaram após a correção.
 - **REQ-028 — Documentação de uso:** `README.md` reúne visão geral, funcionalidades, requisitos, execução local por servidor HTTP, publicação no GitHub Pages, instalação como PWA em Android/iOS/desktop, rotas e uso das telas, configurações, cronômetro, simulados, economia de moedas e personagens, revisões, formato completo dos materiais com exemplo, geração/validação do manifesto, modelo de dados local, backup/importação/exclusão, estrutura do projeto, comandos de validação e limitações conhecidas. O documento também explica a correção por identificador, o funcionamento offline e a ausência de sincronização ou ranking global.
 
@@ -411,7 +435,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 
 ## I. Situação dos requisitos e dependências
 
-Os requisitos REQ-001 a REQ-040 estão implementados. A fase 9 (Temporada 1, XP interno, conquistas de temporada, feedback em modal, ajustes de conquistas na home, cabeçalho fixo da prova, simplificação das explicações e ajuste das moedas de evolução) está concluída; a próxima entrega recomendada é o planejamento da Temporada 2 e a campanha final de regressão.
+Os requisitos REQ-001 a REQ-040 estão implementados. A fase 9 está concluída. A fase 10 (conta Supabase, sessão sazonal, sincronização de nível/moedas e ranking global da Temporada 1) está em desenvolvimento; a entrega depende de aplicar `supabase/schema.sql` no projeto Supabase e, para login imediato após o cadastro, de desativar a confirmação de e-mail no painel.
 
 Dependências principais:
 
@@ -431,6 +455,9 @@ Dependências principais:
 - REQ-038 depende de REQ-005 (exibição da questão) e REQ-031 (cronômetro exibido no cabeçalho da prova).
 - REQ-039 depende de REQ-002 (normalização das questões) e REQ-007 (renderização do feedback).
 - REQ-040 depende de REQ-034 (temporada e estágios) e REQ-035 (conquistas de temporada).
+- REQ-041 depende de REQ-008 (IndexedDB), REQ-025 (indicador de conexão), REQ-026 (acessibilidade) e do fluxo de início de sessão de REQ-004/REQ-009.
+- REQ-042 depende de REQ-034 (estágio, moedas e dias ativos), de REQ-041 (conta e sessão) e do registro de respostas/sessões/coletas.
+- REQ-043 depende de REQ-041, REQ-042, da view `season_leaderboard` e do cache local de REQ-008.
 
 ---
 
@@ -441,16 +468,23 @@ Dependências principais:
 | Uma sessão normal ativa por vez | Iniciar outra prova ou revisão substitui a sessão normal em andamento; o simulado tem slot próprio e coexiste com ela | Comportamento atual do modelo de sessão; respostas já gravadas permanecem no progresso e no histórico, e o simulado não interfere nelas. |
 | Materiais fora do padrão JSON não são suportados | Provas em Markdown puro não carregam | Limitação documentada; corpus atual está dentro do padrão. |
 | Manifesto precisa ser regenerado ao adicionar provas | Esquecimento pode ocultar material | O gerador detecta e o README orienta o fluxo; a validação acusa no console. |
-| Ranking local tem um único perfil de dispositivo | Não representa ranking global | Comunicado na interface; usa apenas dados reais. |
+| Ranking local tem um único perfil de dispositivo | Não representa ranking global | O ranking global da temporada é separado e usa a conta Supabase; o ranking local por prova/disciplina continua disponível em `#/progresso`. |
 | Temporada encerrada sem nova temporada configurada | O personagem fica congelado até o próximo período ser definido | Comportamento intencional de REQ-034: moedas e dias ativos param de contar em 04/12/2026 e a interface informa o congelamento. |
+| Schema do ranking precisa ser aplicado manualmente | Sem `season_scores` e `season_leaderboard`, o ranking responde erro de tabela ausente | A publishable key não tem permissão administrativa. O usuário deve executar `supabase/schema.sql` no SQL Editor do projeto; o app mostra “ranking ainda não configurado” e o estudo continua. |
+| Confirmação de e-mail do Supabase | Com “Confirm email” ativo, o cadastro não retorna sessão e o login imediato não acontece | O app orienta a confirmar o e-mail e a desativar a confirmação no painel para o fluxo desejado. A publishable key não altera essa configuração. |
+| Pontuação enviada pelo cliente | Um usuário autenticado pode adulterar o próprio nível/moedas no payload | As políticas RLS impedem gravar em nome de outra conta, mas não validam a veracidade do placar. A limitação será registrada no README; uma validação autoritativa exigiria função/RPC no servidor. |
+| Sessão local em `meta/cloudAuth` | Tokens ficam no IndexedDB do dispositivo | A senha nunca é armazenada; o backup exclui `cloudAuth`. Sair da conta apaga a sessão local e revoga o refresh token quando há rede. |
 
 ---
 
 ## K. Testes
 
-### Verificação atual (2026-11-06)
+### Verificação atual (2026-11-07)
 
-- REQ-040 implementado; a fase 9 está concluída e não há requisitos pendentes.
+- REQ-040 implementado; a fase 9 está concluída. REQ-041, REQ-042 e REQ-043 estão em desenvolvimento.
+- Fase 10: `supabase/schema.sql` criado com `season_scores`, view `season_leaderboard`, índice de ordenação, trigger de `updated_at`, grants e políticas RLS; `js/cloud-config.js` e `js/cloud.js` criados com validação, sessão, cliente REST, erros em pt-BR e normalização do ranking. A integração de UI, a sincronização, o cache e os testes ainda serão concluídos e registrados aqui.
+- O projeto Supabase remoto ainda não possui as tabelas; a consulta a `season_scores` retornou `404`/`PGRST205`. É necessário executar o schema no SQL Editor.
+- A confirmação de e-mail está ativa no projeto (`mailer_autoconfirm: false`); para login imediato após o cadastro, desative “Confirm email” no painel Supabase.
 - Unitário de `parser.js`: questões com e sem os campos legados geraram exatamente `resolution` e `theoreticalContent` em `explanation`; `bankApproach`, `studyTip` e `reviewSummary` ficaram ausentes do objeto normalizado e os materiais continuaram válidos.
 - DOM do quiz com `happy-dom`, `fake-indexeddb` e um material real que ainda contém os campos legados: após responder e abrir o feedback, a modal exibiu “Resolução” e o comentário das alternativas, sem “Como a banca cobra”, “Dica de estudo” ou “Resumo para revisão”.
 - DOM e verificação estática do cabeçalho da prova: uma sessão real renderizou o título, o contador de questões e o `role="timer"` dentro de `.quiz-head`; o CSS confirmou `position: sticky` com `top: var(--topbar-height)`, `z-index: 30`, fundo translúcido com `backdrop-filter`, borda inferior, margens negativas de 16 px e o ajuste de 24 px em telas maiores, sem alterar o fluxo do enunciado nem a navegação inferior.
@@ -546,11 +580,12 @@ As verificações abaixo são registros históricos de cada entrega; números e 
 
 ## L. Próxima tarefa recomendada
 
-**Planejar a Temporada 2 e executar a campanha final de regressão.**
+**Concluir a fase 10: conta Supabase, sincronização e ranking global da Temporada 1.**
 
 Ordem prevista:
 
-1. Definir o período, os estágios e as conquistas da Temporada 2 em `js/season.js`, mantendo a Temporada 1 congelada no histórico.
-2. Revisar a progressão de moedas e dias ativos com os dados reais da Temporada 1.
-3. Reexecutar as suítes de temporada, conquistas, backup, limpeza e interface.
-4. Atualizar README/PROJECT_STATUS, elevar o service worker, validar, commitar e pushar.
+1. Executar `supabase/schema.sql` no SQL Editor do projeto Supabase e desativar “Confirm email” para permitir login imediato após o cadastro.
+2. Integrar em `js/app.js` a modal de conta, o gate de login em `startSession`, a persistência de `meta/cloudAuth`, a sincronização de nível/moedas e a atualização do ranking a cada acesso à home.
+3. Adicionar o cartão de ranking responsivo e acessível em `index.html`/`css/styles.css`, com top 5, posição do usuário, cache offline, estados de erro e botão de entrada.
+4. Excluir `cloudAuth` do backup, incluir `js/cloud.js`/`js/cloud-config.js` no app shell, elevar o service worker e atualizar o README com configuração do Supabase, privacidade e limitações.
+5. Testar com `fetch` simulado, `happy-dom` e `fake-indexeddb`, executar `node --check`/`npm run check`, atualizar este documento, commitar e pushar cada requisito.
