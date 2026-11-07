@@ -104,6 +104,17 @@ async function readAll(storeName) {
 const BACKUP_STORES = ["meta", "progress", "sessions", "attempts"];
 const BACKUP_KEY_FIELDS = { meta: "key", progress: "key", sessions: "id", attempts: "key" };
 
+/**
+ * Chaves de `meta` que nunca entram no backup nem são restauradas de um
+ * arquivo antigo. `cloudAuth` contém tokens de sessão do Supabase e não deve
+ * vazar em um JSON compartilhado.
+ */
+const PRIVATE_META_KEYS = new Set(["cloudAuth"]);
+
+function isPrivateMetaKey(store, key) {
+  return store === "meta" && PRIVATE_META_KEYS.has(key);
+}
+
 /** Lê os quatro stores em uma única transação para um backup consistente. */
 export async function exportDatabase() {
   const db = await openDatabase();
@@ -117,7 +128,10 @@ export async function exportDatabase() {
       };
       request.onerror = () => reject(request.error || new Error("Falha ao ler os dados locais."));
     }
-    tx.oncomplete = () => resolve(data);
+    tx.oncomplete = () => {
+      data.meta = (data.meta || []).filter((record) => !isPrivateMetaKey("meta", record?.key));
+      resolve(data);
+    };
     tx.onerror = () => reject(tx.error || new Error("Falha ao exportar os dados locais."));
     tx.onabort = () => reject(tx.error || new Error("Exportação cancelada."));
   });
@@ -138,12 +152,15 @@ export async function importDatabase(data) {
       throw new Error(`O backup não contém a lista "${store}".`);
     }
     const keyField = BACKUP_KEY_FIELDS[store];
+    const accepted = [];
     for (const record of records) {
       if (!record || typeof record !== "object" || typeof record[keyField] !== "string") {
         throw new Error(`Registro inválido em "${store}".`);
       }
+      if (isPrivateMetaKey(store, record[keyField])) continue;
+      accepted.push(record);
     }
-    clean[store] = records;
+    clean[store] = accepted;
   }
 
   const db = await openDatabase();

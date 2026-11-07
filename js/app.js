@@ -18,6 +18,7 @@ import {
   exportDatabase,
   getActiveSession,
   getGamification,
+  getMeta,
   getProgressSummary,
   getSeason,
   getSettingsRecord,
@@ -32,6 +33,7 @@ import {
   saveSettingsRecord,
   saveSimuladoHistory,
   saveSimuladoSession,
+  setMeta,
 } from "./db.js";
 import {
   computeStreak,
@@ -40,7 +42,7 @@ import {
   listAchievements,
 } from "./gamification.js";
 import { COIN_RULES, createWallet } from "./coins.js";
-import { createSeason, summarizeSeason } from "./season.js";
+import { SEASON_1, createSeason, summarizeSeason } from "./season.js";
 import {
   buildReviewQueue,
   computeSchedule,
@@ -75,8 +77,27 @@ import {
   simuladoQuestionKey,
   summarizeSimulado,
 } from "./simulado.js";
+import {
+  CloudError,
+  createCloudClient,
+  describeCloudError,
+  normalizeNickname,
+  sessionNeedsRefresh,
+  validateEmail,
+  validateNickname,
+  validatePassword,
+} from "./cloud.js";
+import { isCloudConfigured } from "./cloud-config.js";
 
 const app = document.getElementById("app");
+
+let cloudClient = null;
+try {
+  if (isCloudConfigured()) cloudClient = createCloudClient();
+} catch (error) {
+  console.warn("XLearn: ranking global indisponível.", error);
+}
+
 
 const state = {
   manifest: null,
@@ -108,7 +129,33 @@ const state = {
   finishingSession: false,
   storageWarned: false,
   route: "inicio",
+  lastRenderedRoute: null,
+  loginModal: null,
+  cloud: {
+    configured: Boolean(cloudClient),
+    ready: false,
+    session: null,
+    profile: { nickname: "" },
+    rank: { seasonId: null, top: [], me: null, fetchedAt: null },
+    rankLoading: false,
+    rankError: null,
+    rankPromise: null,
+    syncPromise: null,
+    syncTimer: null,
+    syncStatus: "idle",
+    syncError: null,
+    lastSyncAt: null,
+    pendingSync: false,
+    refreshing: null,
+  },
 };
+
+const CLOUD_STORAGE = Object.freeze({
+  auth: "cloudAuth",
+  profile: "cloudProfile",
+  rank: "cloudRank",
+});
+const CLOUD_SYNC_DELAY_MS = 2500;
 
 const ROUTES = new Set(["inicio", "estudar", "simulado", "sessao", "resumo", "revisoes", "progresso", "config"]);
 
@@ -138,6 +185,9 @@ const ICONS = {
   volume: '<path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="M15 8.5a5 5 0 0 1 0 7"/><path d="M17.8 5.7a9 9 0 0 1 0 12.6"/>',
   volumeOff: '<path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="m16 9 5 6M21 9l-5 6"/>',
   coin: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.5 9.5h4a1.8 1.8 0 0 1 0 3.6h-3a1.8 1.8 0 0 0 0 3.6h4"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5.5a3.5 3.5 0 0 1 0 7"/><path d="M17.5 14.5a5 5 0 0 1 4 5.5"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>',
+  refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
 };
 
@@ -575,6 +625,10 @@ function updateConnectionStatus({ announce = false } = {}) {
   if (announce && online) {
     toast("Conexão restaurada. Seus dados continuam salvos neste dispositivo.", "success");
   }
+  if (online && state.cloud.ready) {
+    scheduleScoreSync({ immediate: true });
+    if (state.route === "inicio") refreshHomeRanking();
+  }
 }
 
 function updateNav() {
@@ -827,6 +881,1030 @@ async function refreshProgress() {
     state.reviewQueue = { groups: [], counts: { overdue: 0, upcoming: 0 } };
   }
   updateNav();
+  scheduleScoreSync();
+}
+
+/* Conta, sincronização e ranking ------------------------------------------ */
+
+function normalizeStoredCloudSession(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const accessToken = typeof raw.accessToken === "string" ? raw.accessToken.trim() : "";
+  const userId = typeof raw.userId === "string" ? raw.userId.trim() : "";
+  if (!accessToken || !userId) return null;
+  return {
+    accessToken,
+    refreshToken: typeof raw.refreshToken === "string" ? raw.refreshToken.trim() : "",
+    tokenType: typeof raw.tokenType === "string" ? raw.tokenType : "bearer",
+    expiresAt: Number(raw.expiresAt) || 0,
+    userId,
+    email: typeof raw.email === "string" ? raw.email : "",
+    nickname: normalizeNickname(raw.nickname) || "Estudante",
+    seasonId: typeof raw.seasonId === "string" ? raw.seasonId : null,
+    createdAt: typeof raw.createdAt === "string" ? raw.createdAt : null,
+  };
+}
+
+function normalizeCachedRankEntry(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const position = Number(raw.position);
+  const levelNumber = Number(raw.levelNumber);
+  return {
+    position: Number.isFinite(position) && position > 0 ? Math.trunc(position) : 0,
+    userId: typeof raw.userId === "string" ? raw.userId : "",
+    nickname: normalizeNickname(raw.nickname) || "Estudante",
+    levelNumber:
+      Number.isFinite(levelNumber) && levelNumber > 0 ? Math.trunc(levelNumber) : 1,
+    levelName:
+      typeof raw.levelName === "string" && raw.levelName.trim()
+        ? raw.levelName.trim()
+        : "Curioso",
+    coins: Math.max(0, Math.trunc(Number(raw.coins) || 0)),
+    activeDays: Math.max(0, Math.trunc(Number(raw.activeDays) || 0)),
+    updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : null,
+  };
+}
+
+function normalizeCachedRank(raw) {
+  const top = Array.isArray(raw?.top)
+    ? raw.top.map(normalizeCachedRankEntry).filter(Boolean).slice(0, 5)
+    : [];
+  return {
+    seasonId: typeof raw?.seasonId === "string" ? raw.seasonId : null,
+    top,
+    me: normalizeCachedRankEntry(raw?.me),
+    fetchedAt: typeof raw?.fetchedAt === "string" ? raw.fetchedAt : null,
+  };
+}
+
+async function loadCloudState() {
+  if (!cloudClient) {
+    state.cloud.ready = true;
+    return;
+  }
+  try {
+    const [auth, profile, rank] = await Promise.all([
+      getMeta(CLOUD_STORAGE.auth),
+      getMeta(CLOUD_STORAGE.profile),
+      getMeta(CLOUD_STORAGE.rank),
+    ]);
+    state.cloud.session = normalizeStoredCloudSession(auth);
+    state.cloud.profile = {
+      nickname:
+        (profile && typeof profile.nickname === "string" && normalizeNickname(profile.nickname)) ||
+        state.cloud.session?.nickname ||
+        "",
+    };
+    state.cloud.rank = normalizeCachedRank(rank);
+  } catch (error) {
+    warnStorageOnce(error);
+  } finally {
+    state.cloud.ready = true;
+  }
+}
+
+async function persistCloudSession(session) {
+  state.cloud.session = session;
+  state.cloud.profile = {
+    nickname: normalizeNickname(session.nickname) || "Estudante",
+    lastSyncAt: state.cloud.lastSyncAt || null,
+  };
+  try {
+    await setMeta(CLOUD_STORAGE.auth, session);
+    await setMeta(CLOUD_STORAGE.profile, state.cloud.profile);
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+}
+
+async function clearCloudSession() {
+  state.cloud.session = null;
+  state.cloud.syncStatus = "idle";
+  state.cloud.syncError = null;
+  state.cloud.pendingSync = false;
+  if (state.cloud.rank?.me) state.cloud.rank = { ...state.cloud.rank, me: null };
+  try {
+    await setMeta(CLOUD_STORAGE.auth, null);
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+}
+
+async function ensureCloudSession({ force = false } = {}) {
+  if (!cloudClient || !state.cloud.session) return null;
+  const current = state.cloud.session;
+  if (!force && !sessionNeedsRefresh(current)) return current;
+  if (!isOnline()) {
+    state.cloud.syncStatus = "offline";
+    return null;
+  }
+  if (state.cloud.refreshing) return state.cloud.refreshing;
+
+  const task = (async () => {
+    try {
+      const next = await cloudClient.refresh(current);
+      await persistCloudSession(next);
+      return next;
+    } catch (error) {
+      if (error instanceof CloudError && error.network) {
+        state.cloud.syncStatus = "offline";
+        return null;
+      }
+      if (
+        error instanceof CloudError &&
+        (error.authInvalid || error.credentials)
+      ) {
+        await clearCloudSession();
+        state.cloud.syncError = "Sua sessão expirou. Entre novamente para voltar ao ranking.";
+        toast("Sua sessão expirou. Entre novamente para voltar ao ranking.", "info");
+        return null;
+      }
+      console.warn("XLearn: falha ao renovar a sessão.", error);
+      return null;
+    } finally {
+      state.cloud.refreshing = null;
+    }
+  })();
+  state.cloud.refreshing = task;
+  void task.finally(() => {
+    if (state.cloud.refreshing === task) state.cloud.refreshing = null;
+  });
+  return task;
+}
+
+function currentCloudScore() {
+  if (!state.cloud.session) return null;
+  const season = summarizeSeason(state.season || createSeason(), state.stats?.daily || {});
+  return {
+    seasonId: season.season.id,
+    nickname: state.cloud.session.nickname,
+    levelNumber: season.stageNumber,
+    levelName: season.stage.name,
+    coins: season.season.coinsEarned,
+    activeDays: season.activeDays,
+  };
+}
+
+function scheduleScoreSync({ immediate = false } = {}) {
+  if (!state.cloud.ready || !cloudClient || !state.cloud.session) return;
+  if (!isOnline()) {
+    state.cloud.pendingSync = true;
+    state.cloud.syncStatus = "offline";
+    return;
+  }
+  if (state.cloud.syncTimer) window.clearTimeout(state.cloud.syncTimer);
+  state.cloud.syncTimer = window.setTimeout(
+    () => {
+      state.cloud.syncTimer = null;
+      syncScoreNow();
+    },
+    immediate ? 0 : CLOUD_SYNC_DELAY_MS
+  );
+}
+
+async function syncScoreNow({ refreshRankingAfter = true } = {}) {
+  if (!cloudClient) return null;
+  if (state.cloud.syncPromise) return state.cloud.syncPromise;
+  if (state.cloud.syncTimer) {
+    window.clearTimeout(state.cloud.syncTimer);
+    state.cloud.syncTimer = null;
+  }
+
+  const task = (async () => {
+    try {
+      if (!state.cloud.session) return null;
+      if (!isOnline()) {
+        state.cloud.pendingSync = true;
+        state.cloud.syncStatus = "offline";
+        return null;
+      }
+      const session = await ensureCloudSession();
+      if (!session) return null;
+      const score = currentCloudScore();
+      if (!score) return null;
+
+      state.cloud.syncStatus = "syncing";
+      state.cloud.syncError = null;
+      let saved = null;
+      try {
+        saved = await cloudClient.saveScore(session, score);
+      } catch (error) {
+        if (error instanceof CloudError && error.authInvalid) {
+          const renewed = await ensureCloudSession({ force: true });
+          if (!renewed) throw error;
+          saved = await cloudClient.saveScore(renewed, score);
+        } else {
+          throw error;
+        }
+      }
+
+      state.cloud.syncStatus = "synced";
+      state.cloud.syncError = null;
+      state.cloud.pendingSync = false;
+      state.cloud.lastSyncAt = new Date().toISOString();
+      state.cloud.profile = {
+        nickname: normalizeNickname(session.nickname) || "Estudante",
+        lastSyncAt: state.cloud.lastSyncAt,
+      };
+      try {
+        await setMeta(CLOUD_STORAGE.profile, state.cloud.profile);
+      } catch (error) {
+        warnStorageOnce(error);
+      }
+      if (refreshRankingAfter && currentRoute() === "inicio") refreshRanking();
+      return saved;
+    } catch (error) {
+      if (error instanceof CloudError && error.network) {
+        state.cloud.syncStatus = "offline";
+        state.cloud.pendingSync = true;
+      } else if (error instanceof CloudError && error.tableMissing) {
+        state.cloud.syncStatus = "unconfigured";
+      } else {
+        state.cloud.syncStatus = "error";
+      }
+      state.cloud.syncError = describeCloudError(
+        error,
+        "Não foi possível sincronizar sua pontuação agora."
+      );
+      console.warn("XLearn: falha ao sincronizar a pontuação.", error);
+      if (currentRoute() === "inicio") render();
+      return null;
+    }
+  })();
+
+  state.cloud.syncPromise = task;
+  void task.finally(() => {
+    if (state.cloud.syncPromise === task) state.cloud.syncPromise = null;
+  });
+  return task;
+}
+
+async function refreshRanking({ manual = false } = {}) {
+  if (!cloudClient) {
+    state.cloud.rankError = "unconfigured";
+    return null;
+  }
+  if (state.cloud.rankPromise) return state.cloud.rankPromise;
+  if (!isOnline()) {
+    state.cloud.rankError = "offline";
+    if (manual) {
+      toast(
+        "Sem conexão. O ranking será atualizado quando a internet voltar.",
+        "info"
+      );
+    }
+    if (currentRoute() === "inicio") render();
+    return null;
+  }
+
+  const season = state.season || createSeason();
+  const seasonId = season.id || SEASON_1.id;
+  state.cloud.rankLoading = true;
+  state.cloud.rankError = null;
+  if (currentRoute() === "inicio") render();
+
+  const task = (async () => {
+    try {
+      const session = await ensureCloudSession();
+      const [top, own] = await Promise.all([
+        cloudClient.fetchLeaderboard(seasonId, { limit: 5, session }),
+        session
+          ? cloudClient.fetchOwnRank(seasonId, session.userId, { session })
+          : Promise.resolve(null),
+      ]);
+      const me =
+        own ||
+        (session ? top.find((entry) => entry.userId === session.userId) || null : null);
+      state.cloud.rank = {
+        seasonId,
+        top,
+        me,
+        fetchedAt: new Date().toISOString(),
+      };
+      state.cloud.rankError = null;
+      try {
+        await setMeta(CLOUD_STORAGE.rank, state.cloud.rank);
+      } catch (error) {
+        warnStorageOnce(error);
+      }
+      return state.cloud.rank;
+    } catch (error) {
+      if (error instanceof CloudError && error.network) {
+        state.cloud.rankError = "offline";
+      } else if (error instanceof CloudError && error.tableMissing) {
+        state.cloud.rankError = "unconfigured";
+      } else {
+        state.cloud.rankError = describeCloudError(
+          error,
+          "Não foi possível atualizar o ranking agora."
+        );
+      }
+      if (manual) toast(state.cloud.rankError, "error");
+      return null;
+    } finally {
+      state.cloud.rankLoading = false;
+      if (currentRoute() === "inicio") render();
+    }
+  })();
+
+  state.cloud.rankPromise = task;
+  void task.finally(() => {
+    if (state.cloud.rankPromise === task) state.cloud.rankPromise = null;
+  });
+  return task;
+}
+
+async function refreshHomeRanking() {
+  if (!state.cloud.ready) return null;
+  if (state.cloud.session) {
+    await syncScoreNow({ refreshRankingAfter: false });
+  }
+  return refreshRanking();
+}
+
+async function signOutCloud() {
+  const previous = state.cloud.session;
+  if (previous && cloudClient) {
+    try {
+      await cloudClient.signOut(previous);
+    } catch (error) {
+      console.warn("XLearn: não foi possível revogar a sessão no servidor.", error);
+    }
+  }
+  await clearCloudSession();
+  toast("Você saiu da conta. Seu progresso local continua salvo.", "info");
+  render();
+}
+
+async function syncCloudNow() {
+  if (!state.cloud.session) {
+    openLoginModal({ trigger: document.activeElement });
+    return;
+  }
+  const saved = await syncScoreNow({ refreshRankingAfter: false });
+  if (saved) {
+    toast("Pontuação sincronizada com o ranking.", "success");
+    await refreshRanking();
+  } else if (state.cloud.syncStatus === "unconfigured") {
+    toast(
+      "O ranking ainda não foi configurado no servidor. Execute supabase/schema.sql no Supabase.",
+      "error"
+    );
+  } else if (state.cloud.syncStatus === "offline") {
+    toast("Sem conexão. A pontuação será enviada quando a rede voltar.", "info");
+  } else {
+    toast(
+      state.cloud.syncError || "Não foi possível sincronizar a pontuação agora.",
+      "error"
+    );
+  }
+  if (currentRoute() === "config" || currentRoute() === "inicio") render();
+}
+
+function cloudSyncStatusLabel() {
+  switch (state.cloud.syncStatus) {
+    case "syncing":
+      return "Sincronizando…";
+    case "synced":
+      return state.cloud.lastSyncAt
+        ? `Sincronizado em ${formatDateTime(state.cloud.lastSyncAt)}`
+        : "Pontuação sincronizada";
+    case "offline":
+      return "Sem conexão; envio pendente";
+    case "unconfigured":
+      return "Ranking ainda não configurado no servidor";
+    case "error":
+      return state.cloud.syncError || "Falha ao sincronizar";
+    default:
+      return state.cloud.lastSyncAt
+        ? `Última sincronização em ${formatDateTime(state.cloud.lastSyncAt)}`
+        : "Pontuação ainda não sincronizada";
+  }
+}
+
+/* Ranking da temporada ---------------------------------------------------- */
+
+function renderCloudRankRow(entry, { me = false } = {}) {
+  return h(
+    "li",
+    {
+      class: `ranking-row${entry.position <= 3 ? " is-podium" : ""}${me ? " is-me" : ""}`,
+      "aria-label": `${entry.position}º lugar: ${entry.nickname}, ${entry.levelName}, ${plural(
+        entry.coins,
+        "moeda",
+        "moedas"
+      )}`,
+    },
+    h("span", {
+      class: "ranking-row__position",
+      text: `${entry.position}º`,
+      "aria-hidden": "true",
+    }),
+    h(
+      "div",
+      { class: "ranking-row__body" },
+      h(
+        "strong",
+        {},
+        entry.nickname,
+        me ? h("span", { class: "rank-me-tag", text: "você" }) : null
+      ),
+      h("span", {
+        text: `${entry.levelName} · ${plural(entry.activeDays, "dia ativo", "dias ativos")}`,
+      })
+    ),
+    h(
+      "span",
+      { class: "ranking-row__score" },
+      h("strong", { text: String(entry.coins) }),
+      h("small", { text: "moedas" })
+    )
+  );
+}
+
+function renderCloudRanking() {
+  const rank = state.cloud.rank || { top: [], me: null, fetchedAt: null };
+  const top = Array.isArray(rank.top) ? rank.top : [];
+  const me = rank.me;
+  const meInTop = Boolean(me && top.some((entry) => entry.userId === me.userId));
+  const ownPosition = me && !meInTop ? me : null;
+  const session = state.cloud.session;
+  const seasonName = state.season?.name || SEASON_1.name;
+
+  let statusChip;
+  if (!cloudClient) {
+    statusChip = h("span", { class: "chip chip--neutral", text: "indisponível" });
+  } else if (state.cloud.rankLoading) {
+    statusChip = h("span", { class: "chip chip--neutral", text: "atualizando…" });
+  } else if (state.cloud.rankError === "offline") {
+    statusChip = h("span", { class: "chip chip--danger", text: "offline" });
+  } else if (state.cloud.rankError) {
+    statusChip = h("span", { class: "chip chip--danger", text: "indisponível" });
+  } else if (session) {
+    statusChip = h("span", { class: "chip chip--success", text: "participando" });
+  } else {
+    statusChip = h("span", { class: "chip chip--neutral", text: "público" });
+  }
+
+  const notices = [];
+  if (
+    state.cloud.rankError &&
+    state.cloud.rankError !== "offline" &&
+    state.cloud.rankError !== "unconfigured"
+  ) {
+    notices.push(
+      h(
+        "div",
+        { class: "notice notice--warning", role: "status" },
+        h("strong", { text: "Ranking desatualizado. " }),
+        String(state.cloud.rankError)
+      )
+    );
+  }
+  if (state.cloud.rankError === "offline") {
+    notices.push(
+      h(
+        "div",
+        { class: "notice notice--info", role: "status" },
+        h("strong", { text: "Sem conexão. " }),
+        top.length > 0
+          ? "Exibindo o último ranking salvo neste dispositivo."
+          : "O ranking será exibido quando a internet voltar."
+      )
+    );
+  }
+  if (state.cloud.rankError === "unconfigured") {
+    notices.push(
+      h(
+        "div",
+        { class: "notice notice--warning", role: "status" },
+        h("strong", { text: "Ranking ainda não configurado. " }),
+        "O estudo continua normalmente; a pontuação será enviada quando o servidor estiver pronto."
+      )
+    );
+  }
+
+  let body;
+  if (!cloudClient) {
+    body = h("p", {
+      class: "hint",
+      text: "O ranking global ainda não está configurado neste ambiente.",
+    });
+  } else if (top.length > 0) {
+    body = h(
+      "ol",
+      { class: "ranking-list", "aria-label": `Top 5 da ${seasonName}` },
+      ...top.map((entry) => renderCloudRankRow(entry, { me: entry.userId === session?.userId }))
+    );
+  } else if (state.cloud.rankLoading) {
+    body = h("p", { class: "hint", text: "Atualizando o ranking da temporada…" });
+  } else if (!state.cloud.rankError) {
+    body = h(
+      "div",
+      { class: "rank-empty" },
+      h("p", {
+        text: "Ainda não há participantes com atividade nesta temporada.",
+      }),
+      h("p", {
+        class: "hint",
+        text: "Responda pelo menos uma questão para aparecer no ranking.",
+      })
+    );
+  } else {
+    body = null;
+  }
+
+  const ownSection = ownPosition
+    ? h(
+        "div",
+        { class: "rank-card__own" },
+        h("h3", { class: "ranking-group-title", text: "Sua posição" }),
+        h(
+          "ol",
+          { class: "ranking-list", "aria-label": "Sua posição no ranking" },
+          renderCloudRankRow(ownPosition, { me: true })
+        )
+      )
+    : null;
+
+  const loginCta = !session
+    ? h(
+        "div",
+        { class: "rank-card__cta" },
+        h("p", {
+          class: "hint",
+          text: "Entre ou crie uma conta para enviar seu nível e suas moedas e disputar a temporada.",
+        }),
+        h(
+          "button",
+          {
+            class: "btn btn--primary btn--sm",
+            type: "button",
+            onclick: () => openLoginModal({ trigger: document.activeElement }),
+          },
+          icon("user"),
+          "Entrar e participar"
+        )
+      )
+    : null;
+
+  const pendingHint =
+    session && !me && !state.cloud.rankLoading && !state.cloud.rankError
+      ? h("p", {
+          class: "hint",
+          text: "Sua conta ainda não pontuou nesta temporada. Responda uma questão para entrar no ranking.",
+        })
+      : null;
+
+  const updatedLabel = rank.fetchedAt
+    ? `Atualizado em ${formatDateTime(rank.fetchedAt)}.`
+    : "Ainda não atualizado.";
+
+  return h(
+    "section",
+    { class: "card rank-card", "aria-labelledby": "cloud-rank-title" },
+    h(
+      "div",
+      { class: "section-head" },
+      h(
+        "div",
+        {},
+        h("span", { class: "eyebrow" }, icon("trophy"), "Ranking da temporada"),
+        h("h2", { id: "cloud-rank-title", text: `Top 5 da ${seasonName}` })
+      ),
+      h(
+        "div",
+        { class: "rank-card__tools" },
+        statusChip,
+        cloudClient
+          ? h(
+              "button",
+              {
+                class: "icon-btn",
+                type: "button",
+                "aria-label": "Atualizar ranking",
+                title: "Atualizar ranking",
+                disabled: state.cloud.rankLoading,
+                onclick: () => refreshRanking({ manual: true }),
+              },
+              icon("refresh")
+            )
+          : null
+      )
+    ),
+    ...notices,
+    body,
+    ownSection,
+    pendingHint,
+    loginCta,
+    h("p", {
+      class: "hint rank-card__foot",
+      text: `${updatedLabel} Apelido, nível e moedas são públicos; seu e-mail nunca aparece.`,
+    })
+  );
+}
+
+/* Modal de conta ---------------------------------------------------------- */
+
+function updateLoginModal() {
+  if (!state.loginModal?.open) return;
+  const overlay = document.querySelector('[data-role="login-modal"]');
+  if (!overlay) return;
+  const modal = state.loginModal;
+  const errorNode = overlay.querySelector('[data-role="login-error"]');
+  if (errorNode) {
+    errorNode.hidden = !modal.error;
+    errorNode.textContent = modal.error || "";
+  }
+  const offlineNode = overlay.querySelector('[data-role="login-offline"]');
+  if (offlineNode) offlineNode.hidden = isOnline();
+  const form = overlay.querySelector('[data-role="login-form"]');
+  if (form) {
+    form.setAttribute("aria-busy", modal.busy ? "true" : "false");
+    form.querySelectorAll("input").forEach((input) => {
+      input.disabled = modal.busy;
+    });
+  }
+  const submit = overlay.querySelector('[data-role="login-submit"]');
+  if (submit) {
+    submit.disabled = modal.busy;
+    const label = submit.querySelector('[data-role="login-submit-label"]');
+    if (label) {
+      label.textContent = modal.busy
+        ? "Entrando…"
+        : modal.pendingStart
+          ? "Entrar e começar"
+          : "Entrar";
+    }
+  }
+  const offlineButton = overlay.querySelector('[data-role="login-offline-action"]');
+  if (offlineButton) offlineButton.disabled = modal.busy;
+}
+
+function buildLoginModal() {
+  const modal = state.loginModal;
+  const nickname = normalizeNickname(state.cloud.profile?.nickname) || "";
+  const form = h(
+    "form",
+    {
+      class: "login-form",
+      "data-role": "login-form",
+      novalidate: true,
+      onsubmit: submitCloudLogin,
+    },
+    h(
+      "div",
+      { class: "field-grid" },
+      h(
+        "label",
+        { class: "field" },
+        h("span", { text: "Apelido" }),
+        h("input", {
+          name: "nickname",
+          id: "login-nickname",
+          type: "text",
+          maxlength: "24",
+          autocomplete: "nickname",
+          placeholder: "Como você quer aparecer no ranking",
+          value: nickname,
+          required: true,
+        }),
+        h("small", {
+          text: "Se a conta já existir, o apelido salvo nela é mantido.",
+        })
+      ),
+      h(
+        "label",
+        { class: "field" },
+        h("span", { text: "E-mail" }),
+        h("input", {
+          name: "email",
+          id: "login-email",
+          type: "email",
+          autocomplete: "email",
+          inputmode: "email",
+          placeholder: "voce@exemplo.com",
+          required: true,
+        })
+      ),
+      h(
+        "label",
+        { class: "field" },
+        h("span", { text: "Senha" }),
+        h("input", {
+          name: "password",
+          id: "login-password",
+          type: "password",
+          autocomplete: "current-password",
+          minlength: "6",
+          maxlength: "72",
+          placeholder: "Mínimo de 6 caracteres",
+          required: true,
+        })
+      )
+    ),
+    h("div", {
+      class: "notice notice--error",
+      "data-role": "login-error",
+      role: "alert",
+      hidden: true,
+    }),
+    h(
+      "div",
+      { class: "login-modal__actions" },
+      h(
+        "button",
+        { class: "btn btn--primary", type: "submit", "data-role": "login-submit" },
+        icon("lock"),
+        h("span", {
+          "data-role": "login-submit-label",
+          text: modal.pendingStart ? "Entrar e começar" : "Entrar",
+        })
+      ),
+      h(
+        "button",
+        {
+          class: "btn btn--ghost",
+          type: "button",
+          "data-role": "login-offline-action",
+          onclick: continueOfflineFromLogin,
+        },
+        "Continuar offline"
+      )
+    ),
+    h("p", {
+      class: "hint",
+      text:
+        "Se ainda não tem conta, ela é criada automaticamente. Seu e-mail não aparece no ranking; apenas apelido, nível e moedas são públicos.",
+    })
+  );
+
+  return h(
+    "div",
+    {
+      class: "feedback-modal login-modal",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "login-title",
+      "aria-describedby": "login-desc",
+      tabindex: "-1",
+    },
+    h(
+      "div",
+      { class: "feedback-modal__bar" },
+      h(
+        "span",
+        { class: "eyebrow" },
+        icon("trophy"),
+        "Conta da temporada"
+      ),
+      h(
+        "div",
+        { class: "feedback-modal__actions" },
+        h(
+          "button",
+          {
+            class: "icon-btn feedback-modal__close",
+            type: "button",
+            "aria-label": "Fechar login",
+            title: "Fechar login (Esc)",
+            onclick: () => closeLoginModal(),
+          },
+          icon("x")
+        )
+      )
+    ),
+    h(
+      "div",
+      { class: "feedback-modal__body login-modal__body" },
+      h(
+        "div",
+        { class: "login-modal__content" },
+        h(
+          "div",
+          { class: "login-modal__intro" },
+          h("span", { class: "eyebrow" }, icon("sparkles"), state.season?.name || SEASON_1.name),
+          h("h2", { id: "login-title", text: "Entre para disputar o ranking" }),
+          h("p", {
+            id: "login-desc",
+            class: "hint",
+            text: "Use apelido, e-mail e senha. Sua sessão fica ativa durante a temporada e o nível e as moedas são enviados ao ranking.",
+          })
+        ),
+        h(
+          "div",
+          {
+            class: "notice notice--warning",
+            "data-role": "login-offline",
+            hidden: isOnline(),
+          },
+          h("strong", { text: "Sem conexão. " }),
+          "Você pode estudar agora e entrar depois para sincronizar seu nível e suas moedas."
+        ),
+        form,
+        h("p", {
+          class: "hint",
+          text:
+            "Para o login funcionar imediatamente após o cadastro, a confirmação de e-mail deve estar desativada no painel do Supabase. Se ela estiver ativa, o app pede que você confirme o e-mail antes de entrar.",
+        })
+      )
+    )
+  );
+}
+
+function openLoginModal({ entry = null, options = null, trigger = null } = {}) {
+  if (!cloudClient) {
+    toast(
+      "O ranking global ainda não está configurado neste ambiente; o estudo continua normalmente.",
+      "info"
+    );
+    if (entry) startSession(entry, { ...(options || {}), skipCloudGate: true });
+    return;
+  }
+  if (state.loginModal?.open) {
+    if (entry) state.loginModal.pendingStart = { entry, options: options || {} };
+    if (trigger instanceof HTMLElement) state.loginModal.trigger = trigger;
+    updateLoginModal();
+    return;
+  }
+
+  state.loginModal = {
+    open: true,
+    pendingStart: entry ? { entry, options: options || {} } : null,
+    trigger: trigger instanceof HTMLElement ? trigger : document.activeElement,
+    error: null,
+    busy: false,
+  };
+  setFeedbackBackgroundInert(true);
+  document.body.classList.add("has-modal");
+  const dialog = buildLoginModal();
+  const overlay = h(
+    "div",
+    {
+      class: "feedback-modal-backdrop login-modal-backdrop",
+      "data-role": "login-modal",
+    },
+    dialog
+  );
+  overlay.addEventListener("keydown", handleLoginModalKeydown);
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay && !state.loginModal?.busy) closeLoginModal();
+  });
+  document.body.append(overlay);
+  requestAnimationFrame(() => {
+    const target = overlay.querySelector("#login-nickname");
+    (target?.value ? overlay.querySelector("#login-email") : target)?.focus?.({
+      preventScroll: true,
+    });
+  });
+}
+
+function closeLoginModal({ restoreFocus = true } = {}) {
+  const modal = state.loginModal;
+  if (!modal) return;
+  document.querySelector('[data-role="login-modal"]')?.remove();
+  if (!state.feedbackModalOpen) {
+    document.body.classList.remove("has-modal");
+    setFeedbackBackgroundInert(false);
+  }
+  state.loginModal = null;
+  if (restoreFocus) {
+    const target = modal.trigger;
+    (target?.isConnected ? target : document.getElementById("main"))?.focus?.({
+      preventScroll: true,
+    });
+  }
+}
+
+function handleLoginModalKeydown(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!state.loginModal?.busy) closeLoginModal();
+    return;
+  }
+  if (event.key === "Tab") trapModalFocus(event);
+}
+
+function trapModalFocus(event) {
+  const overlay = event.currentTarget;
+  const focusables = Array.from(
+    overlay.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
+    )
+  );
+  if (focusables.length === 0) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (event.shiftKey) {
+    if (
+      document.activeElement === first ||
+      document.activeElement === overlay.firstElementChild ||
+      !overlay.contains(document.activeElement)
+    ) {
+      event.preventDefault();
+      last.focus();
+    }
+  } else if (document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function continueOfflineFromLogin() {
+  const pending = state.loginModal?.pendingStart || null;
+  closeLoginModal({ restoreFocus: false });
+  if (pending) {
+    toast(
+      "Estudo iniciado sem conta. Entre depois para enviar seu nível e suas moedas ao ranking.",
+      "info"
+    );
+    startSession(pending.entry, {
+      ...(pending.options || {}),
+      skipCloudGate: true,
+    });
+  }
+}
+
+async function submitCloudLogin(event) {
+  event.preventDefault();
+  const modal = state.loginModal;
+  if (!modal || modal.busy || !cloudClient) return;
+  const form = event.currentTarget;
+  let credentials;
+  try {
+    credentials = {
+      nickname: validateNickname(form.elements.nickname?.value),
+      email: validateEmail(form.elements.email?.value),
+      password: validatePassword(form.elements.password?.value),
+    };
+  } catch (error) {
+    modal.error = describeCloudError(error, "Confira os dados informados.");
+    updateLoginModal();
+    return;
+  }
+
+  modal.busy = true;
+  modal.error = null;
+  updateLoginModal();
+
+  try {
+    let session = null;
+    try {
+      session = await cloudClient.signIn({
+        email: credentials.email,
+        password: credentials.password,
+      });
+    } catch (error) {
+      if (!(error instanceof CloudError) || !error.credentials) throw error;
+      const result = await cloudClient.signUp(credentials);
+      if (!result.session) {
+        modal.error =
+          "Cadastro recebido. Se esta conta já existia, confira a senha; se é nova, confirme o e-mail enviado. Para entrar imediatamente, desative “Confirm email” no painel do Supabase.";
+        modal.busy = false;
+        updateLoginModal();
+        return;
+      }
+      session = result.session;
+    }
+
+    if (session.nickname !== credentials.nickname) {
+      try {
+        session = await cloudClient.updateNickname(session, credentials.nickname);
+      } catch (error) {
+        if (error instanceof CloudError && error.authInvalid) throw error;
+        console.warn("XLearn: não foi possível atualizar o apelido.", error);
+      }
+    }
+
+    await persistCloudSession(session);
+    const pending = state.loginModal?.pendingStart || null;
+    modal.busy = false;
+    modal.error = null;
+    updateLoginModal();
+    toast(`Conta conectada como ${session.nickname}.`, "success");
+    closeLoginModal({ restoreFocus: false });
+
+    if (pending) {
+      syncScoreNow();
+      startSession(pending.entry, {
+        ...(pending.options || {}),
+        skipCloudGate: true,
+      });
+    } else {
+      syncScoreNow();
+      if (currentRoute() === "inicio") refreshHomeRanking();
+      else if (currentRoute() === "config") render();
+    }
+  } catch (error) {
+    if (state.loginModal) {
+      state.loginModal.error = describeCloudError(
+        error,
+        "Não foi possível entrar agora. Tente novamente."
+      );
+      state.loginModal.busy = false;
+      updateLoginModal();
+    }
+  }
 }
 
 async function restoreActiveSession() {
@@ -938,10 +2016,12 @@ async function initialize() {
   colorScheme?.addEventListener?.("change", () => {
     if (getSettings().theme === "system") applyVisualSettings(getSettings());
   });
+  await loadCloudState();
   await loadCatalog({ quiet: true });
   await restoreActiveSession();
   await refreshProgress();
   render();
+  if (currentRoute() === "inicio") refreshHomeRanking();
 }
 
 function boot() {
@@ -979,6 +2059,7 @@ function boot() {
     if (state.feedbackModalOpen) closeFeedbackModal({ restoreFocus: false });
     state.route = currentRoute();
     render({ focus: true });
+    if (state.route === "inicio") refreshHomeRanking();
   });
   render();
   initialize();
@@ -1127,6 +2208,8 @@ function renderHome() {
     ),
 
     renderQuickStats(),
+
+    renderCloudRanking(),
 
     renderHomeAchievements(),
 
@@ -2316,6 +3399,106 @@ function previewSound(form, name) {
   });
 }
 
+function renderCloudAccountCard() {
+  const session = state.cloud.session;
+  const nickname = session?.nickname || normalizeNickname(state.cloud.profile?.nickname) || "";
+  const ownRank = state.cloud.rank?.me || null;
+
+  return h(
+    "section",
+    { class: "card cloud-account", "aria-labelledby": "cloud-account-title" },
+    h(
+      "div",
+      { class: "section-head" },
+      h(
+        "div",
+        {},
+        h("span", { class: "eyebrow" }, icon("user"), "Conta da temporada"),
+        h("h2", {
+          id: "cloud-account-title",
+          text: session ? nickname : "Ranking global",
+        })
+      ),
+      h("span", {
+        class: `chip ${session ? "chip--success" : "chip--neutral"}`,
+        text: session ? "conectada" : "sem conta",
+      })
+    ),
+    !cloudClient
+      ? h("p", {
+          class: "hint",
+          text: "O ranking global ainda não está configurado neste ambiente. O estudo continua local.",
+        })
+      : session
+        ? [
+            h("p", {
+              class: "hint",
+              text: `Conta conectada como ${nickname}. Seu e-mail não aparece no ranking; apenas apelido, nível e moedas são públicos.`,
+            }),
+            h("p", { class: "cloud-account__status", role: "status" }, cloudSyncStatusLabel()),
+            ownRank
+              ? h("p", {
+                  class: "hint",
+                  text: `Sua posição atual: ${ownRank.position}º lugar, com ${plural(
+                    ownRank.coins,
+                    "moeda",
+                    "moedas"
+                  )} e ${plural(ownRank.activeDays, "dia ativo", "dias ativos")}.`,
+                })
+              : null,
+            h(
+              "div",
+              { class: "data-actions" },
+              h(
+                "button",
+                {
+                  class: "btn btn--ghost",
+                  type: "button",
+                  onclick: syncCloudNow,
+                  disabled: state.cloud.syncStatus === "syncing",
+                },
+                icon("refresh"),
+                "Sincronizar agora"
+              ),
+              h(
+                "button",
+                {
+                  class: "btn btn--danger",
+                  type: "button",
+                  onclick: signOutCloud,
+                },
+                icon("x"),
+                "Sair da conta"
+              )
+            ),
+            h("p", {
+              class: "hint",
+              text: "Sair da conta apaga a sessão deste dispositivo. Seu progresso local permanece salvo e pode ser enviado ao entrar novamente.",
+            }),
+          ]
+        : [
+            h("p", {
+              class: "hint",
+              text: "Entre ou crie uma conta para enviar seu nível e suas moedas ao ranking da temporada. Sem conexão, você pode estudar normalmente e sincronizar depois.",
+            }),
+            h(
+              "div",
+              { class: "data-actions" },
+              h(
+                "button",
+                {
+                  class: "btn btn--primary",
+                  type: "button",
+                  onclick: () => openLoginModal({ trigger: document.activeElement }),
+                },
+                icon("user"),
+                "Entrar ou criar conta"
+              )
+            ),
+          ]
+  );
+}
+
 function renderSettings() {
   const settings = getSettings();
   const form = h(
@@ -2672,6 +3855,8 @@ function renderSettings() {
         text: "O primeiro toque na página libera o áudio no navegador. O botão de alto-falante no topo alterna os sons rapidamente.",
       })
     ),
+
+    renderCloudAccountCard(),
 
     h(
       "section",
@@ -3086,6 +4271,9 @@ async function confirmPendingImport() {
   showLoadingOverlay("Restaurando backup…");
   try {
     await importDatabase(pending.backup.data);
+    // O backup nunca contém tokens. Se este dispositivo já tem uma sessão
+    // ativa, ela é regravada para não ser perdida pela substituição do meta.
+    if (state.cloud.session) await persistCloudSession(state.cloud.session);
     stopTimerTicker();
     state.session = null;
     state.sessionMaterial = null;
@@ -3470,7 +4658,23 @@ function renderMaterialGrid() {
 
 /* Session ----------------------------------------------------------------- */
 
+function shouldRequestCloudLogin(options = {}) {
+  if (options.skipCloudGate || options.mode === "simulado") return false;
+  if (!cloudClient || !state.cloud.ready || state.cloud.session) return false;
+  return true;
+}
+
 async function startSession(entry, options = {}) {
+  if (shouldRequestCloudLogin(options)) {
+    if (isOnline()) {
+      openLoginModal({ entry, options, trigger: document.activeElement });
+      return;
+    }
+    toast(
+      "Sem conexão: seu estudo começa agora. Entre depois para enviar seu nível e suas moedas ao ranking.",
+      "info"
+    );
+  }
   showLoadingOverlay("Preparando sua sessão…");
   try {
     const material = await loadMaterial(entry, { force: options.force });

@@ -12,7 +12,7 @@
  * Ao alterar arquivos do shell, incremente VERSION para invalidar as caches.
  */
 
-const VERSION = "v18";
+const VERSION = "v19";
 const SHELL_CACHE = `xlearn-shell-${VERSION}`;
 const RUNTIME_CACHE = `xlearn-runtime-${VERSION}`;
 
@@ -22,6 +22,8 @@ const SHELL_PATHS = [
   "css/styles.css",
   "manifest.webmanifest",
   "js/app.js",
+  "js/cloud.js",
+  "js/cloud-config.js",
   "js/db.js",
   "js/parser.js",
   "js/questions.js",
