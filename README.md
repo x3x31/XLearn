@@ -7,7 +7,7 @@ PWA educacional para estudar por questões, com alternativas embaralhadas, feedb
 
 ## Sobre
 
-O XLearn lê provas em Markdown padronizado na pasta `questoes/`, gera um manifesto e apresenta os materiais em uma interface responsiva em português brasileiro. Não há cadastro, servidor de aplicação, banco remoto nem ranking global: o progresso pertence ao dispositivo e ao navegador usados.
+O XLearn lê provas em Markdown padronizado na pasta `questoes/`, gera um manifesto e apresenta os materiais em uma interface responsiva em português brasileiro. O progresso de estudo pertence ao dispositivo e ao navegador usados. Uma conta opcional no Supabase permite participar do ranking global da Temporada 1; sem conta ou sem internet, todo o estudo continua funcionando localmente.
 
 O projeto usa apenas HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, Cache API, Service Worker e Web App Manifest. Não há frameworks, bibliotecas de execução, fontes externas ou CDNs.
 
@@ -20,6 +20,7 @@ O projeto usa apenas HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, Cache
 - **Simulados:** montagem por assunto e quantidade de questões, com resumo próprio por disciplina.
 - **Cronômetro opcional:** contagem regressiva de 5 a 120 minutos nas provas, exibida em um cabeçalho fixo com o contador de questões, com pausa automática ao trocar de aba, pausa enquanto o feedback está aberto e encerramento ao zerar.
 - **Gamificação:** temporada com evolução por moedas acumuladas e dias ativos, meta diária, sequência de estudos, conquistas e ranking local.
+- **Conta e ranking global:** cadastro/login opcional por apelido, e-mail e senha para enviar nível e moedas ao ranking da Temporada 1, com top 5 na tela inicial, posição do próprio usuário, sessão persistente e sincronização automática quando a conexão volta.
 - **Moedas e personagem:** recompensas por acerto, sessão e meta; coleta manual das moedas das conquistas, com pendências destacadas na tela inicial e animação centralizada ao coletar; personagem com cinco estágios que evolui apenas dentro da temporada e congela ao término.
 - **Som e ludicidade:** efeitos gerados via Web Audio, com volume configurável e respeito a animações reduzidas.
 - **Acessibilidade:** navegação por teclado, foco visível, link de pular, rótulos ARIA, contraste e alvos de toque adequados.
@@ -84,12 +85,12 @@ A navegação inferior leva às áreas principais:
 
 | Área | Rota | O que faz |
 |---|---|---|
-| Início | `#/inicio` | Visão rápida da temporada, estágio, moedas, meta/sequência e conquistas pendentes de coleta, com atalhos para o progresso, sessões em andamento e revisões vencidas. |
+| Início | `#/inicio` | Visão rápida da temporada, estágio, moedas, meta/sequência, conquistas pendentes de coleta e ranking global (top 5 e posição do usuário), com atalhos para o progresso, sessões em andamento e revisões vencidas. |
 | Provas | `#/estudar` | Lista os materiais disponíveis e inicia uma sessão de estudo. |
 | Revisões | `#/revisoes` | Mostra a fila de revisões vencidas e futuras, agrupada por prova. |
 | Simulado | `#/simulado` | Monta uma prova por assunto, com quantidade configurável de questões. |
 | Progresso | `#/progresso` | Totais, precisão, temporada, personagem, moedas, dias ativos, meta/sequência, ranking local, conquistas e tentativas recentes. |
-| Configurações | `#/config` | Ajustes de estudo, aparência, som, dados e backup. |
+| Configurações | `#/config` | Ajustes de estudo, aparência, som, conta da temporada, dados e backup. |
 
 Durante uma sessão:
 
@@ -141,6 +142,18 @@ A **Temporada 1** vai de **05/11/2026 a 04/12/2026**. O personagem evolui pelo m
 Gastar moedas não reduz o acumulado da temporada. Ao final de 04/12/2026, o personagem congela no último estágio alcançado e só volta a evoluir quando uma nova temporada for definida.
 
 As conquistas de temporada são **Primeira evolução** (alcançar o estágio 2) e **Mestre da temporada** (alcançar o estágio máximo). O XP continua sendo calculado e gravado como métrica interna, mas não aparece na interface nem influencia a evolução do personagem.
+
+### Conta e ranking da temporada
+
+Participar do ranking global é opcional. Ao iniciar a primeira prova normal sem uma conta conectada, o app pede **apelido, e-mail e senha**; se o e-mail ainda não existir, a conta é criada automaticamente. A sessão fica salva no dispositivo durante a temporada e é renovada antes de expirar. A senha nunca é armazenada no navegador.
+
+- **O que é público:** apelido, estágio (nível) e moedas acumuladas na temporada, além dos dias ativos. Seu e-mail nunca aparece no ranking.
+- **O que é enviado:** o placar derivado do mesmo progresso local usado pelo personagem. O envio é automático após respostas, sessões, coletas e ao abrir a home, com reenvio quando a conexão volta.
+- **Ranking na home:** mostra o top 5 da Temporada 1 e, quando você está fora dele, também a sua posição. O ranking é atualizado a cada acesso à home e fica em cache para consulta offline.
+- **Sem internet:** a modal oferece **Continuar offline**. O estudo funciona normalmente e a pontuação é sincronizada depois.
+- **Simulados:** não pedem conta e não enviam pontuação ao ranking.
+- **Privacidade:** o backup JSON exclui a sessão (`cloudAuth`); portanto, tokens e e-mail da conta não vão para o arquivo exportado. Sair da conta apaga a sessão local e revoga o token de renovação quando há rede.
+- **Limitação:** o placar é montado pelo cliente. As políticas do Supabase impedem gravar em nome de outra conta, mas não validam a veracidade dos valores enviados pelo próprio usuário.
 
 ### Revisões
 
@@ -246,7 +259,9 @@ Em **Configurações → Dados**:
 ├── css/
 │   └── styles.css
 ├── js/
-│   ├── app.js          # rotas e interface
+│   ├── app.js          # rotas, interface, sessão e ranking
+│   ├── cloud.js        # cliente REST do Supabase (Auth/PostgREST)
+│   ├── cloud-config.js # URL e chave publishable do Supabase
 │   ├── db.js           # IndexedDB e transações
 │   ├── parser.js       # leitura e validação dos materiais
 │   ├── questions.js    # manifesto e carregamento
@@ -263,6 +278,7 @@ Em **Configurações → Dados**:
 │   └── sound.js        # efeitos via Web Audio
 ├── questoes/           # materiais .md e manifest.json
 ├── scripts/            # gerador de manifesto e ícones
+├── supabase/           # schema canônico e migration do ranking
 ├── icons/              # ícones da PWA
 └── assets/characters/  # estágios do personagem
 ```
@@ -288,12 +304,13 @@ A campanha final de testes está registrada em `PROJECT_STATUS.md`. Os testes au
 - **Uma sessão normal por vez:** iniciar outra prova ou revisão substitui a sessão normal ativa. O simulado tem um espaço próprio e pode coexistir com ela. Respostas já gravadas permanecem no progresso e no histórico.
 - **Formato específico:** só materiais Markdown com blocos ```json no padrão descrito são carregados. Markdown livre não é convertido em questão.
 - **Manifesto manual:** adicionar uma prova exige executar `npm run build:manifest`.
-- **Ranking local:** representa apenas o histórico daquele navegador/dispositivo; não existe ranking global nem conta de usuário.
+- **Ranking local × global:** o ranking local em `#/progresso` representa apenas aquele navegador/dispositivo. O ranking global da Temporada 1 depende de uma conta Supabase e mostra somente apelido, nível e moedas.
+- **Conta opcional:** sem conta, o estudo continua e o top 5 público é exibido, mas sua pontuação não entra no ranking. A sessão da conta fica no IndexedDB e não é transferida pelo backup.
+- **Placar enviado pelo cliente:** o app calcula e envia o próprio nível/moedas. As políticas RLS impedem gravar em nome de outra conta, mas não atestam a veracidade do placar.
 - **Dados por navegador:** trocar de navegador, limpar o armazenamento ou usar outro dispositivo não transfere o progresso automaticamente. Use o backup JSON.
-- **Offline parcial:** o app shell fica disponível após a primeira visita, mas cada prova só fica offline depois de ser acessada uma vez.
+- **Offline parcial:** o app shell fica disponível após a primeira visita, mas cada prova só fica offline depois de ser acessada uma vez. A pontuação pendente é reenviada quando a conexão volta.
 - **Service worker:** exige HTTPS ou `localhost`.
 - **Som:** depende de suporte a Web Audio e é liberado após o primeiro gesto do usuário, conforme a política dos navegadores.
-- **Sem sincronização:** não há servidor, login, nuvem ou compartilhamento de progresso.
 
 ## Licença
 

@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.38.0` (REQ-042 implementado) |
+| **Versão atual** | `0.39.0` (REQ-043 implementado) |
 | **Data da última atualização** | 2026-11-07 |
 
 ---
@@ -42,7 +42,7 @@ A interface é em português brasileiro e prioriza telas pequenas, com navegaç�
 
 ## C. Especificações funcionais
 
-Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Os requisitos REQ-001 a REQ-042 estão `IMPLEMENTADO`; REQ-043 está `EM DESENVOLVIMENTO`, conforme a coluna Status abaixo.
+Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Os requisitos REQ-001 a REQ-043 estão `IMPLEMENTADO`, conforme a coluna Status abaixo.
 
 ### Fase 1 — Base funcional
 
@@ -135,7 +135,7 @@ Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`
 |---|---|---|---|---|
 | REQ-041 | Conta Supabase e sessão sazonal | Solicitar cadastro/login ao iniciar a primeira prova de uma sessão normal, pedindo apelido, e-mail e senha. O cadastro é automático quando o e-mail ainda não existe, e a sessão é persistida em IndexedDB com tokens de acesso/renovação durante a Temporada 1. Sem internet, o estudo continua e o login pode ser feito depois. Simulados permanecem isolados e não exigem conta. | Alta | IMPLEMENTADO |
 | REQ-042 | Sincronização de nível e moedas | Enviar ao Supabase o apelido, o estágio (número e nome) e as moedas acumuladas na temporada, além dos dias ativos, sempre que o progresso mudar (respostas, conclusão de sessão, coleta de conquista e acesso à home). A gravação usa UPSERT por `user_id`/`season_id`, é limitada ao próprio usuário por RLS, tolera falhas de rede e reenvia quando a conexão volta. | Alta | IMPLEMENTADO |
-| REQ-043 | Ranking da temporada na home | Exibir na tela inicial os cinco primeiros usuários ativos da Temporada 1 com posição, apelido, nível e moedas; quando o usuário estiver fora do top 5, mostrar também a posição dele. O ranking é atualizado a cada acesso à home, tem cache local para consulta offline e informa quando está desatualizado ou indisponível. | Alta | EM DESENVOLVIMENTO |
+| REQ-043 | Ranking da temporada na home | Exibir na tela inicial os cinco primeiros usuários ativos da Temporada 1 com posição, apelido, nível e moedas; quando o usuário estiver fora do top 5, mostrar também a posição dele. O ranking é atualizado a cada acesso à home, tem cache local para consulta offline e informa quando está desatualizado ou indisponível. | Alta | IMPLEMENTADO |
 
 ### Critérios de aceitação gerais
 
@@ -383,7 +383,8 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.36.0 | REQ-041, REQ-042, REQ-043 | Planejamento da conta Supabase, da sessão sazonal e do ranking global da Temporada 1; criação de `supabase/schema.sql` (tabela, view, RLS e grants) e dos módulos `js/cloud-config.js` e `js/cloud.js`; integração de UI, sincronização e cache em andamento | `ba66293` | 2026-11-07 |
 | 0.36.1 | REQ-041, REQ-042, REQ-043 | Entrega conjunta do código da fase 10 (commit manual do mantenedor): cliente Supabase, modal e sessão, sincronização, ranking na home, estilos, backup sem `cloudAuth`, schema/migration e service worker `v19` | `e1b2b88` | 2026-11-07 |
 | 0.37.0 | REQ-041 | Validação e documentação da conta Supabase: cadastro/login por apelido, e-mail e senha, sessão em `meta/cloudAuth` renovada por refresh token, modal acessível com “Continuar offline”, gate na primeira prova normal, simulados fora do gate e exclusão de `cloudAuth` do backup; schema/migration aplicados no remoto, confirmação de e-mail desativada e service worker `v19` | `2af1a02` | 2026-11-07 |
-| 0.38.0 | REQ-042 | Validação e documentação da sincronização de nível e moedas: placar derivado de `summarizeSeason`, UPSERT por `user_id`/`season_id`, debounce, reenvio ao reconectar, cartão de conta com status e sincronização manual, além de testes unitários e DOM do fluxo completo | `—` | 2026-11-07 |
+| 0.38.0 | REQ-042 | Validação e documentação da sincronização de nível e moedas: placar derivado de `summarizeSeason`, UPSERT por `user_id`/`season_id`, debounce, reenvio ao reconectar, cartão de conta com status e sincronização manual, além de testes unitários e DOM do fluxo completo | `d3fe7dc` | 2026-11-07 |
+| 0.39.0 | REQ-043 | Validação e documentação do ranking global na home: top 5 com posição, apelido, nível e moedas, posição do usuário fora do top 5, atualização a cada acesso, cache offline em `meta/cloudRank`, estados de carregamento/erro, estilos responsivos e testes DOM do fluxo completo | `—` | 2026-11-07 |
 
 ---
 
@@ -430,7 +431,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-040 — Ajuste das moedas de evolução:** `SEASON_STAGES` em `js/season.js` passou a exigir 300 moedas no Estudante, 600 no Focado, 1000 no Veterano e 1500 no Mestre dos estudos, mantendo o Curioso em 0 e os dias ativos em 0/3/6/9/12. As barras de progresso, as mensagens de moedas restantes, as conquistas de temporada e o congelamento após 04/12/2026 continuam usando o mesmo cálculo: o maior estágio que atende simultaneamente às moedas acumuladas na temporada e aos dias ativos. `README.md` e este documento foram atualizados com as novas faixas, e o service worker passou a `v18` para invalidar o shell.
 - **REQ-041 — Conta Supabase e sessão sazonal:** ao iniciar uma sessão normal sem conta conectada, `startSession` abre uma modal acessível com apelido, e-mail e senha antes de carregar o material. O envio tenta entrar; se as credenciais não existirem, cria a conta automaticamente com o apelido informado. A sessão do GoTrue é salva em `meta/cloudAuth` com access token, refresh token e validade, sem guardar a senha; a renovação ocorre antes do vencimento e a sessão permanece durante a temporada. A modal oferece “Continuar offline” e, sem rede, o estudo prossegue com sincronização posterior. Simulados não passam pelo gate. A confirmação de e-mail está desativada no projeto (`mailer_autoconfirm: true`), de modo que o cadastro devolve sessão imediatamente. O backup exclui a chave `cloudAuth` e uma importação antiga não restaura tokens.
 - **REQ-042 — Sincronização de nível e moedas:** `summarizeSeason` fornece o estágio (número e nome), as moedas acumuladas e os dias ativos. Após respostas, conclusão de sessão, coleta de conquista, login e boot, o app agenda com debounce um UPSERT em `season_scores` usando `POST` com `Prefer: resolution=merge-duplicates`; o registro é limitado ao `user_id` da sessão pelas políticas RLS. Falhas de rede mantêm o placar local, marcam a sincronização como pendente e são reenviadas quando o evento `online` ocorre. A tela de configurações mostra a conta conectada, o último envio, um botão de sincronização manual e a saída da conta.
-- **REQ-043 — Ranking da temporada na home (em implementação):** a home consulta a view `season_leaderboard` para a Temporada 1, exibe uma lista com posição, apelido, nível e moedas dos cinco primeiros e destaca a linha do usuário quando ele aparece no top 5. Fora do top 5, uma linha “Sua posição” mostra a colocação do próprio usuário. O ranking é refeito a cada acesso à home, tem cache em `meta/cloudRank` para consulta offline, informa a data da última atualização e exibe estados explícitos de carregamento, ranking indisponível e servidor ainda não configurado. Sem conta, o top 5 público continua visível e um botão abre o login.
+- **REQ-043 — Ranking da temporada na home:** a home consulta a view `season_leaderboard` para a Temporada 1, exibe uma lista com posição, apelido, nível e moedas dos cinco primeiros e destaca a linha do usuário quando ele aparece no top 5. Fora do top 5, uma linha “Sua posição” mostra a colocação do próprio usuário. O ranking é refeito a cada acesso à home, tem cache em `meta/cloudRank` para consulta offline, informa a data da última atualização e exibe estados explícitos de carregamento, ranking indisponível e servidor ainda não configurado. Sem conta, o top 5 público continua visível e um botão abre o login.
 - **REQ-027 — Testes abrangentes finais:** campanha executada ao término da fase 8 com 12 suítes temporárias, fora do repositório, em Node com DOM simulado (`happy-dom`), IndexedDB em memória (`fake-indexeddb`), Cache API e rede simuladas. A cobertura unitária validou manifesto (10 materiais/1250 questões), parser e correção por ID em todas as questões, embaralhamento estável, SRS, gamificação, moedas, ranking, cronômetro, simulados, backup, configurações, cache e isolamento de materiais malformados/manifesto inválido. As suítes de integração percorreram configurações e efeitos reais, sessão normal, cronômetro com pausa/retomada e expiração, SRS automático/manual, fila de revisões, estatísticas, XP, meta, sequência, ranking, acessibilidade, exportação/importação, restauração, exclusão de dados, simulados, coleta de conquistas e service worker. A campanha encontrou e corrigiu um defeito real: `renderStudy` aplicava spread em `renderMaterialGrid()`, que devolve um único elemento, e a rota `#/estudar` não renderizava; a chamada passou a ser inserida diretamente no array. Todas as suítes e `npm run check` passaram após a correção.
 - **REQ-028 — Documentação de uso:** `README.md` reúne visão geral, funcionalidades, requisitos, execução local por servidor HTTP, publicação no GitHub Pages, instalação como PWA em Android/iOS/desktop, rotas e uso das telas, configurações, cronômetro, simulados, economia de moedas e personagens, revisões, formato completo dos materiais com exemplo, geração/validação do manifesto, modelo de dados local, backup/importação/exclusão, estrutura do projeto, comandos de validação e limitações conhecidas. O documento também explica a correção por identificador, o funcionamento offline e a ausência de sincronização ou ranking global.
 
@@ -438,7 +439,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 
 ## I. Situação dos requisitos e dependências
 
-Os requisitos REQ-001 a REQ-042 estão implementados. A fase 9 está concluída. A fase 10 (conta Supabase, sessão sazonal, sincronização de nível/moedas e ranking global da Temporada 1) está em andamento: o schema remoto foi aplicado, a confirmação de e-mail foi desativada e falta concluir a exibição do ranking (REQ-043).
+Os requisitos REQ-001 a REQ-043 estão implementados. A fase 9 e a fase 10 (conta Supabase, sessão sazonal, sincronização de nível/moedas e ranking global da Temporada 1) estão concluídas. O schema remoto foi aplicado, a confirmação de e-mail está desativada e a validação final em produção permanece como próxima tarefa.
 
 Dependências principais:
 
@@ -484,13 +485,15 @@ Dependências principais:
 
 ### Verificação atual (2026-11-07)
 
-- REQ-041 e REQ-042 implementados; a fase 9 está concluída e REQ-043 segue em desenvolvimento.
+- REQ-041, REQ-042 e REQ-043 implementados; a fase 9 está concluída e a fase 10 está implementada, com validação em produção pendente.
 - Fase 10: `supabase/schema.sql` e a migration `supabase/migrations/20261107000000_season_ranking.sql` contêm `season_scores`, view `season_leaderboard`, índice de ordenação, trigger de `updated_at`, grants e políticas RLS; `js/cloud-config.js` e `js/cloud.js` foram criados com validação, sessão, cliente REST, erros em pt-BR e normalização do ranking.
 - O schema foi aplicado no projeto remoto `qskeuqmlxbipiwsxyglv`; a consulta REST a `season_scores` e `season_leaderboard` respondeu `200`, e um `INSERT` anônimo foi recusado com `401`/`42501`, confirmando a RLS. O ranking remoto está vazio até o primeiro participante pontuar.
 - A confirmação de e-mail foi desativada no projeto (`mailer_autoconfirm: true`), com `site_url` em produção e `uri_allow_list` incluindo GitHub Pages e `localhost:3000`. Um cadastro real de teste retornou sessão e `email_confirmado: true`; o usuário de teste foi removido em seguida.
 - Teste unitário de `js/cloud.js` com `fetch` simulado: validação de apelido/e-mail/senha, expiração de sessão, login, cadastro sem confirmação, renovação por refresh token, atualização de apelido, UPSERT com `Prefer: resolution=merge-duplicates`, envio sem e-mail, top 5, posição própria e mapeamento de erros (credenciais, tabela ausente e rede).
 - Teste de backup com `fake-indexeddb`: `cloudAuth` não entra na exportação, tokens e e-mail não aparecem no JSON, um backup antigo com `cloudAuth` é importado sem restaurar a sessão, as configurações válidas são restauradas e a sessão atual pode ser regravada depois sem voltar ao backup.
 - DOM com `happy-dom` e `fake-indexeddb` para a conta: login pela home e pelo gate, sessão persistida em `meta/cloudAuth` com access token e sem senha, cartão “Conta da temporada” em `#/config` com apelido, status de sincronização, posição, “Sincronizar agora” e “Sair da conta”, e saída limpando a sessão local. O envio usou `POST` em `season_scores` com `Prefer: resolution=merge-duplicates` e `user_id` da sessão; o ranking público funcionou sem conta.
+- DOM do ranking com `happy-dom` e `fake-indexeddb`: a home sem conta consultou apenas `season_leaderboard` e exibiu os cinco primeiros com posição, apelido, nível e moedas; o botão “Entrar e participar” abriu a modal; após o login, a posição própria (7º) apareceu fora do top 5, com “você”, e o total de linhas passou a seis. O destaque do usuário no top 5, o botão de atualização manual, os estados offline/indisponível e o cache em `meta/cloudRank` foram cobertos pela implementação e pela leitura do código.
+- Fluxo de gate e offline no DOM: iniciar uma prova normal sem conta manteve a rota `#/estudar` e abriu a modal; “Continuar offline” iniciou a sessão e carregou uma questão real; a rota `#/simulado` abriu sem modal, confirmando o isolamento dos simulados.
 - Teste de renovação e erros do cliente Supabase: `refresh_token` renova access/refresh tokens antes do vencimento, `PUT /auth/v1/user` atualiza o apelido, credenciais inválidas, tabela ausente e falha de rede são convertidas em `CloudError` com mensagens em pt-BR; nenhum payload de pontuação inclui e-mail.
 - Unitário de `parser.js`: questões com e sem os campos legados geraram exatamente `resolution` e `theoreticalContent` em `explanation`; `bankApproach`, `studyTip` e `reviewSummary` ficaram ausentes do objeto normalizado e os materiais continuaram válidos.
 - DOM do quiz com `happy-dom`, `fake-indexeddb` e um material real que ainda contém os campos legados: após responder e abrir o feedback, a modal exibiu “Resolução” e o comentário das alternativas, sem “Como a banca cobra”, “Dica de estudo” ou “Resumo para revisão”.
@@ -505,10 +508,10 @@ Dependências principais:
 - Toasts corrigidos e acima da modal: a animação `toast-rise` preserva `translate(-50%, …)` em todos os quadros, mantendo as mensagens centralizadas horizontalmente em qualquer tela; a modal usa `z-index` inferior ao dos toasts.
 - `npm run check`: 10 materiais válidos, 1.250 questões, 0 erros e 0 avisos.
 - `node --check` em todos os `js/*.js`, `service-worker.js` e `scripts/*.mjs`: sem erros de sintaxe.
-- `service-worker.js` em `v17`, com 29 caminhos no app shell, todos presentes no repositório.
+- `service-worker.js` em `v19`, com 31 caminhos no app shell (incluindo `js/cloud.js` e `js/cloud-config.js`), todos presentes no repositório.
 - `questoes/manifest.json` válido e coerente com os 10 materiais; `package.json` sem dependências de execução.
 - Renderização do dashboard mantém o descarte de entradas nulas; a home preserva os quatro atalhos para `#/progresso` e o cartão da temporada ocupa o lugar do antigo card de personagem em `#/progresso`.
-- `main` sincronizada com `origin/main` e árvore de trabalho limpa ao final desta revisão.
+- `main` sincronizada com `origin/main`; o código da fase 10 foi entregue no commit `e1b2b88` e a validação/documentação por requisito nos commits seguintes. A árvore de trabalho fica limpa ao final desta revisão.
 
 As verificações abaixo são registros históricos de cada entrega; números e versões de cache citados nelas refletem o momento em que foram executadas.
 
@@ -587,12 +590,12 @@ As verificações abaixo são registros históricos de cada entrega; números e 
 
 ## L. Próxima tarefa recomendada
 
-**Concluir a fase 10: conta Supabase, sincronização e ranking global da Temporada 1.**
+**Validar a fase 10 em produção e preparar a continuidade da temporada.**
 
 Ordem prevista:
 
-1. Executar `supabase/schema.sql` no SQL Editor do projeto Supabase e desativar “Confirm email” para permitir login imediato após o cadastro.
-2. Integrar em `js/app.js` a modal de conta, o gate de login em `startSession`, a persistência de `meta/cloudAuth`, a sincronização de nível/moedas e a atualização do ranking a cada acesso à home.
-3. Adicionar o cartão de ranking responsivo e acessível em `index.html`/`css/styles.css`, com top 5, posição do usuário, cache offline, estados de erro e botão de entrada.
-4. Excluir `cloudAuth` do backup, incluir `js/cloud.js`/`js/cloud-config.js` no app shell, elevar o service worker e atualizar o README com configuração do Supabase, privacidade e limitações.
-5. Testar com `fetch` simulado, `happy-dom` e `fake-indexeddb`, executar `node --check`/`npm run check`, atualizar este documento, commitar e pushar cada requisito.
+1. Após o deploy do GitHub Pages, abrir `https://x3x31.github.io/XLearn/`, criar uma conta de teste, iniciar uma prova normal, responder uma questão e confirmar o UPSERT em `season_scores`.
+2. Verificar o top 5 da home, a posição do próprio usuário fora do top 5, o cartão da conta em `#/config`, a sincronização manual e a saída da conta em um navegador real.
+3. Testar o modo offline: estudar sem rede, confirmar que o app não bloqueia a sessão e que o placar é reenviado ao reconectar.
+4. Remover a conta de teste do projeto Supabase e conferir que o ranking remoto não expõe e-mail nem tokens.
+5. Planejar a Temporada 2 (novo `seasonId`, período e faixas) antes de 04/12/2026, mantendo o congelamento da Temporada 1 e a possibilidade de arquivar o placar anterior.
