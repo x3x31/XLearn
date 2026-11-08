@@ -189,6 +189,7 @@ const ICONS = {
   user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>',
   refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
+  logout: '<path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
 };
 
 /* Helpers ----------------------------------------------------------------- */
@@ -530,7 +531,12 @@ function buildShell() {
         "a",
         { class: "brand", href: "#/inicio", "aria-label": "XLearn — início" },
         h("span", { class: "brand__mark", html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICONS.logo}</svg>` }),
-        h("span", {}, "XLearn", h("small", { text: "aprender praticando" }))
+        h(
+          "span",
+          {},
+          "XLearn",
+          h("small", { "data-role": "brand-subtitle", text: "aprender praticando" })
+        )
       ),
       h(
         "div",
@@ -540,19 +546,13 @@ function buildShell() {
           {
             class: "connection-status",
             "data-role": "connection-status",
-            "data-state": "online",
+            "data-state": "visitor",
             role: "status",
             "aria-live": "polite",
-            "aria-label": "Conectado à internet",
+            "aria-label": "Visitante — sem conta conectada",
           },
           h("span", { class: "dot", "aria-hidden": "true" }),
-          h("span", { "data-role": "connection-label", text: "Online" })
-        ),
-        h(
-          "span",
-          { class: "topbar__badge", "data-role": "topbar-badge" },
-          h("span", { class: "dot", "aria-hidden": "true" }),
-          h("span", { text: "Estudo local" })
+          h("span", { "data-role": "connection-label", text: "Visitante" })
         ),
         h(
           "button",
@@ -564,6 +564,19 @@ function buildShell() {
             onclick: toggleSound,
           },
           icon("volume")
+        ),
+        h(
+          "button",
+          {
+            class: "icon-btn logout-toggle",
+            type: "button",
+            "data-role": "logout-button",
+            "aria-label": "Sair da conta",
+            title: "Sair da conta",
+            hidden: true,
+            onclick: signOutCloud,
+          },
+          icon("logout")
         ),
         h(
           "a",
@@ -611,15 +624,46 @@ function isOnline() {
   return typeof navigator === "undefined" || navigator.onLine !== false;
 }
 
+function connectionPresentation() {
+  if (!state.cloud.ready || !state.cloud.session) {
+    return {
+      state: "visitor",
+      label: "Visitante",
+      ariaLabel: "Visitante — sem conta conectada",
+    };
+  }
+  return isOnline()
+    ? { state: "online", label: "Online", ariaLabel: "Conectado à internet" }
+    : { state: "offline", label: "Offline", ariaLabel: "Sem conexão com a internet" };
+}
+
+function syncConnectionIndicator() {
+  const status = document.querySelector('[data-role="connection-status"]');
+  if (!status) return;
+  const presentation = connectionPresentation();
+  status.dataset.state = presentation.state;
+  status.setAttribute("aria-label", presentation.ariaLabel);
+  const label = status.querySelector('[data-role="connection-label"]');
+  if (label) label.textContent = presentation.label;
+}
+
+function updateTopbarIdentity() {
+  const session = state.cloud.ready ? state.cloud.session : null;
+  const subtitle = document.querySelector('[data-role="brand-subtitle"]');
+  if (subtitle) {
+    subtitle.textContent = session ? session.nickname : "aprender praticando";
+    subtitle.classList.toggle("brand__nickname", Boolean(session));
+    if (session) subtitle.title = session.nickname;
+    else subtitle.removeAttribute("title");
+  }
+  const logout = document.querySelector('[data-role="logout-button"]');
+  if (logout) logout.hidden = !session;
+  syncConnectionIndicator();
+}
+
 function updateConnectionStatus({ announce = false } = {}) {
   const online = isOnline();
-  const status = document.querySelector('[data-role="connection-status"]');
-  if (status) {
-    status.dataset.state = online ? "online" : "offline";
-    status.setAttribute("aria-label", online ? "Conectado à internet" : "Sem conexão com a internet");
-    const label = status.querySelector('[data-role="connection-label"]');
-    if (label) label.textContent = online ? "Online" : "Offline";
-  }
+  syncConnectionIndicator();
   const banner = document.querySelector('[data-role="offline-banner"]');
   if (banner) banner.hidden = online;
   if (announce && online) {
@@ -673,16 +717,6 @@ function updateNav() {
       )
     )
   );
-}
-
-function updateBadge() {
-  const badge = document.querySelector('[data-role="topbar-badge"] span:last-child');
-  if (!badge) return;
-  if (state.manifest?.summary) {
-    badge.textContent = `${state.manifest.summary.questions} questões`;
-  } else {
-    badge.textContent = "Estudo local";
-  }
 }
 
 async function loadCatalog({ force = false, quiet = false } = {}) {
@@ -1877,6 +1911,7 @@ async function submitCloudLogin(event) {
     }
 
     await persistCloudSession(session);
+    updateTopbarIdentity();
     const pending = state.loginModal?.pendingStart || null;
     modal.busy = false;
     modal.error = null;
@@ -2109,7 +2144,7 @@ function render({ focus = false } = {}) {
   syncTimerDisplay();
   if (state.route === "simulado") syncSimuladoTotal(document.getElementById("simulado-form"));
   updateNav();
-  updateBadge();
+  updateTopbarIdentity();
   updateSoundToggle();
   const settingsLink = document.querySelector('[data-role="settings-link"]');
   if (settingsLink) {

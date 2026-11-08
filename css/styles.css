@@ -235,6 +235,17 @@ button:disabled {
   color: var(--muted);
 }
 
+.brand small.brand__nickname {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--text-soft);
+}
+
 .topbar__actions {
   display: flex;
   align-items: center;
@@ -246,25 +257,8 @@ button:disabled {
   height: 44px;
 }
 
-.topbar__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 11px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: 600;
-}
-
-.topbar__badge .dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--success);
-  box-shadow: 0 0 0 3px var(--success-soft);
+.icon-btn[hidden] {
+  display: none;
 }
 
 .connection-status {
@@ -297,6 +291,16 @@ button:disabled {
 .connection-status[data-state="offline"] .dot {
   background: var(--warning);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 20%, transparent);
+}
+
+.connection-status[data-state="visitor"] {
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.connection-status[data-state="visitor"] .dot {
+  background: var(--muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--muted) 18%, transparent);
 }
 
 .offline-banner {
@@ -3054,12 +3058,6 @@ body.has-modal {
 @media (min-width: 1000px) {
   .bottom-nav {
     width: min(620px, calc(100% - 48px));
-  }
-}
-
-@media (max-width: 600px) {
-  .topbar__badge[data-role="topbar-badge"] {
-    display: none;
   }
 }
 

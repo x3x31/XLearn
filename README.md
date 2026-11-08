@@ -20,7 +20,7 @@ O projeto usa apenas HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, Cache
 - **Simulados:** montagem por assunto e quantidade de questões, com resumo próprio por disciplina.
 - **Cronômetro opcional:** contagem regressiva de 5 a 120 minutos nas provas, exibida em um cabeçalho fixo com o contador de questões, com pausa automática ao trocar de aba, pausa enquanto o feedback está aberto e encerramento ao zerar.
 - **Gamificação:** temporada com evolução por moedas acumuladas e dias ativos, meta diária, sequência de estudos, conquistas e ranking local.
-- **Conta e ranking global:** cadastro/login opcional por apelido, e-mail e senha para enviar nível e moedas ao ranking da Temporada 1, com top 5 na tela inicial, posição do próprio usuário, sessão persistente e sincronização automática quando a conexão volta.
+- **Conta e ranking global:** cadastro/login opcional por apelido, e-mail e senha para enviar nível e moedas ao ranking da Temporada 1, com top 5 na tela inicial, posição do próprio usuário, sessão persistente, apelido e saída rápida na barra superior e sincronização automática quando a conexão volta.
 - **Moedas e personagem:** recompensas por acerto, sessão e meta; coleta manual das moedas das conquistas, com pendências destacadas na tela inicial e animação centralizada ao coletar; personagem com cinco estágios que evolui apenas dentro da temporada e congela ao término.
 - **Som e ludicidade:** efeitos gerados via Web Audio, com volume configurável e respeito a animações reduzidas.
 - **Acessibilidade:** navegação por teclado, foco visível, link de pular, rótulos ARIA, contraste e alvos de toque adequados.
@@ -150,6 +150,7 @@ Participar do ranking global é opcional. Ao iniciar a primeira prova normal sem
 - **O que é público:** apelido, estágio (nível) e moedas acumuladas na temporada, além dos dias ativos. Seu e-mail nunca aparece no ranking.
 - **O que é enviado:** o placar derivado do mesmo progresso local usado pelo personagem. O envio é automático após respostas, sessões, coletas e ao abrir a home, com reenvio quando a conexão volta.
 - **Ranking na home:** mostra o top 5 da Temporada 1 e, quando você está fora dele, também a sua posição. O ranking é atualizado a cada acesso à home e fica em cache para consulta offline.
+- **Barra superior:** com a conta conectada, o apelido aparece no lugar de “aprender praticando” e um botão de sair fica ao lado das configurações. O indicador de conexão mostra **Online**, **Offline** ou **Visitante** (sem conta ou após sair). A quantidade de questões não é mais exibida no topo.
 - **Sem internet:** a modal oferece **Continuar offline**. O estudo funciona normalmente e a pontuação é sincronizada depois.
 - **Simulados:** não pedem conta e não enviam pontuação ao ranking.
 - **Privacidade:** o backup JSON exclui a sessão (`cloudAuth`); portanto, tokens e e-mail da conta não vão para o arquivo exportado. Sair da conta apaga a sessão local e revoga o token de renovação quando há rede.
