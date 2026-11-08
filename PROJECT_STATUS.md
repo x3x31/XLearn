@@ -384,7 +384,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.36.1 | REQ-041, REQ-042, REQ-043 | Entrega conjunta do código da fase 10 (commit manual do mantenedor): cliente Supabase, modal e sessão, sincronização, ranking na home, estilos, backup sem `cloudAuth`, schema/migration e service worker `v19` | `e1b2b88` | 2026-11-07 |
 | 0.37.0 | REQ-041 | Validação e documentação da conta Supabase: cadastro/login por apelido, e-mail e senha, sessão em `meta/cloudAuth` renovada por refresh token, modal acessível com “Continuar offline”, gate na primeira prova normal, simulados fora do gate e exclusão de `cloudAuth` do backup; schema/migration aplicados no remoto, confirmação de e-mail desativada e service worker `v19` | `2af1a02` | 2026-11-07 |
 | 0.38.0 | REQ-042 | Validação e documentação da sincronização de nível e moedas: placar derivado de `summarizeSeason`, UPSERT por `user_id`/`season_id`, debounce, reenvio ao reconectar, cartão de conta com status e sincronização manual, além de testes unitários e DOM do fluxo completo | `d3fe7dc` | 2026-11-07 |
-| 0.39.0 | REQ-043 | Validação e documentação do ranking global na home: top 5 com posição, apelido, nível e moedas, posição do usuário fora do top 5, atualização a cada acesso, cache offline em `meta/cloudRank`, estados de carregamento/erro, estilos responsivos e testes DOM do fluxo completo | `—` | 2026-11-07 |
+| 0.39.0 | REQ-043 | Validação e documentação do ranking global na home: top 5 com posição, apelido, nível e moedas, posição do usuário fora do top 5, atualização a cada acesso, cache offline em `meta/cloudRank`, estados de carregamento/erro, estilos responsivos e testes DOM do fluxo completo | `60c2ba0` | 2026-11-07 |
 
 ---
 
