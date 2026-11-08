@@ -485,10 +485,11 @@ Dependências principais:
 
 ### Verificação atual (2026-11-07)
 
-- REQ-041, REQ-042 e REQ-043 implementados; a fase 9 está concluída e a fase 10 está implementada, com validação em produção pendente.
+- REQ-041, REQ-042 e REQ-043 implementados; a fase 9 e a fase 10 estão concluídas. O backend de produção foi validado de ponta a ponta em 2026-11-07; faltam apenas as conferências manuais em navegador real (layout do ranking, modal, cartão da conta e modo offline).
 - Fase 10: `supabase/schema.sql` e a migration `supabase/migrations/20261107000000_season_ranking.sql` contêm `season_scores`, view `season_leaderboard`, índice de ordenação, trigger de `updated_at`, grants e políticas RLS; `js/cloud-config.js` e `js/cloud.js` foram criados com validação, sessão, cliente REST, erros em pt-BR e normalização do ranking.
-- O schema foi aplicado no projeto remoto `qskeuqmlxbipiwsxyglv`; a consulta REST a `season_scores` e `season_leaderboard` respondeu `200`, e um `INSERT` anônimo foi recusado com `401`/`42501`, confirmando a RLS. O ranking remoto está vazio até o primeiro participante pontuar.
-- A confirmação de e-mail foi desativada no projeto (`mailer_autoconfirm: true`), com `site_url` em produção e `uri_allow_list` incluindo GitHub Pages e `localhost:3000`. Um cadastro real de teste retornou sessão e `email_confirmado: true`; o usuário de teste foi removido em seguida.
+- O schema foi aplicado no projeto remoto `qskeuqmlxbipiwsxyglv`; a consulta REST a `season_scores` e `season_leaderboard` respondeu `200`, e um `INSERT` anônimo foi recusado com `401`/`42501`, confirmando a RLS. O primeiro participante real (`x3x31`) já aparece no ranking com 15 moedas e 1 dia ativo.
+- Validação de produção em 2026-11-07: o GitHub Pages serviu `js/app.js` com o ranking, o cartão da conta e o gate, além de `js/cloud.js`, `js/cloud-config.js` e do service worker `v19`. Um cadastro real temporário pelo endpoint público retornou sessão com `email_confirmado: true`; o UPSERT autenticado em `season_scores` respondeu `201` e a linha apareceu em `season_leaderboard` na 1ª posição com nível e moedas corretos. A view expôs apenas `position`, `user_id`, `season_id`, `nickname`, `level_number`, `level_name`, `coins`, `active_days` e `updated_at` — sem e-mail. Um `INSERT` anônimo foi recusado com `401`/`42501`. A conta e a linha de teste foram removidas, restando somente o participante real.
+- A confirmação de e-mail foi desativada no projeto (`mailer_autoconfirm: true`), com `site_url` em produção e `uri_allow_list` incluindo GitHub Pages e `localhost:3000`.
 - Teste unitário de `js/cloud.js` com `fetch` simulado: validação de apelido/e-mail/senha, expiração de sessão, login, cadastro sem confirmação, renovação por refresh token, atualização de apelido, UPSERT com `Prefer: resolution=merge-duplicates`, envio sem e-mail, top 5, posição própria e mapeamento de erros (credenciais, tabela ausente e rede).
 - Teste de backup com `fake-indexeddb`: `cloudAuth` não entra na exportação, tokens e e-mail não aparecem no JSON, um backup antigo com `cloudAuth` é importado sem restaurar a sessão, as configurações válidas são restauradas e a sessão atual pode ser regravada depois sem voltar ao backup.
 - DOM com `happy-dom` e `fake-indexeddb` para a conta: login pela home e pelo gate, sessão persistida em `meta/cloudAuth` com access token e sem senha, cartão “Conta da temporada” em `#/config` com apelido, status de sincronização, posição, “Sincronizar agora” e “Sair da conta”, e saída limpando a sessão local. O envio usou `POST` em `season_scores` com `Prefer: resolution=merge-duplicates` e `user_id` da sessão; o ranking público funcionou sem conta.
@@ -594,8 +595,8 @@ As verificações abaixo são registros históricos de cada entrega; números e 
 
 Ordem prevista:
 
-1. Após o deploy do GitHub Pages, abrir `https://x3x31.github.io/XLearn/`, criar uma conta de teste, iniciar uma prova normal, responder uma questão e confirmar o UPSERT em `season_scores`.
-2. Verificar o top 5 da home, a posição do próprio usuário fora do top 5, o cartão da conta em `#/config`, a sincronização manual e a saída da conta em um navegador real.
+1. Abrir `https://x3x31.github.io/XLearn/` em um navegador real e repetir o fluxo com uma conta de teste: login pela modal, início de prova, resposta de uma questão e UPSERT em `season_scores`. O backend já foi validado por REST; falta conferir a experiência completa no navegador.
+2. Verificar o top 5 da home, a posição do próprio usuário fora do top 5, o cartão da conta em `#/config`, a sincronização manual e a saída da conta.
 3. Testar o modo offline: estudar sem rede, confirmar que o app não bloqueia a sessão e que o placar é reenviado ao reconectar.
-4. Remover a conta de teste do projeto Supabase e conferir que o ranking remoto não expõe e-mail nem tokens.
+4. Remover a conta de teste criada no navegador e conferir que o ranking remoto não expõe e-mail nem tokens. O token administrativo usado na validação automatizada já foi removido de `/tmp/opencode/sbp_token`; recomenda-se revogá-lo no painel Supabase.
 5. Planejar a Temporada 2 (novo `seasonId`, período e faixas) antes de 04/12/2026, mantendo o congelamento da Temporada 1 e a possibilidade de arquivar o placar anterior.
