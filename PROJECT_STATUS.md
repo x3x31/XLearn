@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.41.0` (REQ-045 implementado) |
+| **Versão atual** | `0.42.0` (REQ-046 implementado) |
 | **Data da última atualização** | 2026-11-08 |
 
 ---
@@ -42,7 +42,7 @@ A interface é em português brasileiro e prioriza telas pequenas, com navegaç�
 
 ## C. Especificações funcionais
 
-Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Os requisitos REQ-001 a REQ-045 estão `IMPLEMENTADO`, conforme a coluna Status abaixo.
+Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Os requisitos REQ-001 a REQ-046 estão `IMPLEMENTADO`, conforme a coluna Status abaixo.
 
 ### Fase 1 — Base funcional
 
@@ -148,7 +148,7 @@ Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`
 | ID | Nome | Descrição | Prioridade | Status |
 |---|---|---|---|---|
 | REQ-045 | Login e cadastro em fluxos separados | Separar a modal de conta em dois modos explícitos: “Entrar”, com apenas e-mail e senha, e “Criar conta”, com apelido, e-mail e senha. O modo de login nunca cria conta automaticamente; credenciais inválidas orientam a usar “Criar conta”. No modo de cadastro, um e-mail já existente orienta a usar “Entrar”. As abas devem ser acessíveis e o campo de apelido deve ficar oculto no modo de login. | Alta | IMPLEMENTADO |
-| REQ-046 | Rolagem ao apagar progresso | Ao clicar em “Apagar progresso” nas Configurações, manter a posição de rolagem atual ou levar o foco e a rolagem até a confirmação “Apagar todo o progresso”, sem saltar para o topo da página. | Média | PENDENTE |
+| REQ-046 | Rolagem ao apagar progresso | Ao clicar em “Apagar progresso” nas Configurações, manter a posição de rolagem atual ou levar o foco e a rolagem até a confirmação “Apagar todo o progresso”, sem saltar para o topo da página. | Média | IMPLEMENTADO |
 | REQ-047 | Restrições do visitante | Ocultar as opções Configuração, Progresso, Simulado e Revisão para quem não tem conta e bloquear o acesso direto a essas rotas. Permitir que o visitante responda somente a primeira questão de cada prova; ao tentar avançar para a segunda questão ou abrir o feedback, solicitar a criação de conta. | Alta | PENDENTE |
 
 ### Critérios de aceitação gerais
@@ -401,6 +401,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.39.0 | REQ-043 | Validação e documentação do ranking global na home: top 5 com posição, apelido, nível e moedas, posição do usuário fora do top 5, atualização a cada acesso, cache offline em `meta/cloudRank`, estados de carregamento/erro, estilos responsivos e testes DOM do fluxo completo | `60c2ba0` | 2026-11-07 |
 | 0.40.0 | REQ-044 | Barra superior com identidade: apelido no lugar da assinatura quando logado, botão de sair ao lado das configurações apenas com sessão, remoção da contagem de questões e indicador de conexão com três estados (Online, Offline e Visitante); service worker `v20` | `299c38d` | 2026-11-07 |
 | 0.41.0 | REQ-045 | Modal de conta dividida em abas acessíveis “Entrar” e “Criar conta”: login apenas com e-mail e senha, cadastro com apelido, e-mail e senha, campo de apelido oculto no login, sem criação automática de conta em credenciais inválidas, orientação cruzada entre os modos e `autocomplete` adequado ao cadastro; service worker `v21` | `e48c5d4` | 2026-11-08 |
+| 0.42.0 | REQ-046 | “Apagar progresso” nas Configurações deixa de saltar para o topo: a posição de rolagem é preservada, o foco vai para “Apagar todo o progresso” com `preventScroll` e o bloco é revelado com `scrollIntoView({ block: "nearest" })`; service worker `v22` | `—` | 2026-11-08 |
 
 ---
 
@@ -450,6 +451,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-043 — Ranking da temporada na home:** a home consulta a view `season_leaderboard` para a Temporada 1, exibe uma lista com posição, apelido, nível e moedas dos cinco primeiros e destaca a linha do usuário quando ele aparece no top 5. Fora do top 5, uma linha “Sua posição” mostra a colocação do próprio usuário. O ranking é refeito a cada acesso à home, tem cache em `meta/cloudRank` para consulta offline, informa a data da última atualização e exibe estados explícitos de carregamento, ranking indisponível e servidor ainda não configurado. Sem conta, o top 5 público continua visível e um botão abre o login.
 - **REQ-044 — Apelido, logout e status de visitante no topo:** a barra superior passou a refletir a sessão. Com conta conectada, `updateTopbarIdentity` troca a assinatura “aprender praticando” pelo apelido (com reticências em nomes longos), revela o botão “Sair da conta” imediatamente à esquerda de Configurações e mantém o indicador em Online/Offline conforme a rede. Sem sessão — inclusive após sair — a assinatura volta, o botão de sair é ocultado com `hidden` e o indicador mostra “Visitante”, com rótulo acessível próprio, mesmo sem internet. A contagem de questões e o selo “Estudo local” foram removidos da barra. O botão de sair usa o mesmo `signOutCloud` do cartão de conta, revoga o token quando há rede, apaga `meta/cloudAuth` e atualiza a interface. Service worker `v20`.
 - **REQ-045 — Login e cadastro em fluxos separados:** a modal de conta agora tem duas abas acessíveis (`role="tablist"`, `role="tab"`, `aria-selected`, `aria-controls`, navegação por setas/Home/End) e abre no modo “Entrar”. Esse modo exibe apenas e-mail e senha, usa `autocomplete="current-password"` e chama `signIn`; se as credenciais forem inválidas, mostra “E-mail ou senha incorretos. Se ainda não tem conta, use a opção ‘Criar conta’.” e não tenta cadastro. O modo “Criar conta” revela o campo Apelido (obrigatório, 2–24 caracteres), usa `autocomplete="new-password"`, chama `signUp` e, se o e-mail já existir, orienta a usar “Entrar”. O título, a descrição, o rótulo do botão e a dica de alternância acompanham o modo ativo; “Continuar offline” permanece nos dois. A sessão salva, a sincronização e o início da prova pendente continuam iguais. Service worker `v21`.
+- **REQ-046 — Rolagem ao apagar progresso:** `requestProgressReset` passou a guardar `window.scrollY` antes de re-renderizar as Configurações, restaurar essa posição no próximo quadro e focar o título “Apagar todo o progresso?” com `preventScroll`. Quando o bloco de confirmação não está visível, `scrollIntoView({ block: "nearest" })` o revela com o mínimo de deslocamento. A rolagem para o topo usada ao trocar de rota não é mais acionada, e cancelar a exclusão continua devolvendo o foco ao botão “Apagar progresso”. Service worker `v22`.
 - **REQ-027 — Testes abrangentes finais:** campanha executada ao término da fase 8 com 12 suítes temporárias, fora do repositório, em Node com DOM simulado (`happy-dom`), IndexedDB em memória (`fake-indexeddb`), Cache API e rede simuladas. A cobertura unitária validou manifesto (10 materiais/1250 questões), parser e correção por ID em todas as questões, embaralhamento estável, SRS, gamificação, moedas, ranking, cronômetro, simulados, backup, configurações, cache e isolamento de materiais malformados/manifesto inválido. As suítes de integração percorreram configurações e efeitos reais, sessão normal, cronômetro com pausa/retomada e expiração, SRS automático/manual, fila de revisões, estatísticas, XP, meta, sequência, ranking, acessibilidade, exportação/importação, restauração, exclusão de dados, simulados, coleta de conquistas e service worker. A campanha encontrou e corrigiu um defeito real: `renderStudy` aplicava spread em `renderMaterialGrid()`, que devolve um único elemento, e a rota `#/estudar` não renderizava; a chamada passou a ser inserida diretamente no array. Todas as suítes e `npm run check` passaram após a correção.
 - **REQ-028 — Documentação de uso:** `README.md` reúne visão geral, funcionalidades, requisitos, execução local por servidor HTTP, publicação no GitHub Pages, instalação como PWA em Android/iOS/desktop, rotas e uso das telas, configurações, cronômetro, simulados, economia de moedas e personagens, revisões, formato completo dos materiais com exemplo, geração/validação do manifesto, modelo de dados local, backup/importação/exclusão, estrutura do projeto, comandos de validação e limitações conhecidas. O documento também explica a correção por identificador, o funcionamento offline e a ausência de sincronização ou ranking global.
 
@@ -457,7 +459,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 
 ## I. Situação dos requisitos e dependências
 
-Os requisitos REQ-001 a REQ-045 estão implementados. A fase 9, a fase 10 (conta Supabase, sessão sazonal, sincronização de nível/moedas e ranking global da Temporada 1), a fase 11 (identidade na barra superior) e o REQ-045 da fase 12 (login e cadastro separados) estão concluídas. O schema remoto foi aplicado, a confirmação de e-mail está desativada e a validação final em produção permanece como próxima tarefa.
+Os requisitos REQ-001 a REQ-046 estão implementados. A fase 9, a fase 10 (conta Supabase, sessão sazonal, sincronização de nível/moedas e ranking global da Temporada 1), a fase 11 (identidade na barra superior) e os REQ-045 e REQ-046 da fase 12 (login e cadastro separados e rolagem ao apagar progresso) estão concluídos. O REQ-047 segue pendente. O schema remoto foi aplicado, a confirmação de e-mail está desativada e a validação final em produção permanece como próxima tarefa.
 
 Dependências principais:
 
@@ -507,8 +509,9 @@ Dependências principais:
 
 ### Verificação atual (2026-11-08)
 
-- REQ-045 implementado; as fases 9, 10 e 11 continuam concluídas. O REQ-046 e o REQ-047 seguem pendentes na fase 12.
+- REQ-045 e REQ-046 implementados; as fases 9, 10 e 11 continuam concluídas. O REQ-047 segue pendente na fase 12.
 - REQ-045: a modal de conta passou a abrir no modo “Entrar”, com apenas e-mail e senha, e a alternar para “Criar conta” por abas acessíveis. `submitCloudLogin` valida o apelido somente no cadastro, usa `signIn` no login e `signUp` no cadastro, sem criação automática de conta. Credenciais inválidas orientam a criar conta; e-mail já cadastrado orienta a entrar. O campo de apelido fica oculto e não obrigatório no login, e o `autocomplete` alterna entre `current-password` e `new-password`. Teste DOM com `happy-dom`/`fake-indexeddb` (21 verificações): abas com `role="tab"`/`aria-selected`/`aria-controls`, campo Apelido oculto no login e obrigatório no cadastro, títulos e rótulos por modo, login inválido sem chamada a `/auth/v1/signup`, e-mail existente orientando “Entrar”, cadastro válido conectando a conta e enviando o apelido, além do erro limpo ao trocar de aba. `node --check js/app.js` e `npm run check` passaram.
+- REQ-046: teste DOM com `happy-dom` (6 verificações) confirmou que, com a página em `scrollY = 320`, clicar em “Apagar progresso” não chamou `scrollTo({ top: 0 })`, restaurou a posição 320, exibiu “Apagar todo o progresso?”, moveu o foco para o título com `preventScroll` e chamou `scrollIntoView({ block: "nearest" })`. `node --check js/app.js` e `npm run check` passaram.
 - Fase 10: `supabase/schema.sql` e a migration `supabase/migrations/20261107000000_season_ranking.sql` contêm `season_scores`, view `season_leaderboard`, índice de ordenação, trigger de `updated_at`, grants e políticas RLS; `js/cloud-config.js` e `js/cloud.js` foram criados com validação, sessão, cliente REST, erros em pt-BR e normalização do ranking.
 - O schema foi aplicado no projeto remoto `qskeuqmlxbipiwsxyglv`; a consulta REST a `season_scores` e `season_leaderboard` respondeu `200`, e um `INSERT` anônimo foi recusado com `401`/`42501`, confirmando a RLS. O primeiro participante real (`x3x31`) já aparece no ranking com 15 moedas e 1 dia ativo.
 - Validação de produção em 2026-11-07: o GitHub Pages serviu `js/app.js` com o ranking, o cartão da conta e o gate, além de `js/cloud.js`, `js/cloud-config.js` e do service worker `v19`. Um cadastro real temporário pelo endpoint público retornou sessão com `email_confirmado: true`; o UPSERT autenticado em `season_scores` respondeu `201` e a linha apareceu em `season_leaderboard` na 1ª posição com nível e moedas corretos. A view expôs apenas `position`, `user_id`, `season_id`, `nickname`, `level_number`, `level_name`, `coins`, `active_days` e `updated_at` — sem e-mail. Um `INSERT` anônimo foi recusado com `401`/`42501`. A conta e a linha de teste foram removidas, restando somente o participante real.
@@ -533,7 +536,7 @@ Dependências principais:
 - Toasts corrigidos e acima da modal: a animação `toast-rise` preserva `translate(-50%, …)` em todos os quadros, mantendo as mensagens centralizadas horizontalmente em qualquer tela; a modal usa `z-index` inferior ao dos toasts.
 - `npm run check`: 10 materiais válidos, 1.250 questões, 0 erros e 0 avisos.
 - `node --check` em todos os `js/*.js`, `service-worker.js` e `scripts/*.mjs`: sem erros de sintaxe.
-- `service-worker.js` em `v21`, com 31 caminhos no app shell (incluindo `js/cloud.js` e `js/cloud-config.js`), todos presentes no repositório.
+- `service-worker.js` em `v22`, com 31 caminhos no app shell (incluindo `js/cloud.js` e `js/cloud-config.js`), todos presentes no repositório.
 - `questoes/manifest.json` válido e coerente com os 10 materiais; `package.json` sem dependências de execução.
 - Renderização do dashboard mantém o descarte de entradas nulas; a home preserva os quatro atalhos para `#/progresso` e o cartão da temporada ocupa o lugar do antigo card de personagem em `#/progresso`.
 - `main` sincronizada com `origin/main`; o código da fase 10 foi entregue no commit `e1b2b88` e a validação/documentação por requisito nos commits seguintes. A árvore de trabalho fica limpa ao final desta revisão.

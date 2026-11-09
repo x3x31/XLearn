@@ -4491,9 +4491,17 @@ async function clearCache() {
 }
 
 function requestProgressReset() {
+  if (state.pendingReset) return;
   state.pendingReset = true;
-  render({ focus: true });
-  requestAnimationFrame(() => document.getElementById("reset-confirm-title")?.focus());
+  const previousScroll = window.scrollY || 0;
+  render();
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: previousScroll, behavior: "auto" });
+    const title = document.getElementById("reset-confirm-title");
+    if (!title) return;
+    title.focus({ preventScroll: true });
+    title.scrollIntoView?.({ block: "nearest", behavior: "auto" });
+  });
 }
 
 function cancelProgressReset() {

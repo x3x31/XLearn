@@ -248,7 +248,7 @@ Em **Configurações → Dados**:
 - **Exportar backup:** baixa um JSON versionado com configurações, estatísticas, temporada, gamificação, conquistas, moedas, personagem, progresso, sessões, tentativas e simulados.
 - **Importar backup:** valida formato, versão e registros antes de mostrar um resumo; somente após a confirmação os dados atuais são substituídos.
 - **Limpar cache do app:** remove apenas os caches `xlearn-*`, preservando respostas e histórico.
-- **Apagar progresso:** remove progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, histórico de simulados e simulado ativo, mas mantém as configurações de estudo e aparência.
+- **Apagar progresso:** remove progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, histórico de simulados e simulado ativo, mas mantém as configurações de estudo e aparência. A confirmação “Apagar todo o progresso?” aparece mantendo a posição de rolagem, sem levar a página ao topo.
 
 ## Estrutura do projeto
 
