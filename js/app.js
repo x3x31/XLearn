@@ -1544,6 +1544,7 @@ function updateLoginModal() {
   const overlay = document.querySelector('[data-role="login-modal"]');
   if (!overlay) return;
   const modal = state.loginModal;
+  const mode = modal.mode === "signup" ? "signup" : "login";
   const errorNode = overlay.querySelector('[data-role="login-error"]');
   if (errorNode) {
     errorNode.hidden = !modal.error;
@@ -1551,37 +1552,100 @@ function updateLoginModal() {
   }
   const offlineNode = overlay.querySelector('[data-role="login-offline"]');
   if (offlineNode) offlineNode.hidden = isOnline();
+  const nicknameField = overlay.querySelector('[data-role="login-nickname-field"]');
+  if (nicknameField) nicknameField.hidden = mode !== "signup";
+  const nickname = overlay.querySelector("#login-nickname");
+  if (nickname) nickname.required = mode === "signup";
+  const password = overlay.querySelector("#login-password");
+  if (password) {
+    password.setAttribute(
+      "autocomplete",
+      mode === "signup" ? "new-password" : "current-password"
+    );
+  }
+  const title = overlay.querySelector("#login-title");
+  if (title) title.textContent = mode === "signup" ? "Crie sua conta" : "Entre na sua conta";
+  const desc = overlay.querySelector("#login-desc");
+  if (desc) {
+    desc.textContent =
+      mode === "signup"
+        ? "Escolha um apelido, informe seu e-mail e defina uma senha. O apelido, o nível e as moedas são públicos; seu e-mail nunca aparece no ranking."
+        : "Use seu e-mail e senha. Sua sessão fica ativa durante a temporada e o nível e as moedas são enviados ao ranking.";
+  }
+  overlay.querySelectorAll('[data-role="login-mode"]').forEach((button) => {
+    const selected = button.dataset.mode === mode;
+    button.setAttribute("aria-selected", String(selected));
+    button.tabIndex = selected ? 0 : -1;
+    button.classList.toggle("is-selected", selected);
+    button.disabled = modal.busy;
+  });
   const form = overlay.querySelector('[data-role="login-form"]');
   if (form) {
     form.setAttribute("aria-busy", modal.busy ? "true" : "false");
+    form.setAttribute("aria-labelledby", `login-tab-${mode}`);
     form.querySelectorAll("input").forEach((input) => {
       input.disabled = modal.busy;
     });
+  }
+  const modeHint = overlay.querySelector('[data-role="login-mode-hint"]');
+  if (modeHint) {
+    modeHint.textContent =
+      mode === "signup" ? "Já tem conta? Use “Entrar”." : "Ainda não tem conta? Use “Criar conta”.";
   }
   const submit = overlay.querySelector('[data-role="login-submit"]');
   if (submit) {
     submit.disabled = modal.busy;
     const label = submit.querySelector('[data-role="login-submit-label"]');
     if (label) {
-      label.textContent = modal.busy
-        ? "Entrando…"
-        : modal.pendingStart
-          ? "Entrar e começar"
-          : "Entrar";
+      if (modal.busy) label.textContent = mode === "signup" ? "Criando conta…" : "Entrando…";
+      else if (modal.pendingStart)
+        label.textContent = mode === "signup" ? "Criar conta e começar" : "Entrar e começar";
+      else label.textContent = mode === "signup" ? "Criar conta" : "Entrar";
     }
   }
   const offlineButton = overlay.querySelector('[data-role="login-offline-action"]');
   if (offlineButton) offlineButton.disabled = modal.busy;
 }
 
+function switchLoginMode(mode) {
+  const modal = state.loginModal;
+  if (!modal || modal.busy) return;
+  const next = mode === "signup" ? "signup" : "login";
+  if (modal.mode === next) return;
+  modal.mode = next;
+  modal.error = null;
+  updateLoginModal();
+  requestAnimationFrame(() => {
+    const target = document.querySelector(next === "signup" ? "#login-nickname" : "#login-email");
+    target?.focus({ preventScroll: true });
+  });
+}
+
+function handleLoginModeKeydown(event) {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const modal = state.loginModal;
+  if (!modal || modal.busy) return;
+  if (event.key === "Home") switchLoginMode("login");
+  else if (event.key === "End") switchLoginMode("signup");
+  else switchLoginMode(modal.mode === "signup" ? "login" : "signup");
+  requestAnimationFrame(() =>
+    document.querySelector(`[data-role="login-mode"][data-mode="${state.loginModal?.mode}"]`)?.focus()
+  );
+}
+
 function buildLoginModal() {
   const modal = state.loginModal;
+  const mode = modal.mode === "signup" ? "signup" : "login";
   const nickname = normalizeNickname(state.cloud.profile?.nickname) || "";
   const form = h(
     "form",
     {
       class: "login-form",
       "data-role": "login-form",
+      role: "tabpanel",
+      id: "login-panel",
+      "aria-labelledby": `login-tab-${mode}`,
       novalidate: true,
       onsubmit: submitCloudLogin,
     },
@@ -1590,7 +1654,7 @@ function buildLoginModal() {
       { class: "field-grid" },
       h(
         "label",
-        { class: "field" },
+        { class: "field", "data-role": "login-nickname-field", hidden: mode !== "signup" },
         h("span", { text: "Apelido" }),
         h("input", {
           name: "nickname",
@@ -1600,10 +1664,10 @@ function buildLoginModal() {
           autocomplete: "nickname",
           placeholder: "Como você quer aparecer no ranking",
           value: nickname,
-          required: true,
+          required: mode === "signup",
         }),
         h("small", {
-          text: "Se a conta já existir, o apelido salvo nela é mantido.",
+          text: "Aparece no ranking e pode ter de 2 a 24 caracteres.",
         })
       ),
       h(
@@ -1628,7 +1692,7 @@ function buildLoginModal() {
           name: "password",
           id: "login-password",
           type: "password",
-          autocomplete: "current-password",
+          autocomplete: mode === "signup" ? "new-password" : "current-password",
           minlength: "6",
           maxlength: "72",
           placeholder: "Mínimo de 6 caracteres",
@@ -1651,7 +1715,13 @@ function buildLoginModal() {
         icon("lock"),
         h("span", {
           "data-role": "login-submit-label",
-          text: modal.pendingStart ? "Entrar e começar" : "Entrar",
+          text: modal.pendingStart
+            ? mode === "signup"
+              ? "Criar conta e começar"
+              : "Entrar e começar"
+            : mode === "signup"
+              ? "Criar conta"
+              : "Entrar",
         })
       ),
       h(
@@ -1667,8 +1737,8 @@ function buildLoginModal() {
     ),
     h("p", {
       class: "hint",
-      text:
-        "Se ainda não tem conta, ela é criada automaticamente. Seu e-mail não aparece no ranking; apenas apelido, nível e moedas são públicos.",
+      "data-role": "login-mode-hint",
+      text: mode === "signup" ? "Já tem conta? Use “Entrar”." : "Ainda não tem conta? Use “Criar conta”.",
     })
   );
 
@@ -1717,12 +1787,61 @@ function buildLoginModal() {
           "div",
           { class: "login-modal__intro" },
           h("span", { class: "eyebrow" }, icon("sparkles"), state.season?.name || SEASON_1.name),
-          h("h2", { id: "login-title", text: "Entre para disputar o ranking" }),
+          h("h2", {
+            id: "login-title",
+            text: mode === "signup" ? "Crie sua conta" : "Entre na sua conta",
+          }),
           h("p", {
             id: "login-desc",
             class: "hint",
-            text: "Use apelido, e-mail e senha. Sua sessão fica ativa durante a temporada e o nível e as moedas são enviados ao ranking.",
+            text:
+              mode === "signup"
+                ? "Escolha um apelido, informe seu e-mail e defina uma senha. O apelido, o nível e as moedas são públicos; seu e-mail nunca aparece no ranking."
+                : "Use seu e-mail e senha. Sua sessão fica ativa durante a temporada e o nível e as moedas são enviados ao ranking.",
           })
+        ),
+        h(
+          "div",
+          {
+            class: "login-modes",
+            role: "tablist",
+            "aria-label": "Entrar ou criar conta",
+            onkeydown: handleLoginModeKeydown,
+          },
+          h(
+            "button",
+            {
+              class: `login-mode${mode === "login" ? " is-selected" : ""}`,
+              type: "button",
+              role: "tab",
+              id: "login-tab-login",
+              "data-role": "login-mode",
+              "data-mode": "login",
+              "aria-selected": String(mode === "login"),
+              "aria-controls": "login-panel",
+              tabindex: mode === "login" ? "0" : "-1",
+              onclick: () => switchLoginMode("login"),
+            },
+            icon("user"),
+            "Entrar"
+          ),
+          h(
+            "button",
+            {
+              class: `login-mode${mode === "signup" ? " is-selected" : ""}`,
+              type: "button",
+              role: "tab",
+              id: "login-tab-signup",
+              "data-role": "login-mode",
+              "data-mode": "signup",
+              "aria-selected": String(mode === "signup"),
+              "aria-controls": "login-panel",
+              tabindex: mode === "signup" ? "0" : "-1",
+              onclick: () => switchLoginMode("signup"),
+            },
+            icon("sparkles"),
+            "Criar conta"
+          )
         ),
         h(
           "div",
@@ -1737,15 +1856,16 @@ function buildLoginModal() {
         form,
         h("p", {
           class: "hint",
+          "data-role": "login-privacy",
           text:
-            "Para o login funcionar imediatamente após o cadastro, a confirmação de e-mail deve estar desativada no painel do Supabase. Se ela estiver ativa, o app pede que você confirme o e-mail antes de entrar.",
+            "Seu e-mail não aparece no ranking; apenas apelido, nível e moedas são públicos. A confirmação de e-mail deve estar desativada no Supabase para entrar imediatamente após o cadastro.",
         })
       )
     )
   );
 }
 
-function openLoginModal({ entry = null, options = null, trigger = null } = {}) {
+function openLoginModal({ entry = null, options = null, trigger = null, mode = "login" } = {}) {
   if (!cloudClient) {
     toast(
       "O ranking global ainda não está configurado neste ambiente; o estudo continua normalmente.",
@@ -1757,12 +1877,17 @@ function openLoginModal({ entry = null, options = null, trigger = null } = {}) {
   if (state.loginModal?.open) {
     if (entry) state.loginModal.pendingStart = { entry, options: options || {} };
     if (trigger instanceof HTMLElement) state.loginModal.trigger = trigger;
+    if (mode === "signup" || mode === "login") {
+      state.loginModal.mode = mode;
+      state.loginModal.error = null;
+    }
     updateLoginModal();
     return;
   }
 
   state.loginModal = {
     open: true,
+    mode: mode === "signup" ? "signup" : "login",
     pendingStart: entry ? { entry, options: options || {} } : null,
     trigger: trigger instanceof HTMLElement ? trigger : document.activeElement,
     error: null,
@@ -1785,10 +1910,11 @@ function openLoginModal({ entry = null, options = null, trigger = null } = {}) {
   });
   document.body.append(overlay);
   requestAnimationFrame(() => {
-    const target = overlay.querySelector("#login-nickname");
-    (target?.value ? overlay.querySelector("#login-email") : target)?.focus?.({
-      preventScroll: true,
-    });
+    const target =
+      state.loginModal?.mode === "signup"
+        ? overlay.querySelector("#login-nickname")
+        : overlay.querySelector("#login-email");
+    target?.focus?.({ preventScroll: true });
   });
 }
 
@@ -1864,13 +1990,15 @@ async function submitCloudLogin(event) {
   const modal = state.loginModal;
   if (!modal || modal.busy || !cloudClient) return;
   const form = event.currentTarget;
+  const mode = modal.mode === "signup" ? "signup" : "login";
   let credentials;
   try {
-    credentials = {
-      nickname: validateNickname(form.elements.nickname?.value),
-      email: validateEmail(form.elements.email?.value),
-      password: validatePassword(form.elements.password?.value),
-    };
+    const email = validateEmail(form.elements.email?.value);
+    const password = validatePassword(form.elements.password?.value);
+    credentials =
+      mode === "signup"
+        ? { nickname: validateNickname(form.elements.nickname?.value), email, password }
+        : { email, password };
   } catch (error) {
     modal.error = describeCloudError(error, "Confira os dados informados.");
     updateLoginModal();
@@ -1883,30 +2011,31 @@ async function submitCloudLogin(event) {
 
   try {
     let session = null;
-    try {
-      session = await cloudClient.signIn({
-        email: credentials.email,
-        password: credentials.password,
-      });
-    } catch (error) {
-      if (!(error instanceof CloudError) || !error.credentials) throw error;
+    if (mode === "signup") {
       const result = await cloudClient.signUp(credentials);
       if (!result.session) {
         modal.error =
-          "Cadastro recebido. Se esta conta já existia, confira a senha; se é nova, confirme o e-mail enviado. Para entrar imediatamente, desative “Confirm email” no painel do Supabase.";
+          "Cadastro recebido. Confirme o e-mail enviado para entrar. Para entrar imediatamente, desative “Confirm email” no painel do Supabase.";
         modal.busy = false;
         updateLoginModal();
         return;
       }
       session = result.session;
-    }
-
-    if (session.nickname !== credentials.nickname) {
+    } else {
       try {
-        session = await cloudClient.updateNickname(session, credentials.nickname);
+        session = await cloudClient.signIn({
+          email: credentials.email,
+          password: credentials.password,
+        });
       } catch (error) {
-        if (error instanceof CloudError && error.authInvalid) throw error;
-        console.warn("XLearn: não foi possível atualizar o apelido.", error);
+        if (error instanceof CloudError && error.credentials) {
+          modal.error =
+            "E-mail ou senha incorretos. Se ainda não tem conta, use a opção “Criar conta”.";
+          modal.busy = false;
+          updateLoginModal();
+          return;
+        }
+        throw error;
       }
     }
 
@@ -1916,7 +2045,12 @@ async function submitCloudLogin(event) {
     modal.busy = false;
     modal.error = null;
     updateLoginModal();
-    toast(`Conta conectada como ${session.nickname}.`, "success");
+    toast(
+      mode === "signup"
+        ? `Conta criada como ${session.nickname}.`
+        : `Conta conectada como ${session.nickname}.`,
+      "success"
+    );
     closeLoginModal({ restoreFocus: false });
 
     if (pending) {
@@ -1928,14 +2062,19 @@ async function submitCloudLogin(event) {
     } else {
       syncScoreNow();
       if (currentRoute() === "inicio") refreshHomeRanking();
-      else if (currentRoute() === "config") render();
+      render();
     }
   } catch (error) {
     if (state.loginModal) {
-      state.loginModal.error = describeCloudError(
-        error,
-        "Não foi possível entrar agora. Tente novamente."
-      );
+      const userExists = error instanceof CloudError && error.userExists;
+      state.loginModal.error = userExists
+        ? "Este e-mail já está cadastrado. Use a opção “Entrar”."
+        : describeCloudError(
+            error,
+            mode === "signup"
+              ? "Não foi possível criar a conta agora. Tente novamente."
+              : "Não foi possível entrar agora. Tente novamente."
+          );
       state.loginModal.busy = false;
       updateLoginModal();
     }

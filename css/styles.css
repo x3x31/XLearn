@@ -2183,6 +2183,51 @@ body.has-modal {
   margin: 0;
 }
 
+.login-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.login-mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.login-mode svg {
+  width: 16px;
+  height: 16px;
+}
+
+.login-mode:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.login-mode.is-selected {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+}
+
+.login-mode:disabled {
+  opacity: 0.6;
+}
+
 .login-form {
   display: grid;
   gap: 14px;
@@ -2190,6 +2235,10 @@ body.has-modal {
 
 .login-form .field-grid {
   margin-top: 0;
+}
+
+.login-form .field[hidden] {
+  display: none;
 }
 
 .login-modal__actions {
