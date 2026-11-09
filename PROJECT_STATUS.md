@@ -411,7 +411,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.42.0 | REQ-046 | “Apagar progresso” nas Configurações deixa de saltar para o topo: a posição de rolagem é preservada, o foco vai para “Apagar todo o progresso” com `preventScroll` e o bloco é revelado com `scrollIntoView({ block: "nearest" })`; service worker `v22` | `9606e5b` | 2026-11-08 |
 | 0.43.0 | REQ-047 | Restrições do visitante: menu inferior e atalhos sem Configurações, Progresso, Simulado e Revisões, botão de configurações oculto, rotas diretas substituídas por uma área de conta, primeira questão de cada prova como limite do visitante, avanço e feedback redirecionados para o cadastro e resumo sem gabarito para quem não tem conta; service worker `v23` | `c3038cf` | 2026-11-08 |
 | 0.44.0 | REQ-048 | Remoção do card “Visão rápida / Seu ritmo de estudo” da tela Início, com a exclusão de `renderQuickStats`, dos estilos `quick-*` e dos indicadores duplicados de estágio, moedas, meta/sequência e conquistas; hero, ranking global e conquistas pendentes permanecem; service worker `v24` | `285f326` | 2026-11-09 |
-| 0.45.0 | REQ-049 | “Visão rápida” restrita a usuários logados e nova ordem da tela Início: “Seu painel de estudos”, “Recompensas pendentes”, “Visão rápida” e “Ranking da temporada”, mantendo avisos de sessão e revisões depois dos cards; service worker `v25` | `—` | 2026-11-09 |
+| 0.45.0 | REQ-049 | “Visão rápida” restrita a usuários logados e nova ordem da tela Início: “Seu painel de estudos”, “Recompensas pendentes”, “Visão rápida” e “Ranking da temporada”, mantendo avisos de sessão e revisões depois dos cards; service worker `v25` | `6f6fc60` | 2026-11-09 |
 
 ---
 
