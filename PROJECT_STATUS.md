@@ -400,7 +400,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.38.0 | REQ-042 | Validação e documentação da sincronização de nível e moedas: placar derivado de `summarizeSeason`, UPSERT por `user_id`/`season_id`, debounce, reenvio ao reconectar, cartão de conta com status e sincronização manual, além de testes unitários e DOM do fluxo completo | `d3fe7dc` | 2026-11-07 |
 | 0.39.0 | REQ-043 | Validação e documentação do ranking global na home: top 5 com posição, apelido, nível e moedas, posição do usuário fora do top 5, atualização a cada acesso, cache offline em `meta/cloudRank`, estados de carregamento/erro, estilos responsivos e testes DOM do fluxo completo | `60c2ba0` | 2026-11-07 |
 | 0.40.0 | REQ-044 | Barra superior com identidade: apelido no lugar da assinatura quando logado, botão de sair ao lado das configurações apenas com sessão, remoção da contagem de questões e indicador de conexão com três estados (Online, Offline e Visitante); service worker `v20` | `299c38d` | 2026-11-07 |
-| 0.41.0 | REQ-045 | Modal de conta dividida em abas acessíveis “Entrar” e “Criar conta”: login apenas com e-mail e senha, cadastro com apelido, e-mail e senha, campo de apelido oculto no login, sem criação automática de conta em credenciais inválidas, orientação cruzada entre os modos e `autocomplete` adequado ao cadastro; service worker `v21` | `—` | 2026-11-08 |
+| 0.41.0 | REQ-045 | Modal de conta dividida em abas acessíveis “Entrar” e “Criar conta”: login apenas com e-mail e senha, cadastro com apelido, e-mail e senha, campo de apelido oculto no login, sem criação automática de conta em credenciais inválidas, orientação cruzada entre os modos e `autocomplete` adequado ao cadastro; service worker `v21` | `e48c5d4` | 2026-11-08 |
 
 ---
 
