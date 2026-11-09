@@ -158,6 +158,7 @@ const CLOUD_STORAGE = Object.freeze({
 const CLOUD_SYNC_DELAY_MS = 2500;
 
 const ROUTES = new Set(["inicio", "estudar", "simulado", "sessao", "resumo", "revisoes", "progresso", "config"]);
+const ACCOUNT_ROUTES = new Set(["config", "progresso", "simulado", "revisoes"]);
 
 const ICONS = {
   logo: '<path d="M8 7h4l3 5 3-5h4l-5 8 5 8h-4l-3-5-3 5H8l5-8z" fill="currentColor" stroke="none"/>',
@@ -624,6 +625,26 @@ function isOnline() {
   return typeof navigator === "undefined" || navigator.onLine !== false;
 }
 
+function hasAccount() {
+  return Boolean(state.cloud?.session);
+}
+
+function isAccountRoute(route = state.route) {
+  return ACCOUNT_ROUTES.has(route);
+}
+
+function isGuestSession(session = state.session) {
+  return Boolean(session) && !hasAccount();
+}
+
+function requestAccountFor(reason) {
+  openLoginModal({
+    mode: "signup",
+    trigger: document.activeElement,
+    reason,
+  });
+}
+
 function connectionPresentation() {
   if (!state.cloud.ready || !state.cloud.session) {
     return {
@@ -658,6 +679,8 @@ function updateTopbarIdentity() {
   }
   const logout = document.querySelector('[data-role="logout-button"]');
   if (logout) logout.hidden = !session;
+  const settingsLink = document.querySelector('[data-role="settings-link"]');
+  if (settingsLink) settingsLink.hidden = !session;
   syncConnectionIndicator();
 }
 
@@ -689,7 +712,7 @@ function updateNav() {
     },
     { route: "simulado", label: "Simulado", icon: "target" },
     { route: "progresso", label: "Progresso", icon: "chart" },
-  ];
+  ].filter((item) => hasAccount() || !isAccountRoute(item.route));
   if (state.session && !state.session.finishedAt) {
     items.push({ route: "sessao", label: "Sessão", icon: "play" });
   }
@@ -1554,6 +1577,11 @@ function updateLoginModal() {
   if (offlineNode) offlineNode.hidden = isOnline();
   const nicknameField = overlay.querySelector('[data-role="login-nickname-field"]');
   if (nicknameField) nicknameField.hidden = mode !== "signup";
+  const reasonNode = overlay.querySelector('[data-role="login-reason"]');
+  if (reasonNode) {
+    reasonNode.hidden = !modal.reason;
+    reasonNode.textContent = modal.reason || "";
+  }
   const nickname = overlay.querySelector("#login-nickname");
   if (nickname) nickname.required = mode === "signup";
   const password = overlay.querySelector("#login-password");
@@ -1843,6 +1871,13 @@ function buildLoginModal() {
             "Criar conta"
           )
         ),
+        h("div", {
+          class: "notice notice--info",
+          "data-role": "login-reason",
+          role: "status",
+          hidden: !modal.reason,
+          text: modal.reason || "",
+        }),
         h(
           "div",
           {
@@ -1865,7 +1900,7 @@ function buildLoginModal() {
   );
 }
 
-function openLoginModal({ entry = null, options = null, trigger = null, mode = "login" } = {}) {
+function openLoginModal({ entry = null, options = null, trigger = null, mode = "login", reason = null } = {}) {
   if (!cloudClient) {
     toast(
       "O ranking global ainda não está configurado neste ambiente; o estudo continua normalmente.",
@@ -1881,6 +1916,7 @@ function openLoginModal({ entry = null, options = null, trigger = null, mode = "
       state.loginModal.mode = mode;
       state.loginModal.error = null;
     }
+    if (reason) state.loginModal.reason = reason;
     updateLoginModal();
     return;
   }
@@ -1891,6 +1927,7 @@ function openLoginModal({ entry = null, options = null, trigger = null, mode = "
     pendingStart: entry ? { entry, options: options || {} } : null,
     trigger: trigger instanceof HTMLElement ? trigger : document.activeElement,
     error: null,
+    reason: reason || null,
     busy: false,
   };
   setFeedbackBackgroundInert(true);
@@ -2241,6 +2278,60 @@ function boot() {
 
 /* Router ------------------------------------------------------------------ */
 
+const ACCOUNT_ROUTE_LABELS = Object.freeze({
+  config: "Configurações",
+  progresso: "Progresso",
+  simulado: "Simulado",
+  revisoes: "Revisões",
+});
+
+function renderAccountGate(route) {
+  const label = ACCOUNT_ROUTE_LABELS[route] || "esta área";
+  return [
+    h(
+      "section",
+      { class: "card", "data-role": "account-gate", "aria-labelledby": "account-gate-title" },
+      h("span", { class: "eyebrow" }, icon("lock"), "Área da conta"),
+      h("h1", { id: "account-gate-title", text: `Crie uma conta para acessar ${label}` }),
+      h("p", {
+        class: "prose",
+        style: "margin-top:10px",
+        text: "Como visitante, você pode conhecer as provas e responder à primeira questão de cada uma. Configurações, Progresso, Simulado e Revisões ficam disponíveis depois que você criar uma conta ou entrar.",
+      }),
+      h(
+        "div",
+        { class: "hero__actions" },
+        h(
+          "button",
+          {
+            class: "btn btn--primary",
+            type: "button",
+            onclick: () => requestAccountFor(`Crie uma conta para acessar ${label}.`),
+          },
+          icon("sparkles"),
+          "Criar conta"
+        ),
+        h(
+          "button",
+          {
+            class: "btn btn--ghost",
+            type: "button",
+            onclick: () =>
+              openLoginModal({
+                mode: "login",
+                trigger: document.activeElement,
+                reason: `Entre na sua conta para acessar ${label}.`,
+              }),
+          },
+          icon("user"),
+          "Entrar"
+        ),
+        h("a", { class: "btn btn--ghost", href: "#/inicio" }, "Voltar ao início")
+      )
+    ),
+  ];
+}
+
 function render({ focus = false } = {}) {
   const main = document.getElementById("main");
   if (!main) return;
@@ -2250,30 +2341,34 @@ function render({ focus = false } = {}) {
   }
 
   let content;
-  switch (state.route) {
-    case "estudar":
-      content = renderStudy();
-      break;
-    case "simulado":
-      content = renderSimulado();
-      break;
-    case "sessao":
-      content = renderQuiz();
-      break;
-    case "resumo":
-      content = renderSummary();
-      break;
-    case "revisoes":
-      content = renderReviews();
-      break;
-    case "progresso":
-      content = renderProgress();
-      break;
-    case "config":
-      content = renderSettings();
-      break;
-    default:
-      content = renderHome();
+  if (!hasAccount() && isAccountRoute(state.route)) {
+    content = renderAccountGate(state.route);
+  } else {
+    switch (state.route) {
+      case "estudar":
+        content = renderStudy();
+        break;
+      case "simulado":
+        content = renderSimulado();
+        break;
+      case "sessao":
+        content = renderQuiz();
+        break;
+      case "resumo":
+        content = renderSummary();
+        break;
+      case "revisoes":
+        content = renderReviews();
+        break;
+      case "progresso":
+        content = renderProgress();
+        break;
+      case "config":
+        content = renderSettings();
+        break;
+      default:
+        content = renderHome();
+    }
   }
 
   const nodes = content.filter((node) => node !== null && node !== undefined && node !== false);
@@ -2364,12 +2459,14 @@ function renderHome() {
           icon("play"),
           "Escolher prova"
         ),
-        h(
-          "a",
-          { class: "btn btn--ghost", href: "#/simulado" },
-          icon("target"),
-          "Criar simulado"
-        ),
+        hasAccount()
+          ? h(
+              "a",
+              { class: "btn btn--ghost", href: "#/simulado" },
+              icon("target"),
+              "Criar simulado"
+            )
+          : null,
         currentActive
           ? h(
               "a",
@@ -2413,7 +2510,7 @@ function renderHome() {
         )
       : null,
 
-    simuladoActive
+    simuladoActive && hasAccount()
       ? h(
           "section",
           { class: "session-banner session-banner--simulado", "aria-label": "Simulado em andamento" },
@@ -2439,7 +2536,7 @@ function renderHome() {
         )
       : null,
 
-    state.reviewQueue?.counts?.overdue > 0
+    state.reviewQueue?.counts?.overdue > 0 && hasAccount()
       ? h(
           "section",
           { class: "session-banner session-banner--review", "aria-label": "Revisões vencidas" },
@@ -2522,6 +2619,7 @@ function renderQuickStats() {
     },
   ];
 
+  const account = hasAccount();
   return h(
     "section",
     { class: "card quick-panel", "aria-labelledby": "quick-title" },
@@ -2534,29 +2632,39 @@ function renderQuickStats() {
         h("span", { class: "eyebrow" }, icon("chart"), "Visão rápida"),
         h("h2", { id: "quick-title", text: "Seu ritmo de estudo" })
       ),
-      h(
-        "a",
-        { class: "quick-panel__link", href: "#/progresso" },
-        "Ver progresso",
-        icon("arrowRight")
-      )
+      account
+        ? h(
+            "a",
+            { class: "quick-panel__link", href: "#/progresso" },
+            "Ver progresso",
+            icon("arrowRight")
+          )
+        : h("span", {
+            class: "chip chip--neutral",
+            text: "disponível com conta",
+          })
     ),
     h(
       "div",
       { class: "quick-grid" },
-      ...items.map((item) =>
-        h(
-          "a",
-          {
-            class: "quick-item",
-            href: "#/progresso",
-            "aria-label": `${item.value}. ${item.label}. Abrir progresso.`,
-          },
+      ...items.map((item) => {
+        const content = [
           h("span", { class: "quick-item__icon", "aria-hidden": "true" }, icon(item.icon)),
           h("strong", { class: "quick-item__value", text: item.value }),
-          h("span", { class: "quick-item__label", text: item.label })
-        )
-      )
+          h("span", { class: "quick-item__label", text: item.label }),
+        ];
+        return account
+          ? h(
+              "a",
+              {
+                class: "quick-item",
+                href: "#/progresso",
+                "aria-label": `${item.value}. ${item.label}. Abrir progresso.`,
+              },
+              ...content
+            )
+          : h("div", { class: "quick-item" }, ...content);
+      })
     )
   );
 }
@@ -4865,6 +4973,7 @@ async function startSession(entry, options = {}) {
     }
 
     const settings = getSettings();
+    const mode = options.mode || "material";
     let pool = material.questions;
     if (Array.isArray(options.questionIds) && options.questionIds.length > 0) {
       const byId = new Map(material.questions.map((question) => [question.id, question]));
@@ -4872,13 +4981,16 @@ async function startSession(entry, options = {}) {
     }
     if (pool.length === 0) throw new Error("Nenhuma questão disponível para esta sessão.");
 
-    if (!options.preserveOrder && settings.questionOrder === "shuffle") {
+    const guest = !hasAccount() && mode !== "simulado";
+    if (guest) {
+      // Visitante responde somente à primeira questão do arquivo de estudo.
+      pool = [material.questions[0]];
+    } else if (!options.preserveOrder && settings.questionOrder === "shuffle") {
       pool = shuffle(pool);
     }
     const requestedSize = Number.isFinite(options.size) ? options.size : settings.sessionSize;
-    const size = Math.max(1, Math.min(requestedSize, pool.length));
+    const size = guest ? 1 : Math.max(1, Math.min(requestedSize, pool.length));
     const questionIds = pool.slice(0, size).map((question) => question.id);
-    const mode = options.mode || "material";
 
     state.session = {
       id: makeId(),
@@ -5099,6 +5211,10 @@ async function finishSession({ expired = false } = {}) {
 async function goToNextQuestion() {
   const session = state.session;
   if (!session) return;
+  if (!hasAccount() && session.index + 1 < session.questionIds.length) {
+    requestAccountFor("Crie uma conta para responder a mais questões desta prova.");
+    return;
+  }
   if (session.index + 1 >= session.questionIds.length) {
     await finishSession();
     return;
@@ -5621,6 +5737,10 @@ function handleFeedbackModalKeydown(event) {
 }
 
 function openFeedbackModal(question, answer, trigger) {
+  if (!hasAccount()) {
+    requestAccountFor("Crie uma conta para ver o feedback, o gabarito e a explicação.");
+    return;
+  }
   const context = feedbackContext();
   if (!context) return;
   if (state.feedbackModalOpen) {
@@ -5863,6 +5983,7 @@ function renderSummary() {
   const pct = total > 0 ? Math.round((correctCount / total) * 100) : 0;
   const duration = formatDuration(Date.now() - session.startedAt);
   const entry = state.entries.find((item) => item.path === session.materialPath) || null;
+  const guest = !hasAccount();
 
   return [
     h(
@@ -5906,6 +6027,15 @@ function renderSummary() {
         )
       : null,
 
+    guest
+      ? h(
+          "div",
+          { class: "notice notice--info", "data-role": "visitor-summary" },
+          h("strong", { text: "Modo visitante: " }),
+          "você respondeu à primeira questão desta prova. Crie uma conta para ver o gabarito, a explicação e responder a mais questões."
+        )
+      : null,
+
     h(
       "div",
       { class: `summary-stats${unansweredResults.length > 0 ? " summary-stats--four" : ""}` },
@@ -5920,24 +6050,38 @@ function renderSummary() {
     h(
       "div",
       { class: "hero__actions" },
-      wrongResults.length > 0 && entry
+      guest
         ? h(
             "button",
             {
               class: "btn btn--primary",
               type: "button",
               onclick: () =>
-                startSession(entry, {
-                  questionIds: wrongResults.map((item) => item.question.id),
-                  size: wrongResults.length,
-                  mode: "correcao",
-                }),
+                requestAccountFor(
+                  "Crie uma conta para ver o gabarito, a explicação e responder a mais questões."
+                ),
             },
-            icon("x"),
-            `Revisar ${plural(wrongResults.length, "erro", "erros")}`
+            icon("sparkles"),
+            "Criar conta para continuar"
           )
-        : null,
-      entry
+        : wrongResults.length > 0 && entry
+          ? h(
+              "button",
+              {
+                class: "btn btn--primary",
+                type: "button",
+                onclick: () =>
+                  startSession(entry, {
+                    questionIds: wrongResults.map((item) => item.question.id),
+                    size: wrongResults.length,
+                    mode: "correcao",
+                  }),
+              },
+              icon("x"),
+              `Revisar ${plural(wrongResults.length, "erro", "erros")}`
+            )
+          : null,
+      !guest && entry
         ? h(
             "button",
             { class: "btn btn--ghost", type: "button", onclick: () => startSession(entry) },
@@ -5957,6 +6101,25 @@ function renderSummary() {
         { class: "result-list" },
         ...results.map(({ question, answer }) => {
           if (!question) return null;
+          if (guest) {
+            return h(
+              "div",
+              { class: "result-item" },
+              h("span", { class: "result-item__icon" }, icon("lock")),
+              h(
+                "div",
+                {},
+                h("strong", { text: truncate(question.text, 120) }),
+                h("span", {
+                  text: answer
+                    ? "Resposta registrada — crie uma conta para ver o gabarito e a explicação."
+                    : expired
+                      ? "Não respondida — tempo esgotado"
+                      : "Não respondida",
+                })
+              )
+            );
+          }
           const isCorrect = Boolean(answer?.correct);
           const unanswered = !answer;
           const modifier = unanswered ? "is-unanswered" : isCorrect ? "is-correct" : "is-wrong";
