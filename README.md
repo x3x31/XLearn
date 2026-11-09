@@ -85,7 +85,7 @@ A navegação inferior leva às áreas principais:
 
 | Área | Rota | O que faz |
 |---|---|---|
-| Início | `#/inicio` | Visão rápida da temporada, estágio, moedas, meta/sequência, conquistas pendentes de coleta e ranking global (top 5 e posição do usuário), com atalhos para o progresso, sessões em andamento e revisões vencidas quando há conta. |
+| Início | `#/inicio` | Chamada inicial com ações de estudo, ranking global (top 5 e posição do usuário) e conquistas pendentes de coleta; sessões em andamento e revisões vencidas aparecem como avisos quando existem. |
 | Provas | `#/estudar` | Lista os materiais disponíveis e inicia uma sessão de estudo. |
 | Revisões | `#/revisoes` | Mostra a fila de revisões vencidas e futuras, agrupada por prova. |
 | Simulado | `#/simulado` | Monta uma prova por assunto, com quantidade configurável de questões. |

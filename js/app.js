@@ -2478,8 +2478,6 @@ function renderHome() {
       )
     ),
 
-    renderQuickStats(),
-
     renderCloudRanking(),
 
     renderHomeAchievements(),
@@ -2568,105 +2566,6 @@ function renderHome() {
         )
       : null,
   ];
-}
-
-function renderQuickStats() {
-  const gamification = state.gamification || createGamification();
-  const wallet = state.wallet || createWallet();
-  const settings = getSettings();
-  const season = summarizeSeason(state.season, state.stats?.daily || {});
-  const status = season.status;
-  const seasonLabel = status.isActive
-    ? status.daysRemaining > 0
-      ? `${plural(status.daysRemaining, "dia restante", "dias restantes")}`
-      : "último dia"
-    : status.hasEnded
-      ? "personagem congelado"
-      : "em breve";
-  const goal = dailyProgress(state.stats || {}, settings.dailyGoal);
-  const streak = computeStreak(state.stats?.daily || {});
-  const achievements = listAchievements(gamification);
-  const unlocked = achievements.filter((item) => item.unlockedAt);
-  const pendingCoins = pendingAchievementCoins(unlocked);
-
-  const items = [
-    {
-      icon: "target",
-      value: `Estágio ${season.stageNumber}`,
-      label: `${season.stage.name} · ${seasonLabel}`,
-    },
-    {
-      icon: "coin",
-      value: `${wallet.balance} moedas`,
-      label: `${plural(season.season.coinsEarned, "moeda na temporada", "moedas na temporada")}`,
-    },
-    {
-      icon: "flame",
-      value: `${goal.answered}/${goal.target}`,
-      label: `${goal.reached ? "meta concluída" : "meta de hoje"} · ${plural(
-        streak.current,
-        "dia",
-        "dias"
-      )} de sequência`,
-    },
-    {
-      icon: "award",
-      value: `${unlocked.length}/${achievements.length}`,
-      label:
-        pendingCoins > 0
-          ? plural(pendingCoins, "moeda a coletar", "moedas a coletar")
-          : "conquistas desbloqueadas",
-    },
-  ];
-
-  const account = hasAccount();
-  return h(
-    "section",
-    { class: "card quick-panel", "aria-labelledby": "quick-title" },
-    h(
-      "div",
-      { class: "section-head quick-panel__head" },
-      h(
-        "div",
-        {},
-        h("span", { class: "eyebrow" }, icon("chart"), "Visão rápida"),
-        h("h2", { id: "quick-title", text: "Seu ritmo de estudo" })
-      ),
-      account
-        ? h(
-            "a",
-            { class: "quick-panel__link", href: "#/progresso" },
-            "Ver progresso",
-            icon("arrowRight")
-          )
-        : h("span", {
-            class: "chip chip--neutral",
-            text: "disponível com conta",
-          })
-    ),
-    h(
-      "div",
-      { class: "quick-grid" },
-      ...items.map((item) => {
-        const content = [
-          h("span", { class: "quick-item__icon", "aria-hidden": "true" }, icon(item.icon)),
-          h("strong", { class: "quick-item__value", text: item.value }),
-          h("span", { class: "quick-item__label", text: item.label }),
-        ];
-        return account
-          ? h(
-              "a",
-              {
-                class: "quick-item",
-                href: "#/progresso",
-                "aria-label": `${item.value}. ${item.label}. Abrir progresso.`,
-              },
-              ...content
-            )
-          : h("div", { class: "quick-item" }, ...content);
-      })
-    )
-  );
 }
 
 function renderHomeAchievements() {
