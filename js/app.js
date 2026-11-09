@@ -2478,7 +2478,7 @@ function renderHome() {
       )
     ),
 
-    renderHomeAchievements(),
+    hasAccount() ? renderHomeAchievements() : null,
 
     hasAccount() ? renderQuickStats() : null,
 

@@ -85,7 +85,7 @@ A navegação inferior leva às áreas principais:
 
 | Área | Rota | O que faz |
 |---|---|---|
-| Início | `#/inicio` | Chamada inicial com ações de estudo. Para quem tem conta, os cards seguem a ordem “Seu painel de estudos”, “Recompensas pendentes”, “Visão rápida” e “Ranking da temporada”; o visitante vê as recompensas pendentes, quando houver, e o ranking público, sem a visão rápida. Sessões em andamento e revisões vencidas aparecem como avisos. |
+| Início | `#/inicio` | Chamada inicial com ações de estudo e, para quem tem conta, os cards na ordem “Seu painel de estudos”, “Recompensas pendentes”, “Visão rápida” e “Ranking da temporada”. O visitante vê apenas a chamada inicial e o ranking público. Sessões em andamento e revisões vencidas aparecem como avisos. |
 | Provas | `#/estudar` | Lista os materiais disponíveis e inicia uma sessão de estudo. |
 | Revisões | `#/revisoes` | Mostra a fila de revisões vencidas e futuras, agrupada por prova. |
 | Simulado | `#/simulado` | Monta uma prova por assunto, com quantidade configurável de questões. |
