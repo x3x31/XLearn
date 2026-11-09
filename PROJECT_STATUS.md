@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.46.0` (REQ-050 implementado) |
+| **Versão atual** | `0.47.0` (DOC-001 — specs consolidadas) |
 | **Data da última atualização** | 2026-11-09 |
 
 ---
@@ -232,9 +232,20 @@ XLearn/
 │   └── *.md                  # 10 materiais de estudo preservados
 ├── supabase/
 │   └── schema.sql            # NOVO: tabela, view, índices, grants, RLS e políticas do ranking
+├── specs/                    # DOC-001: especificação normativa em nove documentos temáticos
+│   ├── README.md             # índice, estado resumido e convenções
+│   ├── 01-visao-geral.md     # problema, escopo, personas, princípios e glossário
+│   ├── 02-requisitos.md      # REQ-001..REQ-050, NFRs e regras de negócio
+│   ├── 03-arquitetura.md     # camadas, módulos, fluxos e ADRs
+│   ├── 04-modelo-de-dados.md # IndexedDB, backup e schema Supabase
+│   ├── 05-interface-e-rotas.md
+│   ├── 06-conteudo-e-parser.md
+│   ├── 07-offline-e-pwa.md
+│   ├── 08-seguranca-e-privacidade.md
+│   └── 09-testes-e-qualidade.md
 ├── outros/                   # referências e fontes originais (não usadas em runtime)
 ├── README.md                 # IMPLEMENTADO: documentação de uso, materiais, publicação e limitações
-└── PROJECT_STATUS.md
+└── PROJECT_STATUS.md         # fonte operacional de requisitos, decisões, histórico e testes
 ```
 
 Responsabilidades: `parser.js`, `srs.js`, `gamification.js`, `coins.js`, `season.js`, `timer.js`, `simulado.js`, `ranking.js`, `backup.js`, `storage.js`, `cloud.js` e `cloud-config.js` não acessam o DOM. `cloud.js` concentra o protocolo REST do Supabase e é testável no Node com `fetch` simulado; `db.js` concentra o acesso ao IndexedDB. `app.js` não acessa IndexedDB diretamente nem usa SDK do Supabase. A ordem das alternativas é gerada no início de cada apresentação e persistida na sessão. `questions.js` resolve os caminhos do manifesto a partir da URL do próprio módulo, o que mantém compatibilidade com subdiretórios do GitHub Pages.
@@ -414,6 +425,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.44.0 | REQ-048 | Remoção do card “Visão rápida / Seu ritmo de estudo” da tela Início, com a exclusão de `renderQuickStats`, dos estilos `quick-*` e dos indicadores duplicados de estágio, moedas, meta/sequência e conquistas; hero, ranking global e conquistas pendentes permanecem; service worker `v24` | `285f326` | 2026-11-09 |
 | 0.45.0 | REQ-049 | “Visão rápida” restrita a usuários logados e nova ordem da tela Início: “Seu painel de estudos”, “Recompensas pendentes”, “Visão rápida” e “Ranking da temporada”, mantendo avisos de sessão e revisões depois dos cards; service worker `v25` | `6f6fc60` | 2026-11-09 |
 | 0.46.0 | REQ-050 | “Recompensas pendentes” restrita a usuários logados; o visitante passa a ver apenas a chamada inicial e o ranking público na tela Início, mantendo a ordem dos cards para quem tem conta; service worker `v26` | `404c5de` | 2026-11-09 |
+| 0.47.0 | DOC-001 | Consolidação da especificação normativa em `specs/`: índice e nove documentos temáticos cobrindo visão geral, requisitos, arquitetura, modelo de dados, interface e rotas, conteúdo e parser, offline e PWA, segurança e privacidade, testes e qualidade. `README.md` passa a apontar para as specs e `PROJECT_STATUS.md` continua como fonte operacional. | `—` | 2026-11-09 |
 
 ---
 
@@ -475,7 +487,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 
 ## I. Situação dos requisitos e dependências
 
-Os requisitos REQ-001 a REQ-050 estão implementados. A fase 9, a fase 10 (conta Supabase, sessão sazonal, sincronização de nível/moedas e ranking global da Temporada 1), a fase 11 (identidade na barra superior), a fase 12 (login e cadastro separados, rolagem ao apagar progresso e restrições do visitante) e a fase 13 (cards da home restritos à conta e ordem definida) estão concluídas. O schema remoto foi aplicado, a confirmação de e-mail está desativada e a validação final em produção permanece como próxima tarefa.
+Os requisitos REQ-001 a REQ-050 estão implementados. A fase 9, a fase 10 (conta Supabase, sessão sazonal, sincronização de nível/moedas e ranking global da Temporada 1), a fase 11 (identidade na barra superior), a fase 12 (login e cadastro separados, rolagem ao apagar progresso e restrições do visitante) e a fase 13 (cards da home restritos à conta e ordem definida) estão concluídas. O DOC-001 consolidou a especificação normativa em `specs/`, sem alterar código de produção. O schema remoto foi aplicado, a confirmação de e-mail está desativada e a validação final em produção permanece como próxima tarefa.
 
 Dependências principais:
 
@@ -558,6 +570,14 @@ Dependências principais:
 - `node --check` em todos os `js/*.js`, `service-worker.js` e `scripts/*.mjs`: sem erros de sintaxe.
 - `service-worker.js` em `v26`, com 31 caminhos no app shell (incluindo `js/cloud.js` e `js/cloud-config.js`), todos presentes no repositório.
 - `questoes/manifest.json` válido e coerente com os 10 materiais; `package.json` sem dependências de execução.
+
+### Especificação (DOC-001)
+
+- `specs/README.md` e os nove documentos temáticos foram criados a partir do estado real do repositório em 2026-11-09: rotas, home de logado e visitante, gate de conta, parser, manifesto, service worker `v26`, schema Supabase, backup e matriz de testes.
+- A especificação documenta REQ-001 a REQ-050, as decisões de arquitetura, as regras de negócio, os riscos residuais e a Definition of Done vigente.
+- `PROJECT_STATUS.md` permanece como fonte operacional de versão, requisitos e histórico; `README.md` é o guia de uso e aponta para `specs/README.md`.
+- A validação da documentação incluiu `node --check js/app.js`, `node --check service-worker.js`, `npm run check` (10 materiais, 1.250 questões, 0 erros e 0 avisos), conferência dos links internos e `git diff --check`.
+- As specs não alteram código de produção; o service worker permanece em `v26`.
 - Renderização do dashboard mantém o descarte de entradas nulas; a tela Início exibe, para quem tem conta, hero, recompensas pendentes, “Visão rápida” e ranking global nesta ordem; o visitante vê somente hero e ranking; o cartão da temporada ocupa o lugar do antigo card de personagem em `#/progresso`.
 - `main` sincronizada com `origin/main`; o código da fase 10 foi entregue no commit `e1b2b88` e a validação/documentação por requisito nos commits seguintes. A árvore de trabalho fica limpa ao final desta revisão.
 
@@ -638,7 +658,7 @@ As verificações abaixo são registros históricos de cada entrega; números e 
 
 ## L. Próxima tarefa recomendada
 
-**Validar as fases 10 e 11 em produção e preparar a continuidade da temporada.**
+**Validar as fases 10 e 11 em produção, manter as specs e preparar a continuidade da temporada.**
 
 Ordem prevista:
 
@@ -646,4 +666,5 @@ Ordem prevista:
 2. Verificar o top 5 da home, a posição do próprio usuário fora do top 5, o cartão da conta em `#/config`, a sincronização manual e a saída da conta. Conferir também a barra superior: apelido no lugar da assinatura, botão de sair ao lado das configurações, ausência da contagem de questões e estados Online/Offline/Visitante.
 3. Testar o modo offline: estudar sem rede, confirmar que o app não bloqueia a sessão e que o placar é reenviado ao reconectar.
 4. Remover a conta de teste criada no navegador e conferir que o ranking remoto não expõe e-mail nem tokens. O token administrativo usado na validação automatizada já foi removido de `/tmp/opencode/sbp_token`; recomenda-se revogá-lo no painel Supabase.
-5. Planejar a Temporada 2 (novo `seasonId`, período e faixas) antes de 04/12/2026, mantendo o congelamento da Temporada 1 e a possibilidade de arquivar o placar anterior.
+5. Manter `specs/` sincronizada com o código: toda mudança de requisito deve atualizar o documento temático afetado e `PROJECT_STATUS.md` no mesmo commit.
+6. Planejar a Temporada 2 (novo `seasonId`, período e faixas) antes de 04/12/2026, mantendo o congelamento da Temporada 1 e a possibilidade de arquivar o placar anterior.

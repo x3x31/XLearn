@@ -284,9 +284,16 @@ Em **Configurações → Dados**:
 ├── questoes/           # materiais .md e manifest.json
 ├── scripts/            # gerador de manifesto e ícones
 ├── supabase/           # schema canônico e migration do ranking
+├── specs/              # especificação normativa (índice em specs/README.md)
 ├── icons/              # ícones da PWA
 └── assets/characters/  # estágios do personagem
 ```
+
+## Documentação
+
+- `README.md` (este arquivo) é o guia de uso, instalação e publicação.
+- [`specs/README.md`](specs/README.md) é o índice da especificação normativa, com nove documentos temáticos sobre visão geral, requisitos, arquitetura, modelo de dados, interface e rotas, conteúdo e parser, offline e PWA, segurança e privacidade, e testes e qualidade.
+- `PROJECT_STATUS.md` é a fonte operacional de versão, requisitos, decisões, histórico de commits e evidências de teste.
 
 ## Validação e testes
 
