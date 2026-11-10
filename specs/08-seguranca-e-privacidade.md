@@ -213,6 +213,8 @@ O projeto não define Content Security Policy. Como não há HTML dinâmico nem 
 - A proteção depende do isolamento de origem e da ausência de XSS.
 - Dados podem ser lidos por alguém com acesso ao perfil do navegador no dispositivo.
 - Limpar dados do site apaga o banco.
+- Os dados de estudo são separados por escopo (`guest` ou `u:<userId>`). Chaves de `meta`, progresso, sessões e tentativas recebem o prefixo do escopo, e as consultas filtram o escopo ativo, impedindo que uma conta veja progresso, recompensas ou histórico de outra no mesmo dispositivo.
+- Configurações, `cloudAuth`, `cloudProfile`, `cloudRank` e o marcador de migração permanecem globais; a sessão não é copiada entre contas.
 
 ### 7.2 `meta/cloudAuth`
 
@@ -228,15 +230,17 @@ Contém tokens e e-mail. Regras:
 ### 7.3 Backup
 
 - Envelope identificado por `app: "XLearn"` e `format: "xlearn-backup"`.
+- Exporta apenas o escopo ativo, com chaves de progresso e IDs de sessão/tentativa canônicos (sem prefixo e sem campo `scope`).
 - Importação valida `schemaVersion: 1`, listas dos quatro stores, objeto de cada registro e presença da chave.
-- A importação ignora `cloudAuth` mesmo se um arquivo adulterado o contiver.
+- A importação ignora `cloudAuth`, `cloudProfile`, `cloudRank` e `storageScopedOnce` mesmo se um arquivo adulterado os contiver.
+- A importação substitui somente o estudo e as configurações globais do escopo ativo, preservando a sessão, o cache do ranking e as demais contas.
 - A escrita ocorre em uma única transação; erro desfaz tudo.
 - O arquivo pode conter respostas e histórico pessoais; o usuário deve guardá-lo com cuidado.
 
 ### 7.4 Exclusão de dados
 
-- “Apagar progresso” remove respostas, sessões, tentativas, estatísticas, temporada, gamificação, carteira, simulados e meta/sequência.
-- Preserva `meta/settings`.
+- “Apagar progresso” remove respostas, sessões, tentativas, estatísticas, temporada, gamificação, carteira, simulados e meta/sequência apenas do escopo ativo.
+- Preserva `meta/settings`, a sessão da conta, o cache do ranking, o marcador de migração e os dados das demais contas.
 - Preserva a sessão da conta, salvo logout explícito.
 - Não há exclusão remota da conta pelo app; isso deve ser feito no Supabase.
 
@@ -330,3 +334,5 @@ Checklist operacional:
 10. O cliente valida apelido, e-mail, senha, temporada e placar antes de enviar.
 11. Nenhum segredo administrativo (`service_role`) está no repositório.
 12. O app informa que apelido, nível e moedas são públicos e que o e-mail não aparece.
+13. Nenhum dado de estudo ou recompensa de uma conta é exibido para outra conta ou para o visitante.
+14. Exportação, importação e exclusão de progresso afetam apenas o escopo ativo e preservam as demais contas.

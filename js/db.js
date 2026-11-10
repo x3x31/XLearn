@@ -33,6 +33,209 @@ import {
 const DB_NAME = "xlearn";
 const DB_VERSION = 1;
 
+/**
+ * Escopo local dos dados de estudo.
+ *
+ * O IndexedDB é único por dispositivo, mas os dados de estudo pertencem a
+ * quem está usando o app. Cada conta recebe o próprio escopo; o modo visitante
+ * usa `guest`. Configurações, sessão do Supabase e cache do ranking continuam
+ * globais e não entram no escopo.
+ */
+const GUEST_SCOPE = "guest";
+const SCOPED_META_KEYS = new Set([
+  "stats",
+  "gamification",
+  "wallet",
+  "season",
+  "simuladoSession",
+  "simulados",
+]);
+const SCOPE_MIGRATION_KEY = "storageScopedOnce";
+const SCOPED_META_RE = /^(guest|u:[^:]+)::(.+)$/;
+const SCOPED_PROGRESS_RE = /^(guest|u:[^:]+)::(.+)$/;
+let storageScope = GUEST_SCOPE;
+
+function normalizeScope(scope) {
+  return typeof scope === "string" && scope.trim() ? scope.trim() : GUEST_SCOPE;
+}
+
+/** Escopo de estudo de uma conta; sem `userId`, devolve o escopo visitante. */
+export function scopeForUser(userId) {
+  const id = typeof userId === "string" ? userId.trim() : "";
+  return id ? `u:${id}` : GUEST_SCOPE;
+}
+
+/** Define o escopo ativo sem executar migração (uso interno e testes). */
+export function setStorageScope(scope) {
+  storageScope = normalizeScope(scope);
+  return storageScope;
+}
+
+export function getStorageScope() {
+  return storageScope;
+}
+
+function scopePrefix(scope = storageScope) {
+  return `${normalizeScope(scope)}::`;
+}
+
+function scopeMetaKey(key, scope = storageScope) {
+  return SCOPED_META_KEYS.has(key) ? `${scopePrefix(scope)}${key}` : key;
+}
+
+function parseScopedMetaKey(key) {
+  if (typeof key !== "string") return null;
+  const match = SCOPED_META_RE.exec(key);
+  if (!match || !SCOPED_META_KEYS.has(match[2])) return null;
+  return { scope: match[1], key: match[2] };
+}
+
+function progressScope(key) {
+  if (typeof key !== "string") return null;
+  const match = SCOPED_PROGRESS_RE.exec(key);
+  return match ? match[1] : null;
+}
+
+function canonicalProgressKey(key) {
+  if (typeof key !== "string") return key;
+  const scope = progressScope(key);
+  return scope ? key.slice(scope.length + 2) : key;
+}
+
+function scopedProgressKey(key, scope = storageScope) {
+  return `${scopePrefix(scope)}${canonicalProgressKey(key)}`;
+}
+
+function canonicalSessionId(id) {
+  if (typeof id !== "string") return id;
+  const scope = progressScope(id);
+  return scope ? id.slice(scope.length + 2) : id;
+}
+
+function scopedSessionId(id, scope = storageScope) {
+  return `${scopePrefix(scope)}${canonicalSessionId(id)}`;
+}
+
+function belongsToScope(record, scope = storageScope) {
+  if (!record || typeof record !== "object") return false;
+  if (record.scope) return record.scope === scope;
+  if (typeof record.key === "string") {
+    const keyScope = progressScope(record.key);
+    if (keyScope) return keyScope === scope;
+  }
+  return false;
+}
+
+/** Remove o marcador interno de escopo de um registro exportável. */
+function stripScope(record) {
+  const { scope: _scope, ...rest } = record;
+  return rest;
+}
+
+/** Chave de progresso já isolada pelo escopo ativo. */
+export function progressKey(materialId, questionId) {
+  return `${scopePrefix()}${materialId}::${questionId}`;
+}
+
+/**
+ * Ativa o escopo de estudo e migra uma única vez os dados gravados antes do
+ * isolamento por conta. A migração atribui os registros antigos ao primeiro
+ * escopo usado depois da atualização.
+ */
+export async function activateStorageScope(scope) {
+  setStorageScope(scope);
+  const db = await openDatabase();
+  const marker = await readStore("meta", SCOPE_MIGRATION_KEY);
+  if (marker?.value) return storageScope;
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(["meta", "progress", "sessions", "attempts"], "readwrite");
+    const metaStore = tx.objectStore("meta");
+    const progressStore = tx.objectStore("progress");
+    const sessionsStore = tx.objectStore("sessions");
+    const attemptsStore = tx.objectStore("attempts");
+
+    const migrateMeta = metaStore.openCursor();
+    migrateMeta.onsuccess = () => {
+      const cursor = migrateMeta.result;
+      if (!cursor) return;
+      const record = cursor.value;
+      if (SCOPED_META_KEYS.has(record?.key)) {
+        metaStore.put({ ...record, key: scopeMetaKey(record.key) });
+        cursor.delete();
+      }
+      cursor.continue();
+    };
+
+    const migrateProgress = progressStore.openCursor();
+    migrateProgress.onsuccess = () => {
+      const cursor = migrateProgress.result;
+      if (!cursor) return;
+      const record = cursor.value;
+      const storedKey = scopedProgressKey(record?.key);
+      const next = { ...record, key: storedKey, scope: storageScope };
+      if (storedKey !== record?.key) {
+        progressStore.put(next);
+        cursor.delete();
+      } else if (record?.scope !== storageScope) {
+        progressStore.put(next);
+      }
+      cursor.continue();
+    };
+
+    const migrateSessions = sessionsStore.openCursor();
+    migrateSessions.onsuccess = () => {
+      const cursor = migrateSessions.result;
+      if (!cursor) return;
+      const record = cursor.value;
+      const storedId = scopedSessionId(record?.id);
+      const next = { ...record, id: storedId, scope: storageScope };
+      if (storedId !== record?.id) {
+        sessionsStore.put(next);
+        cursor.delete();
+      } else if (record?.scope !== storageScope) {
+        sessionsStore.put(next);
+      }
+      cursor.continue();
+    };
+
+    const migrateAttempts = attemptsStore.openCursor();
+    migrateAttempts.onsuccess = () => {
+      const cursor = migrateAttempts.result;
+      if (!cursor) return;
+      const record = cursor.value;
+      const storedKey = scopedProgressKey(record?.key);
+      const storedSessionId = scopedSessionId(record?.sessionId);
+      const next = {
+        ...record,
+        key: storedKey,
+        sessionId: storedSessionId,
+        scope: storageScope,
+      };
+      if (storedKey !== record?.key) {
+        attemptsStore.put(next);
+        cursor.delete();
+      } else if (
+        record?.scope !== storageScope ||
+        record?.sessionId !== storedSessionId
+      ) {
+        attemptsStore.put(next);
+      }
+      cursor.continue();
+    };
+
+    metaStore.put({
+      key: SCOPE_MIGRATION_KEY,
+      value: true,
+      updatedAt: new Date().toISOString(),
+    });
+
+    tx.oncomplete = () => resolve(storageScope);
+    tx.onerror = () => reject(tx.error || new Error("Falha ao isolar os dados locais."));
+    tx.onabort = () => reject(tx.error || new Error("Isolamento dos dados cancelado."));
+  });
+}
+
 let databasePromise = null;
 
 export function openDatabase() {
@@ -106,16 +309,18 @@ const BACKUP_KEY_FIELDS = { meta: "key", progress: "key", sessions: "id", attemp
 
 /**
  * Chaves de `meta` que nunca entram no backup nem são restauradas de um
- * arquivo antigo. `cloudAuth` contém tokens de sessão do Supabase e não deve
- * vazar em um JSON compartilhado.
+ * arquivo antigo. `cloudAuth` contém tokens de sessão do Supabase; o perfil e o
+ * cache do ranking pertencem à conta e podem conter dados de outras pessoas.
+ * `storageScopedOnce` é um marcador local de migração e também fica de fora.
  */
-const PRIVATE_META_KEYS = new Set(["cloudAuth"]);
+const PRIVATE_META_KEYS = new Set(["cloudAuth", "cloudProfile", "cloudRank"]);
+const LOCAL_META_KEYS = new Set([SCOPE_MIGRATION_KEY]);
 
-function isPrivateMetaKey(store, key) {
-  return store === "meta" && PRIVATE_META_KEYS.has(key);
+function isExcludedMetaKey(store, key) {
+  return store === "meta" && (PRIVATE_META_KEYS.has(key) || LOCAL_META_KEYS.has(key));
 }
 
-/** Lê os quatro stores em uma única transação para um backup consistente. */
+/** Lê os quatro stores em uma única transação e devolve só o escopo ativo. */
 export async function exportDatabase() {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
@@ -129,7 +334,34 @@ export async function exportDatabase() {
       request.onerror = () => reject(request.error || new Error("Falha ao ler os dados locais."));
     }
     tx.oncomplete = () => {
-      data.meta = (data.meta || []).filter((record) => !isPrivateMetaKey("meta", record?.key));
+      const scope = storageScope;
+      data.meta = (data.meta || []).flatMap((record) => {
+        if (!record || typeof record.key !== "string") return [];
+        const parsed = parseScopedMetaKey(record.key);
+        if (parsed) {
+          if (parsed.scope !== scope) return [];
+          return [{ ...record, key: parsed.key }];
+        }
+        if (isExcludedMetaKey("meta", record.key)) return [];
+        return [record];
+      });
+      data.progress = (data.progress || []).flatMap((record) => {
+        if (!belongsToScope(record, scope)) return [];
+        return [{ ...stripScope(record), key: canonicalProgressKey(record.key) }];
+      });
+      data.sessions = (data.sessions || [])
+        .filter((record) => belongsToScope(record, scope))
+        .map((record) => ({
+          ...stripScope(record),
+          id: canonicalSessionId(record.id),
+        }));
+      data.attempts = (data.attempts || [])
+        .filter((record) => belongsToScope(record, scope))
+        .map((record) => ({
+          ...stripScope(record),
+          key: canonicalProgressKey(record.key),
+          sessionId: canonicalSessionId(record.sessionId),
+        }));
       resolve(data);
     };
     tx.onerror = () => reject(tx.error || new Error("Falha ao exportar os dados locais."));
@@ -138,45 +370,142 @@ export async function exportDatabase() {
 }
 
 /**
- * Substitui os quatro stores em uma única transação. A validação prévia evita
- * arquivos sem chave; se uma escrita falhar, o IndexedDB desfaz tudo.
+ * Substitui apenas os dados de estudo do escopo ativo. Registros de outras
+ * contas permanecem intactos, e as chaves do backup são canonizadas para que o
+ * arquivo possa ser restaurado em qualquer conta sem expor o escopo de origem.
+ * Configurações globais são restauradas; sessão e cache da conta são mantidos.
  */
 export async function importDatabase(data) {
   if (!data || typeof data !== "object") {
     throw new Error("Dados de importação ausentes.");
   }
-  const clean = {};
+
+  const scope = storageScope;
+  const clean = { meta: [], progress: [], sessions: [], attempts: [] };
   for (const store of BACKUP_STORES) {
     const records = data[store];
     if (!Array.isArray(records)) {
       throw new Error(`O backup não contém a lista "${store}".`);
     }
     const keyField = BACKUP_KEY_FIELDS[store];
-    const accepted = [];
+    const seen = new Set();
     for (const record of records) {
       if (!record || typeof record !== "object" || typeof record[keyField] !== "string") {
         throw new Error(`Registro inválido em "${store}".`);
       }
-      if (isPrivateMetaKey(store, record[keyField])) continue;
-      accepted.push(record);
+
+      if (store === "meta") {
+        if (isExcludedMetaKey("meta", record.key)) continue;
+        const parsed = parseScopedMetaKey(record.key);
+        const canonical = parsed ? parsed.key : record.key;
+        const storedKey = SCOPED_META_KEYS.has(canonical) ? scopeMetaKey(canonical) : canonical;
+        if (seen.has(storedKey)) {
+          throw new Error(`O backup tem chaves duplicadas em "${store}".`);
+        }
+        seen.add(storedKey);
+        clean.meta.push({ ...record, key: storedKey });
+        continue;
+      }
+
+      if (store === "progress") {
+        const canonical = canonicalProgressKey(record.key);
+        if (typeof canonical !== "string" || canonical.length === 0) {
+          throw new Error('O backup tem um progresso sem chave válida.');
+        }
+        const storedKey = scopedProgressKey(canonical, scope);
+        if (seen.has(storedKey)) {
+          throw new Error(`O backup tem chaves duplicadas em "${store}".`);
+        }
+        seen.add(storedKey);
+        clean.progress.push({ ...record, key: storedKey, scope });
+        continue;
+      }
+
+      if (store === "sessions") {
+        const storedId = scopedSessionId(record.id, scope);
+        if (seen.has(storedId)) {
+          throw new Error(`O backup tem chaves duplicadas em "${store}".`);
+        }
+        seen.add(storedId);
+        clean.sessions.push({ ...record, id: storedId, scope });
+        continue;
+      }
+
+      if (store === "attempts") {
+        const storedKey = scopedProgressKey(record.key, scope);
+        const storedSessionId = scopedSessionId(record.sessionId, scope);
+        if (seen.has(storedKey)) {
+          throw new Error(`O backup tem chaves duplicadas em "${store}".`);
+        }
+        seen.add(storedKey);
+        clean.attempts.push({
+          ...record,
+          key: storedKey,
+          sessionId: storedSessionId,
+          scope,
+        });
+        continue;
+      }
     }
-    clean[store] = accepted;
   }
 
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(BACKUP_STORES, "readwrite");
-    try {
-      for (const store of BACKUP_STORES) {
-        const target = tx.objectStore(store);
-        target.clear();
-        for (const record of clean[store]) target.put(record);
+    const stores = {
+      meta: tx.objectStore("meta"),
+      progress: tx.objectStore("progress"),
+      sessions: tx.objectStore("sessions"),
+      attempts: tx.objectStore("attempts"),
+    };
+
+    const deleteMatching = (storeName, predicate, write) => {
+      const request = stores[storeName].openCursor();
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) {
+          write();
+          return;
+        }
+        if (predicate(cursor.value)) cursor.delete();
+        cursor.continue();
+      };
+      request.onerror = () => {
+        /* A transação aborta e o erro é tratado por tx.onerror. */
+      };
+    };
+
+    deleteMatching(
+      "meta",
+      (record) => {
+        if (!record || typeof record.key !== "string") return false;
+        const parsed = parseScopedMetaKey(record.key);
+        if (parsed) return parsed.scope === scope;
+        return !isExcludedMetaKey("meta", record.key);
+      },
+      () => {
+        for (const record of clean.meta) stores.meta.put(record);
       }
-    } catch (error) {
-      tx.abort();
-      reject(error);
-      return;
+    );
+
+    deleteMatching(
+      "progress",
+      (record) => belongsToScope(record, scope),
+      () => {
+        for (const record of clean.progress) stores.progress.put(record);
+      }
+    );
+
+    for (const store of ["sessions", "attempts"]) {
+      deleteMatching(
+        store,
+        (record) => record?.scope === scope,
+        () => {
+          for (const record of clean[store]) stores[store].put(record);
+        }
+      );
     }
+
     tx.oncomplete = () =>
       resolve({
         meta: clean.meta.length,
@@ -190,25 +519,34 @@ export async function importDatabase(data) {
 }
 
 /**
- * Apaga o progresso de estudo e tudo que deriva dele: questões, sessões,
- * tentativas, estatísticas diárias e gamificação (XP, conquistas, sequência).
- * As configurações em `meta/settings` são preservadas.
+ * Apaga o progresso de estudo do escopo ativo e tudo que deriva dele: questões,
+ * sessões, tentativas, estatísticas diárias e gamificação (XP, conquistas,
+ * sequência). As configurações globais e os dados de outras contas são
+ * preservados.
  */
 export async function clearProgressData() {
   const db = await openDatabase();
+  const scope = storageScope;
   return new Promise((resolve, reject) => {
     const tx = db.transaction(BACKUP_STORES, "readwrite");
     try {
-      for (const store of ["progress", "sessions", "attempts"]) {
-        tx.objectStore(store).clear();
+      for (const storeName of ["progress", "sessions", "attempts"]) {
+        const store = tx.objectStore(storeName);
+        const request = store.openCursor();
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return;
+          const record = cursor.value;
+          const inScope =
+            storeName === "progress"
+              ? belongsToScope(record, scope)
+              : record?.scope === scope;
+          if (inScope) cursor.delete();
+          cursor.continue();
+        };
       }
       const meta = tx.objectStore("meta");
-      meta.delete("stats");
-      meta.delete("gamification");
-      meta.delete("wallet");
-      meta.delete("season");
-      meta.delete("simuladoSession");
-      meta.delete("simulados");
+      for (const key of SCOPED_META_KEYS) meta.delete(scopeMetaKey(key, scope));
     } catch (error) {
       tx.abort();
       reject(error);
@@ -220,18 +558,19 @@ export async function clearProgressData() {
   });
 }
 
-/** Lê um valor do store meta. */
+/** Lê um valor do store meta. Chaves de estudo são isoladas pelo escopo ativo. */
 export async function getMeta(key) {
-  const record = await readStore("meta", key);
+  const record = await readStore("meta", scopeMetaKey(key));
   return record?.value ?? null;
 }
 
-/** Grava um valor no store meta. */
+/** Grava um valor no store meta. Chaves de estudo são isoladas pelo escopo ativo. */
 export async function setMeta(key, value) {
   const db = await openDatabase();
+  const storedKey = scopeMetaKey(key);
   return new Promise((resolve, reject) => {
     const tx = db.transaction("meta", "readwrite");
-    tx.objectStore("meta").put({ key, value, updatedAt: new Date().toISOString() });
+    tx.objectStore("meta").put({ key: storedKey, value, updatedAt: new Date().toISOString() });
     tx.oncomplete = () => resolve(value);
     tx.onerror = () => reject(tx.error || new Error("Falha ao salvar configuração."));
     tx.onabort = () => reject(tx.error || new Error("Operação cancelada."));
@@ -293,10 +632,10 @@ export async function claimAchievementReward(achievementId, { now = new Date() }
   return new Promise((resolve, reject) => {
     const tx = db.transaction("meta", "readwrite");
     const store = tx.objectStore("meta");
-    const gamificationRequest = store.get("gamification");
-    const walletRequest = store.get("wallet");
-    const statsRequest = store.get("stats");
-    const seasonRequest = store.get("season");
+    const gamificationRequest = store.get(scopeMetaKey("gamification"));
+    const walletRequest = store.get(scopeMetaKey("wallet"));
+    const statsRequest = store.get(scopeMetaKey("stats"));
+    const seasonRequest = store.get(scopeMetaKey("season"));
     let gamificationReady = false;
     let walletReady = false;
     let statsReady = false;
@@ -352,21 +691,21 @@ export async function claimAchievementReward(achievementId, { now = new Date() }
       };
       if (!claim.alreadyClaimed) {
         store.put({
-          key: "wallet",
+          key: scopeMetaKey("wallet"),
           value: claim.wallet,
           updatedAt: claim.wallet.updatedAt,
         });
       }
       if (seasonResult.gain > 0) {
         store.put({
-          key: "season",
+          key: scopeMetaKey("season"),
           value: seasonResult.season,
           updatedAt: seasonResult.season.updatedAt,
         });
       }
       if (seasonRewards.newAchievements.length > 0) {
         store.put({
-          key: "gamification",
+          key: scopeMetaKey("gamification"),
           value: seasonRewards.gamification,
           updatedAt: seasonRewards.gamification.updatedAt,
         });
@@ -418,33 +757,40 @@ export async function saveSimuladoHistory(history) {
   return setMeta("simulados", history);
 }
 
-export function progressKey(materialId, questionId) {
-  return `${materialId}::${questionId}`;
-}
-
 export async function getProgress(materialId, questionId) {
   return readStore("progress", progressKey(materialId, questionId));
 }
 
 export async function getAllProgress() {
-  return readAll("progress");
+  const records = await readAll("progress");
+  return records.filter((record) => belongsToScope(record));
 }
 
 export async function saveProgress(record) {
+  if (!record || typeof record !== "object") {
+    throw new Error("Registro de progresso inválido.");
+  }
+  const stored = {
+    ...record,
+    key: scopedProgressKey(record.key),
+    scope: storageScope,
+  };
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("progress", "readwrite");
-    tx.objectStore("progress").put(record);
-    tx.oncomplete = () => resolve(record);
+    tx.objectStore("progress").put(stored);
+    tx.oncomplete = () => resolve(stored);
     tx.onerror = () => reject(tx.error || new Error("Falha ao salvar progresso."));
     tx.onabort = () => reject(tx.error || new Error("Operação cancelada."));
   });
 }
 
-/** Salva a sessão; status derivado de finishedAt. */
+/** Salva a sessão; o identificador e o status ficam isolados pelo escopo. */
 export async function saveSession(session) {
   const record = structuredClone(session);
+  record.id = scopedSessionId(record.id);
   record.status = record.finishedAt ? "completed" : "active";
+  record.scope = storageScope;
   record.updatedAt = record.updatedAt || new Date().toISOString();
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
@@ -457,23 +803,26 @@ export async function saveSession(session) {
 }
 
 export async function getSession(id) {
-  return readStore("sessions", id);
+  const record = await readStore("sessions", scopedSessionId(id));
+  return record?.scope === storageScope ? record : null;
 }
 
-/** Retorna a sessão ativa mais recente, ou null. */
+/** Retorna a sessão ativa mais recente do escopo, ou null. */
 export async function getActiveSession() {
   const db = await openDatabase();
   const tx = db.transaction("sessions", "readonly");
   const index = tx.objectStore("sessions").index("status");
   const sessions = await requestToPromise(index.getAll("active"));
-  if (!sessions.length) return null;
-  sessions.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-  return sessions[0];
+  const own = sessions.filter((session) => session?.scope === storageScope);
+  if (!own.length) return null;
+  own.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  return own[0];
 }
 
 export async function listSessions(limit = 20) {
   const sessions = await readAll("sessions");
   return sessions
+    .filter((session) => session?.scope === storageScope)
     .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
     .slice(0, limit);
 }
@@ -481,6 +830,7 @@ export async function listSessions(limit = 20) {
 export async function listAttempts(limit = 100) {
   const attempts = await readAll("attempts");
   return attempts
+    .filter((attempt) => attempt?.scope === storageScope)
     .sort((a, b) => String(b.answeredAt).localeCompare(String(a.answeredAt)))
     .slice(0, limit);
 }
@@ -507,8 +857,10 @@ export async function recordAnswer({
 }) {
   const db = await openDatabase();
   const sessionSnapshot = structuredClone(session);
+  sessionSnapshot.id = scopedSessionId(sessionSnapshot.id);
   sessionSnapshot.status = sessionSnapshot.finishedAt ? "completed" : "active";
-  const attemptKey = `${session.id}::${question.id}`;
+  sessionSnapshot.scope = storageScope;
+  const attemptKey = `${sessionSnapshot.id}::${question.id}`;
   const answeredAt = answer.answeredAt || new Date().toISOString();
   const pKey = progressKey(session.materialId, question.id);
   const dayKey = localDayKey(new Date(answeredAt));
@@ -555,7 +907,7 @@ export async function recordAnswer({
       xpGain = result.xpGain;
       newAchievements = result.newAchievements;
       metaStore.put({
-        key: "gamification",
+        key: scopeMetaKey("gamification"),
         value: result.gamification,
         updatedAt: result.gamification.updatedAt,
       });
@@ -585,7 +937,7 @@ export async function recordAnswer({
       seasonEvolved = seasonStage.stageNumber > beforeStage.stageNumber;
       if (result.gain > 0) {
         metaStore.put({
-          key: "season",
+          key: scopeMetaKey("season"),
           value: result.season,
           updatedAt: result.season.updatedAt,
         });
@@ -599,7 +951,7 @@ export async function recordAnswer({
         savedGamification = seasonRewards.gamification;
         newAchievements = [...newAchievements, ...seasonRewards.newAchievements];
         metaStore.put({
-          key: "gamification",
+          key: scopeMetaKey("gamification"),
           value: savedGamification,
           updatedAt: savedGamification.updatedAt,
         });
@@ -621,7 +973,7 @@ export async function recordAnswer({
       goalCoinAwarded = result.goalAwarded;
       if (result.gain > 0) {
         metaStore.put({
-          key: "wallet",
+          key: scopeMetaKey("wallet"),
           value: result.wallet,
           updatedAt: result.wallet.updatedAt,
         });
@@ -633,7 +985,8 @@ export async function recordAnswer({
 
     const attempt = {
       key: attemptKey,
-      sessionId: session.id,
+      scope: storageScope,
+      sessionId: sessionSnapshot.id,
       materialId: session.materialId,
       materialPath: session.materialPath,
       materialTitle: session.materialTitle,
@@ -658,13 +1011,14 @@ export async function recordAnswer({
         at: answeredAt,
         correct: Boolean(answer.correct),
         selectedId: answer.selectedId,
-        sessionId: session.id,
+        sessionId: sessionSnapshot.id,
         srsLevel: schedule?.level ?? previous?.srsLevel ?? 0,
         dueAt: schedule?.dueAt ?? previous?.dueAt ?? null,
       });
 
       const record = {
         key: pKey,
+        scope: storageScope,
         materialId: session.materialId,
         materialPath: session.materialPath,
         materialTitle: session.materialTitle,
@@ -691,7 +1045,7 @@ export async function recordAnswer({
       progressStore.put(record);
     };
 
-    const statsRequest = metaStore.get("stats");
+    const statsRequest = metaStore.get(scopeMetaKey("stats"));
     statsRequest.onsuccess = () => {
       const previous = statsRequest.result?.value || {
         answered: 0,
@@ -719,7 +1073,7 @@ export async function recordAnswer({
       while (dayKeys.length > 365) delete daily[dayKeys.shift()];
 
       metaStore.put({
-        key: "stats",
+        key: scopeMetaKey("stats"),
         value: {
           answered: (previous.answered || 0) + 1,
           correct: (previous.correct || 0) + (answer.correct ? 1 : 0),
@@ -739,21 +1093,21 @@ export async function recordAnswer({
       applyWallet();
     };
 
-    const gamificationRequest = metaStore.get("gamification");
+    const gamificationRequest = metaStore.get(scopeMetaKey("gamification"));
     gamificationRequest.onsuccess = () => {
       gamificationSnapshot = gamificationRequest.result?.value ?? null;
       gamificationReady = true;
       applyGamification();
     };
 
-    const walletRequest = metaStore.get("wallet");
+    const walletRequest = metaStore.get(scopeMetaKey("wallet"));
     walletRequest.onsuccess = () => {
       walletSnapshot = walletRequest.result?.value ?? null;
       walletReady = true;
       applyWallet();
     };
 
-    const seasonRequest = metaStore.get("season");
+    const seasonRequest = metaStore.get(scopeMetaKey("season"));
     seasonRequest.onsuccess = () => {
       seasonSnapshot = seasonRequest.result?.value ?? null;
       seasonReady = true;
@@ -794,10 +1148,10 @@ export async function awardSessionCompletion(session, { now = new Date() } = {})
   return new Promise((resolve, reject) => {
     const tx = db.transaction("meta", "readwrite");
     const store = tx.objectStore("meta");
-    const gamificationRequest = store.get("gamification");
-    const walletRequest = store.get("wallet");
-    const statsRequest = store.get("stats");
-    const seasonRequest = store.get("season");
+    const gamificationRequest = store.get(scopeMetaKey("gamification"));
+    const walletRequest = store.get(scopeMetaKey("wallet"));
+    const statsRequest = store.get(scopeMetaKey("stats"));
+    const seasonRequest = store.get(scopeMetaKey("season"));
     let result = null;
     let walletResult = null;
     let seasonResult = null;
@@ -856,21 +1210,21 @@ export async function awardSessionCompletion(session, { now = new Date() } = {})
 
       if (!result.alreadyAwarded || seasonRewards.newAchievements.length > 0) {
         store.put({
-          key: "gamification",
+          key: scopeMetaKey("gamification"),
           value: result.gamification,
           updatedAt: result.gamification.updatedAt,
         });
       }
       if (!walletResult.alreadyAwarded) {
         store.put({
-          key: "wallet",
+          key: scopeMetaKey("wallet"),
           value: walletResult.wallet,
           updatedAt: walletResult.wallet.updatedAt,
         });
       }
       if (seasonResult.gain > 0) {
         store.put({
-          key: "season",
+          key: scopeMetaKey("season"),
           value: seasonResult.season,
           updatedAt: seasonResult.season.updatedAt,
         });

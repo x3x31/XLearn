@@ -10,6 +10,7 @@ import { loadManifest, loadMaterial } from "./questions.js";
 import { shuffle, seededRandom, hashString } from "./parser.js";
 import { getSettings, applyVisualSettings, normalizeSettings, setSettings, MANUAL_INTERVALS } from "./settings.js";
 import {
+  activateStorageScope,
   applyReviewSchedule,
   awardSessionCompletion,
   claimAchievementReward,
@@ -28,11 +29,13 @@ import {
   getWallet,
   importDatabase,
   listAttempts,
+  progressKey,
   recordAnswer,
   saveSession,
   saveSettingsRecord,
   saveSimuladoHistory,
   saveSimuladoSession,
+  scopeForUser,
   setMeta,
 } from "./db.js";
 import {
@@ -941,6 +944,45 @@ async function refreshProgress() {
   scheduleScoreSync();
 }
 
+/* Isolamento por conta ------------------------------------------------------ */
+
+/**
+ * Descarta o estado de estudo em memória antes de trocar de escopo. Os dados
+ * persistidos de cada conta permanecem no IndexedDB; apenas a visão atual muda.
+ */
+function resetStudyState() {
+  stopTimerTicker();
+  state.session = null;
+  state.sessionMaterial = null;
+  state.normalSession = null;
+  state.simuladoSession = null;
+  state.simuladoHistory = createSimuladoHistory();
+  state.simuladoDraft = {};
+  state.lastAnswerSave = null;
+  state.scheduling = null;
+  state.finishingSession = false;
+  state.progress = { byPath: {}, byId: {}, byKey: {}, records: [] };
+  state.reviewQueue = { groups: [], counts: { overdue: 0, upcoming: 0 } };
+  state.gamification = createGamification();
+  state.wallet = createWallet();
+  state.season = createSeason();
+  state.stats = { answered: 0, correct: 0, daily: {}, byMaterial: {} };
+  state.recentAttempts = [];
+}
+
+/**
+ * Ativa o escopo da conta (`u:<id>`) ou do visitante e recarrega somente os
+ * dados daquele escopo. Usado no login, no logout e quando a sessão expira.
+ */
+async function switchStudyScope(userId) {
+  await activateStorageScope(scopeForUser(userId));
+  resetStudyState();
+  await restoreActiveSession();
+  await refreshProgress();
+  updateTopbarIdentity();
+  render();
+}
+
 /* Conta, sincronização e ranking ------------------------------------------ */
 
 function normalizeStoredCloudSession(raw) {
@@ -1071,6 +1113,7 @@ async function ensureCloudSession({ force = false } = {}) {
         (error.authInvalid || error.credentials)
       ) {
         await clearCloudSession();
+        await switchStudyScope(null);
         state.cloud.syncError = "Sua sessão expirou. Entre novamente para voltar ao ranking.";
         toast("Sua sessão expirou. Entre novamente para voltar ao ranking.", "info");
         return null;
@@ -1091,13 +1134,18 @@ async function ensureCloudSession({ force = false } = {}) {
 function currentCloudScore() {
   if (!state.cloud.session) return null;
   const season = summarizeSeason(state.season || createSeason(), state.stats?.daily || {});
+  const coins = Number(season.season.coinsEarned) || 0;
+  const activeDays = Number(season.activeDays) || 0;
+  // Sem atividade local não há placar para enviar. Evita que uma conta recém-
+  // conectada em outro dispositivo envie zeros e apague a pontuação remota.
+  if (coins <= 0 && activeDays <= 0) return null;
   return {
     seasonId: season.season.id,
     nickname: state.cloud.session.nickname,
     levelNumber: season.stageNumber,
     levelName: season.stage.name,
-    coins: season.season.coinsEarned,
-    activeDays: season.activeDays,
+    coins,
+    activeDays,
   };
 }
 
@@ -1129,6 +1177,11 @@ async function syncScoreNow({ refreshRankingAfter = true } = {}) {
   const task = (async () => {
     try {
       if (!state.cloud.session) return null;
+      const score = currentCloudScore();
+      if (!score) {
+        state.cloud.pendingSync = false;
+        return null;
+      }
       if (!isOnline()) {
         state.cloud.pendingSync = true;
         state.cloud.syncStatus = "offline";
@@ -1136,8 +1189,6 @@ async function syncScoreNow({ refreshRankingAfter = true } = {}) {
       }
       const session = await ensureCloudSession();
       if (!session) return null;
-      const score = currentCloudScore();
-      if (!score) return null;
 
       state.cloud.syncStatus = "syncing";
       state.cloud.syncError = null;
@@ -1281,6 +1332,12 @@ async function refreshHomeRanking() {
 async function signOutCloud() {
   const previous = state.cloud.session;
   if (previous && cloudClient) {
+    // Envia o placar da conta antes de revogar o token e trocar de escopo.
+    try {
+      await syncScoreNow({ refreshRankingAfter: false });
+    } catch (error) {
+      console.warn("XLearn: não foi possível sincronizar antes de sair.", error);
+    }
     try {
       await cloudClient.signOut(previous);
     } catch (error) {
@@ -1288,13 +1345,23 @@ async function signOutCloud() {
     }
   }
   await clearCloudSession();
-  toast("Você saiu da conta. Seu progresso local continua salvo.", "info");
-  render();
+  await switchStudyScope(null);
+  toast(
+    "Você saiu da conta. O progresso desta conta continua salvo neste dispositivo; o modo visitante tem dados separados.",
+    "info"
+  );
 }
 
 async function syncCloudNow() {
   if (!state.cloud.session) {
     openLoginModal({ trigger: document.activeElement });
+    return;
+  }
+  if (!currentCloudScore()) {
+    toast(
+      "Ainda não há pontuação nesta conta para enviar. Estude uma questão para começar.",
+      "info"
+    );
     return;
   }
   const saved = await syncScoreNow({ refreshRankingAfter: false });
@@ -2077,7 +2144,7 @@ async function submitCloudLogin(event) {
     }
 
     await persistCloudSession(session);
-    updateTopbarIdentity();
+    await switchStudyScope(session.userId);
     const pending = state.loginModal?.pendingStart || null;
     modal.busy = false;
     modal.error = null;
@@ -2091,13 +2158,13 @@ async function submitCloudLogin(event) {
     closeLoginModal({ restoreFocus: false });
 
     if (pending) {
-      syncScoreNow();
+      await syncScoreNow({ refreshRankingAfter: false });
       startSession(pending.entry, {
         ...(pending.options || {}),
         skipCloudGate: true,
       });
     } else {
-      syncScoreNow();
+      await syncScoreNow();
       if (currentRoute() === "inicio") refreshHomeRanking();
       render();
     }
@@ -2228,6 +2295,9 @@ async function initialize() {
     if (getSettings().theme === "system") applyVisualSettings(getSettings());
   });
   await loadCloudState();
+  await activateStorageScope(
+    scopeForUser(state.cloud.session?.userId)
+  );
   await loadCatalog({ quiet: true });
   await restoreActiveSession();
   await refreshProgress();
@@ -5058,7 +5128,7 @@ function confirmAnswer(question) {
   let schedule = null;
   if (!isSimulado) {
     const previous =
-      state.progress?.byKey?.[`${session.materialId}::${question.id}`] || null;
+      state.progress?.byKey?.[progressKey(session.materialId, question.id)] || null;
     schedule = computeSchedule({
       level: previous?.srsLevel ?? 0,
       correct,

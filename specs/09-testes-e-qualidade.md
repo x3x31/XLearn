@@ -156,12 +156,17 @@ Características:
 | DB-002 | Dupla resposta não duplica registro |
 | DB-003 | Retomada restaura a questão e a ordem |
 | DB-004 | Pagamentos idempotentes por sessão/dia/conquista |
+| DB-005 | Escopos `guest`, `u:A` e `u:B` não compartilham progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira nem simulados |
+| DB-006 | Voltar a uma conta restaura exatamente as recompensas coletadas e pendentes |
+| DB-007 | Migração única dos dados legados para o primeiro escopo ativado |
+| DB-008 | Sessões e tentativas recebem IDs/chaves com prefixo de escopo |
 | BKP-001 | Envelope, versão e resumo |
 | BKP-002 | Rejeita formato, versão e chave inválidos |
-| BKP-003 | Exportação exclui `cloudAuth` |
-| BKP-004 | Importação substitui os stores em transação |
-| BKP-005 | Importação não restaura sessão |
-| BKP-006 | “Apagar progresso” preserva configurações |
+| BKP-003 | Exportação exclui `cloudAuth`, `cloudProfile`, `cloudRank` e `storageScopedOnce` |
+| BKP-004 | Exportação contém apenas o escopo ativo e chaves canônicas |
+| BKP-005 | Importação substitui somente o escopo ativo e preserva outras contas |
+| BKP-006 | Importação não restaura sessão |
+| BKP-007 | “Apagar progresso” preserva configurações e demais contas |
 | STO-001 | Remove apenas caches `xlearn`, `xlearn-*`, `xlearn:*` |
 | STO-002 | Sem Cache API retorna `supported: false` |
 | STO-003 | Limpar cache não apaga IndexedDB |
@@ -236,13 +241,20 @@ Características:
 | `test-049b` | Ordem dos quatro cards para logado | 5/5 |
 | `test-050a` | Recompensas ocultas para visitante | 4/4 |
 | `test-050b` | Quatro cards com conta e recompensa pendente | 4/4 |
+| `test-051a` | Isolamento por escopo, backup canônico, importação e limpeza | 1 suíte |
+| `test-051b` | Migração única e IDs escopados | 1 suíte |
+| `test-051c` | Login/logout real com recompensas de duas contas | 1 suíte |
 
 Essas suítes também confirmaram:
 
 - `node --check js/app.js`;
+- `node --check js/db.js`;
 - `node --check service-worker.js`;
 - `npm run check` com 10 materiais e 1.250 questões;
-- service worker `v26`.
+- `git diff --check`;
+- service worker `v27`.
+
+A suíte do REQ-051 cobriu `guest`, `u:A` e `u:B` com `fake-indexeddb`: recompensas, progresso, sessões, tentativas, estatísticas, temporada e simulados ficaram isolados; a migração legada ocorreu uma única vez e só no primeiro escopo; o backup do escopo ativo saiu com chaves e IDs canônicos, sem dados privados; a importação e a exclusão não tocaram nas outras contas. O teste DOM com `happy-dom` percorreu o login real de Alice, a coleta de “Primeiro passo”, o logout, o login de Bruno (sem saldo, coleta ou pendências da Alice) e o retorno à Alice com o saldo preservado e apenas “Primeiro acerto” pendente.
 
 ## 6. Campanha final registrada (REQ-027)
 

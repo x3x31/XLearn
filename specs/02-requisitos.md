@@ -119,6 +119,12 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 | REQ-049 | Visão rápida restrita à conta e ordem da home | O card “Visão rápida” DEVE aparecer somente para logado. A ordem DEVE ser “Seu painel de estudos”, “Recompensas pendentes”, “Visão rápida” e “Ranking da temporada”. | Média | IMPLEMENTADO |
 | REQ-050 | Recompensas pendentes restritas à conta | O card “Recompensas pendentes” DEVE aparecer somente para logado, mantendo a ordem e deixando ao visitante apenas a chamada inicial e o ranking. | Média | IMPLEMENTADO |
 
+### Fase 14 — Isolamento local por conta
+
+| ID | Nome | Regra | Prioridade | Status |
+|---|---|---|---|---|
+| REQ-051 | Isolamento de dados por conta | Progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, simulados, conquistas e recompensas coletadas DEVEM ser isolados por conta (`u:<userId>`) e pelo modo visitante (`guest`). Configurações e sessão Supabase continuam globais. Dados legados DEVEM migrar uma única vez para o primeiro escopo ativado. Backup, importação e exclusão DEVEM operar apenas no escopo ativo. | Alta | IMPLEMENTADO |
+
 ## 2. Requisitos não funcionais
 
 | ID | Requisito | Critério mensurável |
@@ -163,6 +169,8 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 | RN-018 | O backup exclui `meta/cloudAuth`; importar um backup nunca restaura sessão. |
 | RN-019 | Excluir progresso preserva `meta/settings` e apaga progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira e simulados. |
 | RN-020 | Limpar cache remove apenas caches `xlearn`, `xlearn-*` ou `xlearn:*` e não toca no IndexedDB. |
+| RN-021 | Os dados de estudo pertencem ao escopo ativo (`guest` ou `u:<userId>`); nenhum progresso, sessão, tentativa, estatística, temporada, conquista, carteira, simulado ou recompensa coletada pode ser lido por outro escopo. |
+| RN-022 | Importar ou apagar dados de estudo afeta somente o escopo ativo; configurações, sessão Supabase, cache do ranking e demais contas são preservados. |
 
 ## 4. Critérios de aceitação gerais
 
@@ -180,17 +188,18 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 12. O usuário logado vê os quatro cards na ordem definida.
 13. A Temporada 1 congela após o término.
 14. O app continua funcionando offline para o shell e materiais já acessados.
-15. `npm run check` valida 10 materiais e 1.250 questões sem erros.
+15. Dados de estudo e recompensas de uma conta nunca aparecem em outra conta nem no modo visitante.
+16. `npm run check` valida 10 materiais e 1.250 questões sem erros.
 
 ## 5. Rastreabilidade
 
 | Documento | Requisitos cobertos |
 |---|---|
 | [01 — Visão geral](01-visao-geral.md) | Escopo, personas e princípios de todos os requisitos |
-| [03 — Arquitetura](03-arquitetura.md) | REQ-001 a REQ-050, com ênfase em REQ-008, REQ-024, REQ-032, REQ-041 a REQ-043 |
-| [04 — Modelo de dados](04-modelo-de-dados.md) | REQ-008 a REQ-010, REQ-015, REQ-021, REQ-030, REQ-033, REQ-034, REQ-041 a REQ-043 |
-| [05 — Interface e rotas](05-interface-e-rotas.md) | REQ-004, REQ-005, REQ-007, REQ-017, REQ-026, REQ-036 a REQ-050 |
+| [03 — Arquitetura](03-arquitetura.md) | REQ-001 a REQ-051, com ênfase em REQ-008, REQ-024, REQ-032, REQ-041 a REQ-043 e REQ-051 |
+| [04 — Modelo de dados](04-modelo-de-dados.md) | REQ-008 a REQ-010, REQ-015, REQ-021, REQ-030, REQ-033, REQ-034, REQ-041 a REQ-043, REQ-051 |
+| [05 — Interface e rotas](05-interface-e-rotas.md) | REQ-004, REQ-005, REQ-007, REQ-017, REQ-026, REQ-036 a REQ-051 |
 | [06 — Conteúdo e parser](06-conteudo-e-parser.md) | REQ-001 a REQ-003, REQ-006, REQ-007, REQ-039 |
 | [07 — Offline e PWA](07-offline-e-pwa.md) | REQ-023 a REQ-025 |
-| [08 — Segurança e privacidade](08-seguranca-e-privacidade.md) | REQ-021, REQ-041 a REQ-043, REQ-045 |
+| [08 — Segurança e privacidade](08-seguranca-e-privacidade.md) | REQ-021, REQ-041 a REQ-043, REQ-045, REQ-051 |
 | [09 — Testes e qualidade](09-testes-e-qualidade.md) | REQ-027 e validação de todos os requisitos |

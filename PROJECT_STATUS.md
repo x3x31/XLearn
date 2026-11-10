@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.47.0` (DOC-001 — specs consolidadas) |
+| **Versão atual** | `0.48.0` (REQ-051 — isolamento de dados por conta) |
 | **Data da última atualização** | 2026-11-09 |
 
 ---
@@ -42,7 +42,7 @@ A interface é em português brasileiro e prioriza telas pequenas, com navegaç�
 
 ## C. Especificações funcionais
 
-Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Os requisitos REQ-001 a REQ-050 estão `IMPLEMENTADO`, conforme a coluna Status abaixo.
+Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Os requisitos REQ-001 a REQ-051 estão `IMPLEMENTADO`, conforme a coluna Status abaixo.
 
 ### Fase 1 — Base funcional
 
@@ -159,6 +159,12 @@ Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`
 | REQ-049 | Visão rápida restrita à conta e ordem da home | Reintroduzir o card “Visão rápida” na tela Início somente para usuários logados. Fixar a ordem dos cards em “Seu painel de estudos”, “Recompensas pendentes”, “Visão rápida” e “Ranking da temporada”, com os avisos de sessão e revisões depois deles. | Média | IMPLEMENTADO |
 | REQ-050 | Recompensas pendentes restritas à conta | Exibir o card “Recompensas pendentes” na tela Início somente para usuários logados, mantendo a mesma ordem dos cards para quem tem conta e deixando o visitante com a chamada inicial e o ranking público. | Média | IMPLEMENTADO |
 
+### Fase 14 — Isolamento local por conta
+
+| ID | Nome | Descrição | Prioridade | Status |
+|---|---|---|---|---|
+| REQ-051 | Isolamento de dados por conta | Separar no IndexedDB os dados de estudo de cada conta e do visitante, impedindo que progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, simulados, conquistas pendentes e recompensas coletadas apareçam em outra conta. Manter configurações e sessão Supabase globais, migrar uma única vez os dados legados para o primeiro escopo ativado, canonicalizar o backup do escopo ativo e preservar as demais contas na importação e na exclusão de progresso. | Alta | IMPLEMENTADO |
+
 ### Critérios de aceitação gerais
 
 - Nenhuma prova deve ser cadastrada manualmente no código: a fonte é o manifesto gerado.
@@ -171,6 +177,8 @@ Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`
 - O estudo nunca pode ser bloqueado por falta de internet ou por indisponibilidade do Supabase.
 - O ranking global só pode expor apelido, nível e moedas; e-mail e tokens jamais aparecem para outros usuários.
 - Cada usuário autenticado só pode gravar a própria pontuação, mesmo que a chave pública seja conhecida.
+- Progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, simulados, conquistas e recompensas coletadas nunca podem aparecer em outra conta nem no modo visitante.
+- Importar ou apagar dados de estudo afeta apenas o escopo ativo e preserva as demais contas.
 - A progressão deve ocorrer em commits funcionais independentes, com push após cada entrega.
 
 ---
@@ -426,6 +434,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.45.0 | REQ-049 | “Visão rápida” restrita a usuários logados e nova ordem da tela Início: “Seu painel de estudos”, “Recompensas pendentes”, “Visão rápida” e “Ranking da temporada”, mantendo avisos de sessão e revisões depois dos cards; service worker `v25` | `6f6fc60` | 2026-11-09 |
 | 0.46.0 | REQ-050 | “Recompensas pendentes” restrita a usuários logados; o visitante passa a ver apenas a chamada inicial e o ranking público na tela Início, mantendo a ordem dos cards para quem tem conta; service worker `v26` | `404c5de` | 2026-11-09 |
 | 0.47.0 | DOC-001 | Consolidação da especificação normativa em `specs/`: índice e nove documentos temáticos cobrindo visão geral, requisitos, arquitetura, modelo de dados, interface e rotas, conteúdo e parser, offline e PWA, segurança e privacidade, testes e qualidade. `README.md` passa a apontar para as specs e `PROJECT_STATUS.md` continua como fonte operacional. | `cfd61ab` | 2026-11-09 |
+| 0.48.0 | REQ-051 | Isolamento dos dados de estudo por conta (`u:<userId>`) e visitante (`guest`): chaves de `meta` escopadas, progresso/sessões/tentativas filtrados e com IDs escopados, migração única dos dados legados, troca de escopo no login/logout/expiração, backup canônico do escopo ativo e importação/exclusão restritas ao escopo; service worker `v27` | `—` | 2026-11-09 |
 
 ---
 
@@ -480,6 +489,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-048 — Remoção do card Visão rápida:** a tela Início deixou de renderizar `renderQuickStats`, que duplicava estágio, moedas da temporada, meta/sequência e conquistas já disponíveis em `#/progresso`. A função e os estilos exclusivos (`quick-panel__*`, `quick-grid`, `quick-item*`, incluindo a quebra responsiva) foram removidos, assim como a menção ao card na documentação. O hero com “Escolher prova”, “Criar simulado” e “Continuar sessão”, o ranking global e a seção de conquistas pendentes continuam na mesma ordem. Service worker `v24`.
 - **REQ-049 — Visão rápida restrita à conta e ordem da home:** o card “Visão rápida / Seu ritmo de estudo” voltou à tela Início, com os mesmos indicadores de estágio, moedas da temporada, meta/sequência e conquistas, mas `renderHome` só o inclui quando `hasAccount()` é verdadeiro. Visitantes não veem o card nem seus atalhos para `#/progresso`. A ordem fixa dos cards passou a ser “Seu painel de estudos” (hero), “Recompensas pendentes” (`renderHomeAchievements`), “Visão rápida” e “Ranking da temporada” (`renderCloudRanking`); os avisos de sessão em andamento e de revisões vencidas continuam depois deles. Service worker `v25`.
 - **REQ-050 — Recompensas pendentes restritas à conta:** `renderHome` passou a incluir `renderHomeAchievements` somente quando `hasAccount()` é verdadeiro. Como consequência, o visitante não vê a seção “Recompensas pendentes” mesmo que existam conquistas coletáveis no dispositivo; a tela Início do visitante fica com o hero “Seu painel de estudos” e o “Ranking da temporada”. Para quem tem conta, a ordem permanece “Seu painel de estudos”, “Recompensas pendentes”, “Visão rápida” e “Ranking da temporada”. Service worker `v26`.
+- **REQ-051 — Isolamento de dados por conta:** `js/db.js` passou a manter um escopo ativo (`guest` ou `u:<userId>`) e a prefixar as chaves de estudo em `meta` (`stats`, `gamification`, `wallet`, `season`, `simuladoSession` e `simulados`). Progresso usa `scope::materialId::questionId`; sessões e tentativas recebem `scope` e IDs/chaves prefixados, evitando colisões na importação. `activateStorageScope` migra uma única vez os registros legados para o primeiro escopo ativado, marcado por `storageScopedOnce`. `js/app.js` troca o escopo no boot, no login, no logout e na expiração da sessão, recarregando apenas os dados daquele usuário; `progressKey` é usado na consulta da resposta e o placar vazio deixa de ser enviado para não apagar pontuação remota. O backup exporta apenas o escopo ativo, com chaves e IDs canônicos, e exclui `cloudAuth`, `cloudProfile`, `cloudRank` e o marcador de migração; importação e “Apagar progresso” substituem ou removem somente o escopo ativo, preservando as demais contas, a sessão e o cache do ranking. Service worker `v27`.
 - **REQ-027 — Testes abrangentes finais:** campanha executada ao término da fase 8 com 12 suítes temporárias, fora do repositório, em Node com DOM simulado (`happy-dom`), IndexedDB em memória (`fake-indexeddb`), Cache API e rede simuladas. A cobertura unitária validou manifesto (10 materiais/1250 questões), parser e correção por ID em todas as questões, embaralhamento estável, SRS, gamificação, moedas, ranking, cronômetro, simulados, backup, configurações, cache e isolamento de materiais malformados/manifesto inválido. As suítes de integração percorreram configurações e efeitos reais, sessão normal, cronômetro com pausa/retomada e expiração, SRS automático/manual, fila de revisões, estatísticas, XP, meta, sequência, ranking, acessibilidade, exportação/importação, restauração, exclusão de dados, simulados, coleta de conquistas e service worker. A campanha encontrou e corrigiu um defeito real: `renderStudy` aplicava spread em `renderMaterialGrid()`, que devolve um único elemento, e a rota `#/estudar` não renderizava; a chamada passou a ser inserida diretamente no array. Todas as suítes e `npm run check` passaram após a correção.
 - **REQ-028 — Documentação de uso:** `README.md` reúne visão geral, funcionalidades, requisitos, execução local por servidor HTTP, publicação no GitHub Pages, instalação como PWA em Android/iOS/desktop, rotas e uso das telas, configurações, cronômetro, simulados, economia de moedas e personagens, revisões, formato completo dos materiais com exemplo, geração/validação do manifesto, modelo de dados local, backup/importação/exclusão, estrutura do projeto, comandos de validação e limitações conhecidas. O documento também explica a correção por identificador, o funcionamento offline e a ausência de sincronização ou ranking global.
 
@@ -487,7 +497,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 
 ## I. Situação dos requisitos e dependências
 
-Os requisitos REQ-001 a REQ-050 estão implementados. A fase 9, a fase 10 (conta Supabase, sessão sazonal, sincronização de nível/moedas e ranking global da Temporada 1), a fase 11 (identidade na barra superior), a fase 12 (login e cadastro separados, rolagem ao apagar progresso e restrições do visitante) e a fase 13 (cards da home restritos à conta e ordem definida) estão concluídas. O DOC-001 consolidou a especificação normativa em `specs/`, sem alterar código de produção. O schema remoto foi aplicado, a confirmação de e-mail está desativada e a validação final em produção permanece como próxima tarefa.
+Os requisitos REQ-001 a REQ-051 estão implementados. A fase 9, a fase 10 (conta Supabase, sessão sazonal, sincronização de nível/moedas e ranking global da Temporada 1), a fase 11 (identidade na barra superior), a fase 12 (login e cadastro separados, rolagem ao apagar progresso e restrições do visitante), a fase 13 (cards da home restritos à conta e ordem definida) e a fase 14 (isolamento dos dados de estudo por conta) estão concluídas. O DOC-001 consolidou a especificação normativa em `specs/`, sem alterar código de produção. O schema remoto foi aplicado, a confirmação de e-mail está desativada e a validação final em produção permanece como próxima tarefa.
 
 Dependências principais:
 
@@ -537,13 +547,14 @@ Dependências principais:
 
 ### Verificação atual (2026-11-09)
 
-- REQ-047 implementado; a fase 12 está concluída. As fases 9, 10 e 11 continuam concluídas.
+- REQ-051 implementado; a fase 14 está concluída. As fases 9 a 13 continuam concluídas.
 - REQ-045: a modal de conta passou a abrir no modo “Entrar”, com apenas e-mail e senha, e a alternar para “Criar conta” por abas acessíveis. `submitCloudLogin` valida o apelido somente no cadastro, usa `signIn` no login e `signUp` no cadastro, sem criação automática de conta. Credenciais inválidas orientam a criar conta; e-mail já cadastrado orienta a entrar. O campo de apelido fica oculto e não obrigatório no login, e o `autocomplete` alterna entre `current-password` e `new-password`. Teste DOM com `happy-dom`/`fake-indexeddb` (21 verificações): abas com `role="tab"`/`aria-selected`/`aria-controls`, campo Apelido oculto no login e obrigatório no cadastro, títulos e rótulos por modo, login inválido sem chamada a `/auth/v1/signup`, e-mail existente orientando “Entrar”, cadastro válido conectando a conta e enviando o apelido, além do erro limpo ao trocar de aba. `node --check js/app.js` e `npm run check` passaram.
 - REQ-046: teste DOM com `happy-dom` (6 verificações) confirmou que, com a página em `scrollY = 320`, clicar em “Apagar progresso” não chamou `scrollTo({ top: 0 })`, restaurou a posição 320, exibiu “Apagar todo o progresso?”, moveu o foco para o título com `preventScroll` e chamou `scrollIntoView({ block: "nearest" })`. `node --check js/app.js` e `npm run check` passaram.
 - REQ-047: testes DOM com `happy-dom`/`fake-indexeddb` (21 + 10 verificações) confirmaram que o visitante vê apenas Início e Provas no menu, não vê o botão de configurações nem os atalhos de simulado/progresso, e recebe a área de conta em `#/config`, `#/progresso`, `#/simulado` e `#/revisoes` sem o conteúdo restrito. Ao iniciar uma prova, o visitante recebe “1 / 1” com a primeira questão do arquivo; o feedback abre o modo “Criar conta” com explicação e não a modal de feedback; o resumo mostra o aviso de visitante, oculta o gabarito e oferece “Criar conta para continuar”. Em uma sessão antiga de duas questões, “Próxima questão” abriu o cadastro e manteve “1 / 2”; após criar a conta, o menu completo e as configurações apareceram, o feedback abriu normalmente e o avanço chegou a “2 / 2”. `node --check js/app.js` e `npm run check` passaram.
 - REQ-048: verificação DOM confirmou que a tela Início não contém mais o card “Visão rápida / Seu ritmo de estudo” nem os elementos `quick-panel`/`quick-item`, mantendo o hero, o ranking global e a seção de conquistas. `node --check js/app.js`, `node --check service-worker.js` e `npm run check` passaram.
 - REQ-049: teste DOM com `happy-dom`/`fake-indexeddb` confirmou que o visitante não vê o card “Visão rápida” na home, enquanto uma conta com sessão e recompensa pendente vê os cards na ordem “Seu painel de estudos”, “Recompensas pendentes”, “Visão rápida” e “Ranking da temporada”. `node --check js/app.js`, `node --check service-worker.js` e `npm run check` passaram.
 - REQ-050: teste DOM confirmou que um visitante com conquista coletável no dispositivo não vê “Recompensas pendentes” nem “Visão rápida”; a home do visitante mantém hero e ranking. Com conta, a mesma conquista coletável faz os quatro cards aparecerem na ordem definida. `node --check js/app.js`, `node --check service-worker.js` e `npm run check` passaram.
+- REQ-051: testes com `fake-indexeddb` confirmaram isolamento de recompensas, progresso, sessões, tentativas, estatísticas, temporada e simulados entre `guest`, `u:A` e `u:B`; restauração exata do estado ao voltar a um escopo; migração única dos dados legados para o primeiro escopo com IDs de sessão/tentativa prefixados; exportação canônica apenas do escopo ativo sem `cloudAuth`, `cloudProfile`, `cloudRank` ou `storageScopedOnce`; importação e exclusão restritas ao escopo ativo; e preservação das demais contas. Um teste DOM com `happy-dom`/`fake-indexeddb` percorreu o fluxo real de login/logout: visitante sem recompensas, Alice com duas pendências, coleta de “Primeiro passo”, logout, login de Bruno sem herdar saldo ou coleta da Alice e retorno à Alice com o saldo coletado preservado e apenas “Primeiro acerto” pendente. `node --check js/app.js`, `node --check js/db.js`, `node --check service-worker.js`, `npm run check` e `git diff --check` passaram.
 - Fase 10: `supabase/schema.sql` e a migration `supabase/migrations/20261107000000_season_ranking.sql` contêm `season_scores`, view `season_leaderboard`, índice de ordenação, trigger de `updated_at`, grants e políticas RLS; `js/cloud-config.js` e `js/cloud.js` foram criados com validação, sessão, cliente REST, erros em pt-BR e normalização do ranking.
 - O schema foi aplicado no projeto remoto `qskeuqmlxbipiwsxyglv`; a consulta REST a `season_scores` e `season_leaderboard` respondeu `200`, e um `INSERT` anônimo foi recusado com `401`/`42501`, confirmando a RLS. O primeiro participante real (`x3x31`) já aparece no ranking com 15 moedas e 1 dia ativo.
 - Validação de produção em 2026-11-07: o GitHub Pages serviu `js/app.js` com o ranking, o cartão da conta e o gate, além de `js/cloud.js`, `js/cloud-config.js` e do service worker `v19`. Um cadastro real temporário pelo endpoint público retornou sessão com `email_confirmado: true`; o UPSERT autenticado em `season_scores` respondeu `201` e a linha apareceu em `season_leaderboard` na 1ª posição com nível e moedas corretos. A view expôs apenas `position`, `user_id`, `season_id`, `nickname`, `level_number`, `level_name`, `coins`, `active_days` e `updated_at` — sem e-mail. Um `INSERT` anônimo foi recusado com `401`/`42501`. A conta e a linha de teste foram removidas, restando somente o participante real.
@@ -568,16 +579,16 @@ Dependências principais:
 - Toasts corrigidos e acima da modal: a animação `toast-rise` preserva `translate(-50%, …)` em todos os quadros, mantendo as mensagens centralizadas horizontalmente em qualquer tela; a modal usa `z-index` inferior ao dos toasts.
 - `npm run check`: 10 materiais válidos, 1.250 questões, 0 erros e 0 avisos.
 - `node --check` em todos os `js/*.js`, `service-worker.js` e `scripts/*.mjs`: sem erros de sintaxe.
-- `service-worker.js` em `v26`, com 31 caminhos no app shell (incluindo `js/cloud.js` e `js/cloud-config.js`), todos presentes no repositório.
+- `service-worker.js` em `v27`, com 31 caminhos no app shell (incluindo `js/cloud.js` e `js/cloud-config.js`), todos presentes no repositório.
 - `questoes/manifest.json` válido e coerente com os 10 materiais; `package.json` sem dependências de execução.
 
 ### Especificação (DOC-001)
 
-- `specs/README.md` e os nove documentos temáticos foram criados a partir do estado real do repositório em 2026-11-09: rotas, home de logado e visitante, gate de conta, parser, manifesto, service worker `v26`, schema Supabase, backup e matriz de testes.
-- A especificação documenta REQ-001 a REQ-050, as decisões de arquitetura, as regras de negócio, os riscos residuais e a Definition of Done vigente.
+- `specs/README.md` e os nove documentos temáticos foram criados a partir do estado real do repositório em 2026-11-09: rotas, home de logado e visitante, gate de conta, parser, manifesto, service worker `v27`, schema Supabase, backup e matriz de testes.
+- A especificação documenta REQ-001 a REQ-051, as decisões de arquitetura, as regras de negócio, os riscos residuais e a Definition of Done vigente.
 - `PROJECT_STATUS.md` permanece como fonte operacional de versão, requisitos e histórico; `README.md` é o guia de uso e aponta para `specs/README.md`.
 - A validação da documentação incluiu `node --check js/app.js`, `node --check service-worker.js`, `npm run check` (10 materiais, 1.250 questões, 0 erros e 0 avisos), conferência dos links internos e `git diff --check`.
-- As specs não alteram código de produção; o service worker permanece em `v26`.
+- As specs não alteram código de produção; o service worker foi elevado para `v27` no REQ-051.
 - Renderização do dashboard mantém o descarte de entradas nulas; a tela Início exibe, para quem tem conta, hero, recompensas pendentes, “Visão rápida” e ranking global nesta ordem; o visitante vê somente hero e ranking; o cartão da temporada ocupa o lugar do antigo card de personagem em `#/progresso`.
 - `main` sincronizada com `origin/main`; o código da fase 10 foi entregue no commit `e1b2b88` e a validação/documentação por requisito nos commits seguintes. A árvore de trabalho fica limpa ao final desta revisão.
 

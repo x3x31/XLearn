@@ -117,6 +117,8 @@ O visitante vê somente:
 
 **Recompensas pendentes** e **Visão rápida** são omitidos por `hasAccount()`. O hero mantém as ações “Escolher prova” e, se houver sessão ativa, “Continuar sessão”.
 
+O visitante usa um escopo de estudo próprio (`guest`). Ao entrar em uma conta, o app troca para `u:<userId>` e recarrega os dados daquele usuário; ao sair, volta ao escopo `guest`. Progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, simulados, recompensas pendentes e coletas de uma conta nunca são exibidos em outra conta nem no modo visitante.
+
 ### 3.3 Seu painel de estudos
 
 - `section.hero`, título `h1` “Aprenda praticando, no seu ritmo.”
@@ -190,6 +192,15 @@ O visitante é identificado por `!hasAccount()`, isto é, ausência de sessão e
 - botões **Criar conta**, **Entrar** e **Voltar ao início**.
 
 O gate cobre `config`, `progresso`, `simulado` e `revisoes` inclusive quando a rota é acessada diretamente pela URL.
+
+### 4.4 Troca de escopo
+
+- No boot, o app carrega a sessão Supabase e ativa `u:<userId>` quando existe conta ou `guest` quando não existe.
+- No login, a sessão é persistida e `switchStudyScope(session.userId)` ativa o escopo da conta antes de recarregar sessão ativa, progresso, temporada, gamificação, carteira, simulados e home.
+- No logout, o placar é sincronizado, o token é revogado quando possível, `cloudAuth` é apagado e o escopo volta para `guest`.
+- Se as credenciais expirarem, o app limpa a sessão e volta ao escopo `guest`.
+- A troca não apaga os dados da conta anterior; eles permanecem no IndexedDB e voltam quando a mesma conta entra novamente.
+- A sincronização de placar não envia zero em uma conta recém-conectada sem atividade, para não apagar a pontuação remota.
 
 ## 5. Provas (`#/estudar`)
 
@@ -297,6 +308,7 @@ O gate cobre `config`, `progresso`, `simulado` e `revisoes` inclusive quando a r
 - Offline, exibe aviso e a ação **Continuar offline**.
 - Fechamento por `Escape` e botão com rótulo “Fechar login”; foco preso e restaurado.
 - O texto de privacidade informa que e-mail não aparece no ranking.
+- O login troca o escopo de estudo para a conta; o cadastro faz o mesmo ao receber sessão. A modal não mistura dados de estudo entre contas.
 - Se o cliente Supabase não estiver configurado, a modal não abre: o app avisa e segue para o estudo quando aplicável.
 
 ## 14. Estados globais

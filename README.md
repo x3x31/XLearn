@@ -7,7 +7,7 @@ PWA educacional para estudar por questões, com alternativas embaralhadas, feedb
 
 ## Sobre
 
-O XLearn lê provas em Markdown padronizado na pasta `questoes/`, gera um manifesto e apresenta os materiais em uma interface responsiva em português brasileiro. O progresso de estudo pertence ao dispositivo e ao navegador usados. Uma conta no Supabase libera o estudo completo e a participação no ranking global da Temporada 1. Sem conta, o modo visitante permite conhecer as provas e responder à primeira questão de cada uma; sem internet, o estudo continua funcionando localmente.
+O XLearn lê provas em Markdown padronizado na pasta `questoes/`, gera um manifesto e apresenta os materiais em uma interface responsiva em português brasileiro. O progresso de estudo pertence ao dispositivo e ao navegador usados e é separado por conta: cada usuário vê apenas o próprio progresso, e o modo visitante tem um espaço independente. Uma conta no Supabase libera o estudo completo e a participação no ranking global da Temporada 1. Sem conta, o modo visitante permite conhecer as provas e responder à primeira questão de cada uma; sem internet, o estudo continua funcionando localmente.
 
 O projeto usa apenas HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, Cache API, Service Worker e Web App Manifest. Não há frameworks, bibliotecas de execução, fontes externas ou CDNs.
 
@@ -25,7 +25,7 @@ O projeto usa apenas HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, Cache
 - **Som e ludicidade:** efeitos gerados via Web Audio, com volume configurável e respeito a animações reduzidas.
 - **Acessibilidade:** navegação por teclado, foco visível, link de pular, rótulos ARIA, contraste e alvos de toque adequados.
 - **Offline e instalação:** app shell em cache, materiais já acessados disponíveis offline e instalação como PWA.
-- **Dados locais:** backup e restauração em JSON, além de exclusão seletiva do progresso.
+- **Dados locais:** progresso isolado por conta e pelo modo visitante, além de backup e restauração em JSON do escopo ativo e exclusão seletiva do progresso.
 
 ## Requisitos
 
@@ -157,7 +157,8 @@ Participar do ranking global exige uma conta. Ao iniciar a primeira prova normal
 - **Barra superior:** com a conta conectada, o apelido aparece no lugar de “aprender praticando” e um botão de sair fica ao lado das configurações. O indicador de conexão mostra **Online**, **Offline** ou **Visitante** (sem conta ou após sair). A quantidade de questões não é mais exibida no topo.
 - **Sem internet:** a modal oferece **Continuar offline**. O estudo funciona normalmente e a pontuação é sincronizada depois.
 - **Simulados:** exigem conta e não enviam pontuação ao ranking.
-- **Privacidade:** o backup JSON exclui a sessão (`cloudAuth`); portanto, tokens e e-mail da conta não vão para o arquivo exportado. Sair da conta apaga a sessão local e revoga o token de renovação quando há rede.
+- **Privacidade:** o backup JSON exclui a sessão (`cloudAuth`), o perfil (`cloudProfile`), o cache do ranking (`cloudRank`) e o marcador interno de migração; portanto, tokens e e-mail da conta não vão para o arquivo exportado. Sair da conta apaga a sessão local e revoga o token de renovação quando há rede.
+- **Dados por conta:** progresso, sessões, tentativas, estatísticas, temporada, conquistas, carteira, simulados e recompensas coletadas ficam isolados por conta. Ao entrar, o app carrega apenas os dados daquele usuário; ao sair, volta ao espaço do visitante. Nenhuma conta herda o saldo, as coletas ou as pendências de outra. Os dados da conta anterior continuam no dispositivo e reaparecem no próximo login.
 - **Limitação:** o placar é montado pelo cliente. As políticas do Supabase impedem gravar em nome de outra conta, mas não validam a veracidade dos valores enviados pelo próprio usuário.
 
 ### Revisões
@@ -240,19 +241,21 @@ O manifesto é a única fonte de descoberta de provas. Se ele não for regenerad
 
 Os dados ficam no IndexedDB do navegador, no banco `xlearn`:
 
-- `meta`: configurações, estatísticas, temporada, gamificação, carteira, histórico de simulados e simulado ativo.
-- `progress`: domínio e agendamento de revisão por questão.
-- `sessions`: sessões normais, incluindo respostas e ordem das alternativas.
-- `attempts`: histórico de tentativas.
+- `meta`: configurações globais, além de estatísticas, temporada, gamificação, carteira, histórico de simulados e simulado ativo do escopo ativo.
+- `progress`: domínio e agendamento de revisão por questão do escopo ativo.
+- `sessions`: sessões normais do escopo ativo, incluindo respostas e ordem das alternativas.
+- `attempts`: histórico de tentativas do escopo ativo.
 
-Nada é enviado para servidores. Limpar os dados do site no navegador apaga o progresso; por isso, faça backups periódicos.
+O estudo é separado por **escopo**: `guest` para o visitante e `u:<userId>` para cada conta. Progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, simulados, conquistas e recompensas coletadas de um escopo nunca aparecem em outro. Configurações de estudo, aparência, som, sessão do Supabase e cache do ranking continuam globais.
+
+Sem conta, nenhum dado de estudo é enviado a servidores; com conta, apenas apelido, estágio e moedas acumuladas da temporada seguem para o ranking. Limpar os dados do site no navegador apaga todo o banco local; por isso, faça backups periódicos.
 
 Em **Configurações → Dados**:
 
-- **Exportar backup:** baixa um JSON versionado com configurações, estatísticas, temporada, gamificação, conquistas, moedas, personagem, progresso, sessões, tentativas e simulados.
-- **Importar backup:** valida formato, versão e registros antes de mostrar um resumo; somente após a confirmação os dados atuais são substituídos.
+- **Exportar backup:** baixa um JSON versionado com configurações, estatísticas, temporada, gamificação, conquistas, moedas, personagem, progresso, sessões, tentativas e simulados **apenas do escopo ativo**. As chaves e os IDs são gravados de forma canônica, sem o prefixo do escopo, e a sessão, o perfil, o cache do ranking e o marcador de migração são excluídos do arquivo.
+- **Importar backup:** valida formato, versão e registros antes de mostrar um resumo; somente após a confirmação os dados do escopo ativo são substituídos. As demais contas, a sessão Supabase, o cache do ranking e o marcador de migração são preservados.
 - **Limpar cache do app:** remove apenas os caches `xlearn-*`, preservando respostas e histórico.
-- **Apagar progresso:** remove progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, histórico de simulados e simulado ativo, mas mantém as configurações de estudo e aparência. A confirmação “Apagar todo o progresso?” aparece mantendo a posição de rolagem, sem levar a página ao topo.
+- **Apagar progresso:** remove progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, histórico de simulados e simulado ativo **apenas do escopo ativo**, mas mantém as configurações de estudo e aparência e os dados das demais contas. A confirmação “Apagar todo o progresso?” aparece mantendo a posição de rolagem, sem levar a página ao topo.
 
 ## Estrutura do projeto
 
@@ -307,6 +310,8 @@ Verificação sintática dos arquivos JavaScript:
 
 ```bash
 node --check js/app.js
+node --check js/db.js
+node --check service-worker.js
 ```
 
 A campanha final de testes está registrada em `PROJECT_STATUS.md`. Os testes automatizados de desenvolvimento usaram DOM simulado, IndexedDB em memória e Cache API simulada, fora do repositório; não há suíte de testes versionada nem dependências de teste no projeto.
@@ -319,7 +324,7 @@ A campanha final de testes está registrada em `PROJECT_STATUS.md`. Os testes au
 - **Ranking local × global:** o ranking local em `#/progresso` representa apenas aquele navegador/dispositivo. O ranking global da Temporada 1 depende de uma conta Supabase e mostra somente apelido, nível e moedas.
 - **Conta necessária para o estudo completo:** sem conta, o modo visitante permite responder apenas à primeira questão de cada prova e não abre Configurações, Progresso, Simulado nem Revisões; o feedback e o avanço levam ao cadastro. A sessão da conta fica no IndexedDB e não é transferida pelo backup.
 - **Placar enviado pelo cliente:** o app calcula e envia o próprio nível/moedas. As políticas RLS impedem gravar em nome de outra conta, mas não atestam a veracidade do placar.
-- **Dados por navegador:** trocar de navegador, limpar o armazenamento ou usar outro dispositivo não transfere o progresso automaticamente. Use o backup JSON.
+- **Dados por navegador:** trocar de navegador, limpar o armazenamento ou usar outro dispositivo não transfere o progresso automaticamente. O backup JSON contempla apenas o escopo ativo; para levar outra conta, entre nela e exporte um backup separado.
 - **Offline parcial:** o app shell fica disponível após a primeira visita, mas cada prova só fica offline depois de ser acessada uma vez. A pontuação pendente é reenviada quando a conexão volta.
 - **Service worker:** exige HTTPS ou `localhost`.
 - **Som:** depende de suporte a Web Audio e é liberado após o primeiro gesto do usuário, conforme a política dos navegadores.

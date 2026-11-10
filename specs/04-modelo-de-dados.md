@@ -23,20 +23,36 @@ Não há sincronização do progresso local entre dispositivos.
 
 Registro genérico `{ key, value, updatedAt }`, com `keyPath: "key"`.
 
+#### Escopo local por conta
+
+O banco é único por dispositivo, mas os dados de estudo são separados por escopo:
+
+| Escopo | Uso | Prefixo |
+|---|---|---|
+| `guest` | Visitante sem conta | `guest::` |
+| `u:<userId>` | Conta Supabase autenticada | `u:<userId>::` |
+
+- `js/db.js` mantém o escopo ativo e o aplica a `getMeta`/`setMeta`, progresso, sessões, tentativas, simulados e pagamentos.
+- As chaves de estudo em `meta` (`stats`, `gamification`, `wallet`, `season`, `simuladoSession`, `simulados`) são gravadas como `escopo::chave`.
+- `settings`, `cloudAuth`, `cloudProfile`, `cloudRank` e o marcador `storageScopedOnce` permanecem globais.
+- Na primeira ativação de escopo, `activateStorageScope` migra os registros legados sem escopo para o escopo ativo e cria `storageScopedOnce`. A migração não se repete.
+- Login, logout e expiração da sessão trocam o escopo ativo e recarregam somente os dados daquele usuário.
+
 | Chave | Formato | Conteúdo |
 |---|---|---|
-| `settings` | Objeto | Preferências normalizadas de estudo, aparência e som |
-| `stats` | Objeto | `answered`, `correct`, `daily`, `byMaterial`, `updatedAt` |
-| `gamification` | Objeto | XP interno, contadores, conquistas, sessões premiadas, recorde de sequência |
-| `wallet` | Objeto | Saldo, total ganho, gasto, sessões pagas, dias de meta, conquistas coletadas |
-| `season` | Objeto | Temporada atual, período e `coinsEarned` do ledger sazonal |
-| `simuladoSession` | Objeto \| `null` | Simulado ativo, se houver |
-| `simulados` | Objeto | Histórico compacto de simulados por assunto |
-| `cloudAuth` | Objeto \| `null` | Sessão Supabase (access/refresh token, validade, `userId`, e-mail, apelido) |
-| `cloudProfile` | Objeto \| `null` | Perfil local da conta e estado de sincronização |
-| `cloudRank` | Objeto | Cache do ranking consultado (temporada, top, posição própria, data) |
+| `settings` | Objeto | Preferências normalizadas de estudo, aparência e som (global) |
+| `<escopo>::stats` | Objeto | `answered`, `correct`, `daily`, `byMaterial`, `updatedAt` |
+| `<escopo>::gamification` | Objeto | XP interno, contadores, conquistas, sessões premiadas, recorde de sequência |
+| `<escopo>::wallet` | Objeto | Saldo, total ganho, gasto, sessões pagas, dias de meta, conquistas coletadas |
+| `<escopo>::season` | Objeto | Temporada atual, período e `coinsEarned` do ledger sazonal |
+| `<escopo>::simuladoSession` | Objeto \| `null` | Simulado ativo, se houver |
+| `<escopo>::simulados` | Objeto | Histórico compacto de simulados por assunto |
+| `cloudAuth` | Objeto \| `null` | Sessão Supabase (access/refresh token, validade, `userId`, e-mail, apelido) (global) |
+| `cloudProfile` | Objeto \| `null` | Perfil local da conta e estado de sincronização (global) |
+| `cloudRank` | Objeto | Cache do ranking consultado (temporada, top, posição própria, data) (global) |
+| `storageScopedOnce` | Booleano | Marcador local da migração única de escopo |
 
-`cloudAuth`, `cloudProfile` e `cloudRank` são gravados por `app.js` via `getMeta`/`setMeta`, não por regras de domínio.
+`cloudAuth`, `cloudProfile` e `cloudRank` são gravados por `app.js` via `getMeta`/`setMeta`, não por regras de domínio, e permanecem globais ao escopo ativo.
 
 #### `meta/settings`
 
@@ -167,13 +183,14 @@ O histórico é idempotente por `id` e ordenado do mais recente para o mais anti
 
 ### 1.3 Store `progress`
 
-`keyPath: "key"`, com chave `${materialId}::${questionId}`.
+`keyPath: "key"`, com chave `<escopo>::${materialId}::${questionId}`.
 
 Índices: `materialId`, `materialPath`, `dueAt`.
 
 ```js
 {
-  key: "MAT-001::MAT-001-Q0001",
+  key: "u:00000000-0000-4000-8000-00000000000a::MAT-001::MAT-001-Q0001",
+  scope: "u:00000000-0000-4000-8000-00000000000a",
   materialId: "MAT-001",
   materialPath: "questoes/MATERIAL.md",
   materialTitle: "Material",
@@ -204,11 +221,12 @@ O histórico é idempotente por `id` e ordenado do mais recente para o mais anti
 
 ### 1.4 Store `sessions`
 
-`keyPath: "id"`. Índices: `status`, `updatedAt`.
+`keyPath: "id"`. Índices: `status`, `updatedAt`. O `id` e o campo `scope` pertencem ao escopo ativo; o registro gravado usa `<escopo>::<id>`, enquanto a exportação remove o prefixo para produzir um backup canônico.
 
 ```js
 {
-  id: "s-...",
+  id: "u:00000000-0000-4000-8000-00000000000a::s-...",
+  scope: "u:00000000-0000-4000-8000-00000000000a",
   materialId: "MAT-001",
   materialPath: "questoes/MATERIAL.md",
   materialTitle: "Material",
@@ -254,14 +272,15 @@ O histórico é idempotente por `id` e ordenado do mais recente para o mais anti
 
 ### 1.5 Store `attempts`
 
-`keyPath: "key"`, com chave `${sessionId}::${questionId}`.
+`keyPath: "key"`, com chave `<escopo>::${sessionId}::${questionId}`.
 
 Índices: `answeredAt`, `materialPath`, `sessionId`.
 
 ```js
 {
-  key: "s-...::MAT-001-Q0001",
-  sessionId: "s-...",
+  key: "u:00000000-0000-4000-8000-00000000000a::s-...::MAT-001-Q0001",
+  scope: "u:00000000-0000-4000-8000-00000000000a",
+  sessionId: "u:00000000-0000-4000-8000-00000000000a::s-...",
   materialId: "MAT-001",
   materialPath: "questoes/MATERIAL.md",
   materialTitle: "Material",
@@ -284,14 +303,16 @@ O histórico é idempotente por `id` e ordenado do mais recente para o mais anti
 
 ## 2. Invariantes locais
 
-1. `progress.key` e `attempts.key` são compostas e determinísticas.
+1. `progress.key` e `attempts.key` são compostas, determinísticas e prefixadas pelo escopo ativo.
 2. Toda resposta é gravada em uma única transação com `sessions`, `progress`, `attempts` e `meta`.
 3. Uma resposta já existente em `session.answers[questionId]` não é registrada novamente.
-4. Pagamentos usam chaves idempotentes: `sessionId`, `dayKey` e `achievementId`.
+4. Pagamentos usam chaves idempotentes: `sessionId`, `dayKey` e `achievementId`, dentro do escopo ativo.
 5. `meta/settings` nunca é apagado por “Apagar progresso”.
 6. `cloudAuth` nunca entra no backup.
 7. Dados normalizados sempre tratam valores ausentes, negativos ou corrompidos como zero/estado padrão.
 8. Estatísticas e históricos têm limites de retenção para não crescerem indefinidamente.
+9. Nenhuma chave de estudo (`stats`, `gamification`, `wallet`, `season`, `simuladoSession`, `simulados`) pode existir sem o prefixo do escopo; a migração única garante isso.
+10. Importação, exportação e exclusão operam somente no escopo ativo e nunca leem ou alteram outra conta.
 
 ## 3. Backup local
 
@@ -327,10 +348,12 @@ O histórico é idempotente por `id` e ordenado do mais recente para o mais anti
 
 - Formato identificável: `app: "XLearn"` + `format: "xlearn-backup"`.
 - Versão suportada: `schemaVersion: 1`.
-- Exportação lê os quatro stores em uma única transação `readonly`.
-- `cloudAuth` é removido de `data.meta` antes de gravar o arquivo.
+- Exportação lê os quatro stores em uma única transação `readonly` e devolve apenas os registros do escopo ativo.
+- As chaves de estudo e os IDs de sessão/tentativa são canonicalizados no arquivo (sem o prefixo do escopo e sem o campo `scope`).
+- `cloudAuth`, `cloudProfile` e `cloudRank` são removidos de `data.meta` antes de gravar o arquivo.
+- `storageScopedOnce` também é excluído do arquivo.
 - Importação valida formato, versão, listas, objeto de cada registro e unicidade de chaves antes de escrever.
-- Importação substitui os quatro stores em uma única transação `readwrite`.
+- Importação substitui somente os dados de estudo e as configurações globais do escopo ativo, em uma única transação `readwrite`; as demais contas, a sessão Supabase, o cache do ranking e o marcador de migração são preservados.
 - Importar backup antigo não restaura sessão Supabase.
 - A sessão atual pode ser regravada depois da importação, sem voltar ao backup.
 
@@ -417,11 +440,11 @@ O top é limitado a **5** na home; a posição própria é consultada separadame
 | Responder | Grava sessão, tentativa, progresso, estatísticas, gamificação, carteira e temporada |
 | Concluir sessão | Marca `finishedAt`, paga bônus uma única vez e atualiza resumo |
 | Coletar conquista | Grava `claimedAchievements` e soma moedas uma única vez |
-| Exportar | Lê os quatro stores e remove `cloudAuth` do envelope |
-| Importar | Valida e substitui os quatro stores; não restaura `cloudAuth` |
+| Exportar | Lê os quatro stores, mantém apenas o escopo ativo, canonicaliza chaves/IDs e remove `cloudAuth`, `cloudProfile`, `cloudRank` e `storageScopedOnce` |
+| Importar | Valida e substitui apenas estudo + configurações globais do escopo ativo; preserva sessão, cache do ranking, marcador de migração e demais contas |
 | Limpar cache | Remove apenas caches `xlearn*`; não toca no IndexedDB |
-| Apagar progresso | Limpa `progress`, `sessions`, `attempts` e chaves de jogo/estatísticas em `meta`; preserva `settings` |
-| Sair da conta | Revoga token quando há rede e apaga `cloudAuth` |
+| Apagar progresso | Limpa `progress`, `sessions`, `attempts` e chaves de jogo/estatísticas do escopo ativo em `meta`; preserva `settings` e as demais contas |
+| Sair da conta | Revoga token quando há rede, apaga `cloudAuth` e troca o escopo ativo para `guest` |
 | Temporada encerrada | Mantém `meta/season` congelado; novos ganhos ficam só na carteira |
 | Nova temporada configurada | `normalizeSeason` reinicia o ledger no primeiro pagamento |
 
