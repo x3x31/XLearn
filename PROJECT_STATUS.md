@@ -16,7 +16,7 @@
 | **Ambiente de execução** | Navegador moderno (Chrome/Edge/Firefox/Safari atuais), prioritariamente Android. Hospedagem estática. |
 | **Estratégia de publicação** | GitHub Pages a partir da branch `main`, com caminhos relativos compatíveis com subdiretórios. |
 | **Repositório remoto** | `https://github.com/x3x31/XLearn.git` |
-| **Versão atual** | `0.49.0` (REQ-052 — coleta de conquistas sem recarregar a home) |
+| **Versão atual** | `0.50.0` (REQ-053 — cascata de moedas ampliada e som sincronizado) |
 | **Data da última atualização** | 2026-11-10 |
 
 ---
@@ -42,7 +42,7 @@ A interface é em português brasileiro e prioriza telas pequenas, com navegaç�
 
 ## C. Especificações funcionais
 
-Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Os requisitos REQ-001 a REQ-052 estão `IMPLEMENTADO`, conforme a coluna Status abaixo.
+Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`, `VALIDADO`, `BLOQUEADO`. Os requisitos REQ-001 a REQ-053 estão `IMPLEMENTADO`, conforme a coluna Status abaixo.
 
 ### Fase 1 — Base funcional
 
@@ -171,6 +171,12 @@ Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`
 |---|---|---|---|---|
 | REQ-052 | Coleta de conquistas sem recarregar a home | Ao coletar uma recompensa na tela Início, atualizar imediatamente os cards de recompensas pendentes, visão rápida, saldo/moedas, temporada e ranking no próprio lugar, sem substituir a página inteira. Preservar posição de rolagem, foco e animação de moedas, e remover o card de recompensas quando não houver mais pendências. | Alta | IMPLEMENTADO |
 
+### Fase 16 — Cascata de moedas
+
+| ID | Nome | Descrição | Prioridade | Status |
+|---|---|---|---|---|
+| REQ-053 | Cascata de moedas ampliada e som sincronizado | Aumentar a quantidade de moedas da cascata e fazê-las cair do topo da tela, passando por trás da barra superior e alcançando cerca de um terço da altura da viewport. As moedas devem começar com a cor normal e terminar transparentes, e o som deve durar todo o tempo em que estiverem visíveis. | Média | IMPLEMENTADO |
+
 ### Critérios de aceitação gerais
 
 - Nenhuma prova deve ser cadastrada manualmente no código: a fonte é o manifesto gerado.
@@ -186,6 +192,7 @@ Legenda dos estados possíveis: `PENDENTE`, `EM DESENVOLVIMENTO`, `IMPLEMENTADO`
 - Progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, simulados, conquistas e recompensas coletadas nunca podem aparecer em outra conta nem no modo visitante.
 - Importar ou apagar dados de estudo afeta apenas o escopo ativo e preserva as demais contas.
 - A coleta de recompensa na tela Início deve atualizar os cards afetados no próprio lugar, sem recriar a página e preservando rolagem, foco e animação.
+- A cascata de moedas deve cair do topo até cerca de um terço da tela, com som do mesmo tempo de visibilidade e desaparecimento gradual.
 - A progressão deve ocorrer em commits funcionais independentes, com push após cada entrega.
 
 ---
@@ -443,6 +450,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 | 0.47.0 | DOC-001 | Consolidação da especificação normativa em `specs/`: índice e nove documentos temáticos cobrindo visão geral, requisitos, arquitetura, modelo de dados, interface e rotas, conteúdo e parser, offline e PWA, segurança e privacidade, testes e qualidade. `README.md` passa a apontar para as specs e `PROJECT_STATUS.md` continua como fonte operacional. | `cfd61ab` | 2026-11-09 |
 | 0.48.0 | REQ-051 | Isolamento dos dados de estudo por conta (`u:<userId>`) e visitante (`guest`): chaves de `meta` escopadas, progresso/sessões/tentativas filtrados e com IDs escopados, migração única dos dados legados, troca de escopo no login/logout/expiração, backup canônico do escopo ativo e importação/exclusão restritas ao escopo; service worker `v27` | `1c2784a` | 2026-11-09 |
 | 0.49.0 | REQ-052 | Coleta de conquistas na tela Início atualiza no próprio lugar os cards de recompensas pendentes, visão rápida, saldo/moedas, temporada e ranking, sem recriar a home; remove o card vazio, preserva rolagem, foco e animação de moedas e elimina a espera artificial de 1300 ms; service worker `v28` | `a1ae2fd` | 2026-11-10 |
+| 0.50.0 | REQ-053 | Cascata de moedas ampliada para 28–48 moedas espalhadas pela largura da tela, caindo do topo por trás da barra superior até cerca de 1/3 da viewport, com início opaco, fim transparente e som contínuo durante todo o tempo visível; service worker `v29` | `—` | 2026-11-10 |
 
 ---
 
@@ -499,6 +507,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 - **REQ-050 — Recompensas pendentes restritas à conta:** `renderHome` passou a incluir `renderHomeAchievements` somente quando `hasAccount()` é verdadeiro. Como consequência, o visitante não vê a seção “Recompensas pendentes” mesmo que existam conquistas coletáveis no dispositivo; a tela Início do visitante fica com o hero “Seu painel de estudos” e o “Ranking da temporada”. Para quem tem conta, a ordem permanece “Seu painel de estudos”, “Recompensas pendentes”, “Visão rápida” e “Ranking da temporada”. Service worker `v26`.
 - **REQ-051 — Isolamento de dados por conta:** `js/db.js` passou a manter um escopo ativo (`guest` ou `u:<userId>`) e a prefixar as chaves de estudo em `meta` (`stats`, `gamification`, `wallet`, `season`, `simuladoSession` e `simulados`). Progresso usa `scope::materialId::questionId`; sessões e tentativas recebem `scope` e IDs/chaves prefixados, evitando colisões na importação. `activateStorageScope` migra uma única vez os registros legados para o primeiro escopo ativado, marcado por `storageScopedOnce`. `js/app.js` troca o escopo no boot, no login, no logout e na expiração da sessão, recarregando apenas os dados daquele usuário; `progressKey` é usado na consulta da resposta e o placar vazio deixa de ser enviado para não apagar pontuação remota. O backup exporta apenas o escopo ativo, com chaves e IDs canônicos, e exclui `cloudAuth`, `cloudProfile`, `cloudRank` e o marcador de migração; importação e “Apagar progresso” substituem ou removem somente o escopo ativo, preservando as demais contas, a sessão e o cache do ranking. Service worker `v27`.
 - **REQ-052 — Coleta de conquistas sem recarregar a home:** `collectAchievement` deixou de chamar `render()` após a coleta e passou a acionar `refreshHomeAfterClaim`, que atualiza somente os cards afetados: `updateHomeAchievementsSection` substitui ou remove `[data-role="home-achievements"]`, `updateHomeQuickStats` substitui `[data-role="quick-panel"]` com o saldo, temporada e pendências recalculados, e `updateHomeRankingCard` substitui `[data-role="cloud-rank"]`. `refreshRanking` e as falhas de sincronização também deixaram de re-renderizar a home inteira. A espera artificial de 1300 ms foi removida; a cascata de moedas continua sem bloquear a atualização, e a rolagem, o foco e a mesma instância de `#main` são preservados. Service worker `v28`.
+- **REQ-053 — Cascata de moedas ampliada e som sincronizado:** `playCoinCascade` passou a gerar entre 28 e 48 moedas, distribuídas pela largura da viewport com jitter, tamanhos de 16–29 px e durações de queda de 1600–1919 ms. A camada `.coin-cascade` fica fixa no topo com `z-index: 35`, abaixo da barra superior (40), e cada moeda cai de `-32px` até `33vh`, começando com `opacity: 1` e terminando em `0`; a cascata respeita `prefers-reduced-motion`. `playCoinRain` agenda notas curtas no Web Audio durante todo o intervalo visível calculado, e a coleta usa o som curto apenas quando a animação está desativada. Service worker `v29`.
 - **REQ-027 — Testes abrangentes finais:** campanha executada ao término da fase 8 com 12 suítes temporárias, fora do repositório, em Node com DOM simulado (`happy-dom`), IndexedDB em memória (`fake-indexeddb`), Cache API e rede simuladas. A cobertura unitária validou manifesto (10 materiais/1250 questões), parser e correção por ID em todas as questões, embaralhamento estável, SRS, gamificação, moedas, ranking, cronômetro, simulados, backup, configurações, cache e isolamento de materiais malformados/manifesto inválido. As suítes de integração percorreram configurações e efeitos reais, sessão normal, cronômetro com pausa/retomada e expiração, SRS automático/manual, fila de revisões, estatísticas, XP, meta, sequência, ranking, acessibilidade, exportação/importação, restauração, exclusão de dados, simulados, coleta de conquistas e service worker. A campanha encontrou e corrigiu um defeito real: `renderStudy` aplicava spread em `renderMaterialGrid()`, que devolve um único elemento, e a rota `#/estudar` não renderizava; a chamada passou a ser inserida diretamente no array. Todas as suítes e `npm run check` passaram após a correção.
 - **REQ-028 — Documentação de uso:** `README.md` reúne visão geral, funcionalidades, requisitos, execução local por servidor HTTP, publicação no GitHub Pages, instalação como PWA em Android/iOS/desktop, rotas e uso das telas, configurações, cronômetro, simulados, economia de moedas e personagens, revisões, formato completo dos materiais com exemplo, geração/validação do manifesto, modelo de dados local, backup/importação/exclusão, estrutura do projeto, comandos de validação e limitações conhecidas. O documento também explica a correção por identificador, o funcionamento offline e a ausência de sincronização ou ranking global.
 
@@ -506,7 +515,7 @@ Campos reais: `schema_version`, `material_id`, `bank`, `subject`, `topic`, `requ
 
 ## I. Situação dos requisitos e dependências
 
-Os requisitos REQ-001 a REQ-052 estão implementados. A fase 9, a fase 10 (conta Supabase, sessão sazonal, sincronização de nível/moedas e ranking global da Temporada 1), a fase 11 (identidade na barra superior), a fase 12 (login e cadastro separados, rolagem ao apagar progresso e restrições do visitante), a fase 13 (cards da home restritos à conta e ordem definida), a fase 14 (isolamento dos dados de estudo por conta) e a fase 15 (atualização local da home após a coleta) estão concluídas. O DOC-001 consolidou a especificação normativa em `specs/`, sem alterar código de produção. O schema remoto foi aplicado, a confirmação de e-mail está desativada e a validação final em produção permanece como próxima tarefa.
+Os requisitos REQ-001 a REQ-053 estão implementados. A fase 9, a fase 10 (conta Supabase, sessão sazonal, sincronização de nível/moedas e ranking global da Temporada 1), a fase 11 (identidade na barra superior), a fase 12 (login e cadastro separados, rolagem ao apagar progresso e restrições do visitante), a fase 13 (cards da home restritos à conta e ordem definida), a fase 14 (isolamento dos dados de estudo por conta), a fase 15 (atualização local da home após a coleta) e a fase 16 (cascata de moedas ampliada e som sincronizado) estão concluídas. O DOC-001 consolidou a especificação normativa em `specs/`, sem alterar código de produção. O schema remoto foi aplicado, a confirmação de e-mail está desativada e a validação final em produção permanece como próxima tarefa.
 
 Dependências principais:
 
@@ -534,6 +543,7 @@ Dependências principais:
 - REQ-046 depende de REQ-022 (exclusão de progresso) e da tela de configurações de REQ-019/REQ-020.
 - REQ-047 depende de REQ-041/REQ-045 (conta), REQ-004/REQ-005 (sessão de estudo), REQ-007 (feedback), REQ-032 (simulados) e da navegação de REQ-026.
 - REQ-052 depende de REQ-015 (conquistas), REQ-030 (carteira), REQ-034 (temporada), REQ-042/REQ-043 (sincronização e ranking) e dos cards de REQ-049/REQ-050.
+- REQ-053 depende de REQ-033/REQ-037 (coleta e cascata) e de `js/sound.js` (Web Audio).
 
 ---
 
@@ -557,7 +567,7 @@ Dependências principais:
 
 ### Verificação atual (2026-11-10)
 
-- REQ-052 implementado; a fase 15 está concluída. As fases 9 a 14 continuam concluídas.
+- REQ-053 implementado; a fase 16 está concluída. As fases 9 a 15 continuam concluídas.
 - REQ-045: a modal de conta passou a abrir no modo “Entrar”, com apenas e-mail e senha, e a alternar para “Criar conta” por abas acessíveis. `submitCloudLogin` valida o apelido somente no cadastro, usa `signIn` no login e `signUp` no cadastro, sem criação automática de conta. Credenciais inválidas orientam a criar conta; e-mail já cadastrado orienta a entrar. O campo de apelido fica oculto e não obrigatório no login, e o `autocomplete` alterna entre `current-password` e `new-password`. Teste DOM com `happy-dom`/`fake-indexeddb` (21 verificações): abas com `role="tab"`/`aria-selected`/`aria-controls`, campo Apelido oculto no login e obrigatório no cadastro, títulos e rótulos por modo, login inválido sem chamada a `/auth/v1/signup`, e-mail existente orientando “Entrar”, cadastro válido conectando a conta e enviando o apelido, além do erro limpo ao trocar de aba. `node --check js/app.js` e `npm run check` passaram.
 - REQ-046: teste DOM com `happy-dom` (6 verificações) confirmou que, com a página em `scrollY = 320`, clicar em “Apagar progresso” não chamou `scrollTo({ top: 0 })`, restaurou a posição 320, exibiu “Apagar todo o progresso?”, moveu o foco para o título com `preventScroll` e chamou `scrollIntoView({ block: "nearest" })`. `node --check js/app.js` e `npm run check` passaram.
 - REQ-047: testes DOM com `happy-dom`/`fake-indexeddb` (21 + 10 verificações) confirmaram que o visitante vê apenas Início e Provas no menu, não vê o botão de configurações nem os atalhos de simulado/progresso, e recebe a área de conta em `#/config`, `#/progresso`, `#/simulado` e `#/revisoes` sem o conteúdo restrito. Ao iniciar uma prova, o visitante recebe “1 / 1” com a primeira questão do arquivo; o feedback abre o modo “Criar conta” com explicação e não a modal de feedback; o resumo mostra o aviso de visitante, oculta o gabarito e oferece “Criar conta para continuar”. Em uma sessão antiga de duas questões, “Próxima questão” abriu o cadastro e manteve “1 / 2”; após criar a conta, o menu completo e as configurações apareceram, o feedback abriu normalmente e o avanço chegou a “2 / 2”. `node --check js/app.js` e `npm run check` passaram.
@@ -566,6 +576,7 @@ Dependências principais:
 - REQ-050: teste DOM confirmou que um visitante com conquista coletável no dispositivo não vê “Recompensas pendentes” nem “Visão rápida”; a home do visitante mantém hero e ranking. Com conta, a mesma conquista coletável faz os quatro cards aparecerem na ordem definida. `node --check js/app.js`, `node --check service-worker.js` e `npm run check` passaram.
 - REQ-051: testes com `fake-indexeddb` confirmaram isolamento de recompensas, progresso, sessões, tentativas, estatísticas, temporada e simulados entre `guest`, `u:A` e `u:B`; restauração exata do estado ao voltar a um escopo; migração única dos dados legados para o primeiro escopo com IDs de sessão/tentativa prefixados; exportação canônica apenas do escopo ativo sem `cloudAuth`, `cloudProfile`, `cloudRank` ou `storageScopedOnce`; importação e exclusão restritas ao escopo ativo; e preservação das demais contas. Um teste DOM com `happy-dom`/`fake-indexeddb` percorreu o fluxo real de login/logout: visitante sem recompensas, Alice com duas pendências, coleta de “Primeiro passo”, logout, login de Bruno sem herdar saldo ou coleta da Alice e retorno à Alice com o saldo coletado preservado e apenas “Primeiro acerto” pendente. `node --check js/app.js`, `node --check js/db.js`, `node --check service-worker.js`, `npm run check` e `git diff --check` passaram.
 - REQ-052: teste DOM com `happy-dom`/`fake-indexeddb` confirmou que a coleta de “Primeiro passo” manteve a mesma instância de `#main` e do hero, atualizou a visão rápida com o novo saldo, registrou a recompensa na carteira e manteve “Primeiro acerto” pendente; a coleta da última recompensa removeu o card vazio, manteve `#main` e o hero, somou as duas recompensas e refletiu o saldo na visão rápida. O fluxo de login/logout continuou isolando saldo e coletas entre Alice, Bruno e o visitante. `node --check js/app.js`, `node --check js/db.js`, `node --check service-worker.js`, `npm run check` e `git diff --check` passaram.
+- REQ-053: teste DOM com `happy-dom`/`fake-indexeddb` confirmou que a cascata gera pelo menos 28 moedas, cada uma com posição, tamanho e duração próprios, espalhadas dos dois lados da tela. A inspeção do CSS confirmou a camada fixa no topo com `z-index: 35` (atrás da barra superior), queda até `33vh`, opacidade inicial `1` e final `0`. `playCoinRain` usa o mesmo intervalo visível calculado para agendar as notas, e a coleta mantém o som curto quando a animação está desativada. `node --check js/app.js`, `node --check js/sound.js`, `node --check js/db.js`, `node --check service-worker.js`, `npm run check` e `git diff --check` passaram.
 - Fase 10: `supabase/schema.sql` e a migration `supabase/migrations/20261107000000_season_ranking.sql` contêm `season_scores`, view `season_leaderboard`, índice de ordenação, trigger de `updated_at`, grants e políticas RLS; `js/cloud-config.js` e `js/cloud.js` foram criados com validação, sessão, cliente REST, erros em pt-BR e normalização do ranking.
 - O schema foi aplicado no projeto remoto `qskeuqmlxbipiwsxyglv`; a consulta REST a `season_scores` e `season_leaderboard` respondeu `200`, e um `INSERT` anônimo foi recusado com `401`/`42501`, confirmando a RLS. O primeiro participante real (`x3x31`) já aparece no ranking com 15 moedas e 1 dia ativo.
 - Validação de produção em 2026-11-07: o GitHub Pages serviu `js/app.js` com o ranking, o cartão da conta e o gate, além de `js/cloud.js`, `js/cloud-config.js` e do service worker `v19`. Um cadastro real temporário pelo endpoint público retornou sessão com `email_confirmado: true`; o UPSERT autenticado em `season_scores` respondeu `201` e a linha apareceu em `season_leaderboard` na 1ª posição com nível e moedas corretos. A view expôs apenas `position`, `user_id`, `season_id`, `nickname`, `level_number`, `level_name`, `coins`, `active_days` e `updated_at` — sem e-mail. Um `INSERT` anônimo foi recusado com `401`/`42501`. A conta e a linha de teste foram removidas, restando somente o participante real.
@@ -590,16 +601,16 @@ Dependências principais:
 - Toasts corrigidos e acima da modal: a animação `toast-rise` preserva `translate(-50%, …)` em todos os quadros, mantendo as mensagens centralizadas horizontalmente em qualquer tela; a modal usa `z-index` inferior ao dos toasts.
 - `npm run check`: 10 materiais válidos, 1.250 questões, 0 erros e 0 avisos.
 - `node --check` em todos os `js/*.js`, `service-worker.js` e `scripts/*.mjs`: sem erros de sintaxe.
-- `service-worker.js` em `v28`, com 31 caminhos no app shell (incluindo `js/cloud.js` e `js/cloud-config.js`), todos presentes no repositório.
+- `service-worker.js` em `v29`, com 31 caminhos no app shell (incluindo `js/cloud.js` e `js/cloud-config.js`), todos presentes no repositório.
 - `questoes/manifest.json` válido e coerente com os 10 materiais; `package.json` sem dependências de execução.
 
 ### Especificação (DOC-001)
 
 - `specs/README.md` e os nove documentos temáticos foram criados a partir do estado real do repositório em 2026-11-09: rotas, home de logado e visitante, gate de conta, parser, manifesto, service worker `v27`, schema Supabase, backup e matriz de testes.
-- A especificação documenta REQ-001 a REQ-052, as decisões de arquitetura, as regras de negócio, os riscos residuais e a Definition of Done vigente.
+- A especificação documenta REQ-001 a REQ-053, as decisões de arquitetura, as regras de negócio, os riscos residuais e a Definition of Done vigente.
 - `PROJECT_STATUS.md` permanece como fonte operacional de versão, requisitos e histórico; `README.md` é o guia de uso e aponta para `specs/README.md`.
 - A validação da documentação incluiu `node --check js/app.js`, `node --check service-worker.js`, `npm run check` (10 materiais, 1.250 questões, 0 erros e 0 avisos), conferência dos links internos e `git diff --check`.
-- As specs não alteram código de produção; o service worker foi elevado para `v27` no REQ-051 e para `v28` no REQ-052.
+- As specs não alteram código de produção; o service worker foi elevado para `v27` no REQ-051, para `v28` no REQ-052 e para `v29` no REQ-053.
 - Renderização do dashboard mantém o descarte de entradas nulas; a tela Início exibe, para quem tem conta, hero, recompensas pendentes, “Visão rápida” e ranking global nesta ordem; o visitante vê somente hero e ranking; o cartão da temporada ocupa o lugar do antigo card de personagem em `#/progresso`.
 - `main` sincronizada com `origin/main`; o código da fase 10 foi entregue no commit `e1b2b88` e a validação/documentação por requisito nos commits seguintes. A árvore de trabalho fica limpa ao final desta revisão.
 

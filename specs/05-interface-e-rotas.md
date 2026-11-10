@@ -135,6 +135,7 @@ O visitante usa um escopo de estudo próprio (`guest`). Ao entrar em uma conta, 
 - Cada cartão é um botão acessível com rótulo que informa a recompensa e o nome da conquista.
 - A coleta é manual, idempotente e atualiza a carteira.
 - A seção desaparece quando não há recompensa pendente.
+- A cascata de moedas usa de 28 a 48 moedas espalhadas pela largura da tela, com tamanhos e durações variados. A camada fica fixa no topo, atrás da barra superior (`z-index: 35`), e cada moeda cai de `-32px` até `33vh`, começando opaca e terminando transparente. O som da chuva de moedas dura todo o intervalo visível calculado.
 - A coleta atualiza os cards afetados no próprio lugar, sem recriar a página: `[data-role="home-achievements"]` é substituído ou removido, `[data-role="quick-panel"]` é substituído com o saldo/temporada recalculados e `[data-role="cloud-rank"]` é substituído quando o ranking muda. A posição de rolagem, o foco e a cascata de moedas são preservados, e a atualização não espera o término da animação.
 
 ### 3.5 Visão rápida

@@ -154,6 +154,48 @@ export function playSound(name, { force = false, settings = getSettings() } = {}
   }
 }
 
+/**
+ * Toca uma chuva de moedas com notas curtas distribuídas por toda a duração
+ * visível da cascata. Assim o som acompanha as moedas até elas desaparecerem.
+ */
+export function playCoinRain(durationMs, { settings = getSettings() } = {}) {
+  if (settings?.soundEnabled === false) return false;
+
+  const context = ensureContext();
+  if (!context) return false;
+  if (context.state === "suspended") {
+    context.resume?.().catch?.(() => {});
+  }
+
+  try {
+    const volume = clampVolume(settings?.soundVolume ?? 0.6);
+    if (volume <= 0) return false;
+    const duration = Math.max(0.3, Math.min(4, Number(durationMs) / 1000 || 0));
+    const now = context.currentTime + 0.01;
+    const pitches = [987.77, 1174.66, 1318.51, 1567.98];
+    const step = 0.11;
+    let index = 0;
+    for (let at = 0; at < duration; at += step) {
+      const progress = at / duration;
+      playTone(
+        context,
+        {
+          freq: pitches[index % pitches.length],
+          dur: Math.min(0.09, Math.max(0.04, duration - at)),
+          type: index % 3 === 0 ? "triangle" : "square",
+          gain: 0.2 * (1 - progress * 0.8),
+        },
+        now + at,
+        volume
+      );
+      index += 1;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Exposto para testes: libera o contexto simulado entre execuções. */
 export function resetSoundForTests() {
   audioContext = null;

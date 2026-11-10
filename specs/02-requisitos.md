@@ -84,7 +84,7 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 | REQ-034 | Temporada 1 e evolução do personagem | O sistema DEVE definir a Temporada 1 (`2026-1`, 05/11 a 04/12/2026) e evoluir por moedas acumuladas + dias ativos (0/300/600/1000/1500 e 0/3/6/9/12), sem regressão e com congelamento após o término. | Alta | IMPLEMENTADO |
 | REQ-035 | XP interno e conquistas de temporada | O sistema DEVE manter XP e níveis apenas como dados internos, removê-los da interface e substituir conquistas de nível por “Primeira evolução” e “Mestre da temporada”. | Alta | IMPLEMENTADO |
 | REQ-036 | Feedback em modal com pausa do cronômetro | O sistema DEVE abrir o feedback em modal acessível após qualquer resposta e pausar/retomar o cronômetro. | Alta | IMPLEMENTADO |
-| REQ-037 | Conquistas pendentes na home e cascata centralizada | O sistema DEVE exibir conquistas desbloqueadas e não coletadas na home, com cascata centralizada na viewport e remoção após a coleta. | Média | IMPLEMENTADO |
+| REQ-037 | Conquistas pendentes na home e cascata de moedas | O sistema DEVE exibir conquistas desbloqueadas e não coletadas na home, com cascata de moedas e remoção após a coleta; o posicionamento visual atual segue REQ-053. | Média | IMPLEMENTADO |
 | REQ-038 | Cabeçalho fixo da prova | O cabeçalho da prova DEVE permanecer fixo sob o topo do app, mantendo título, contador e cronômetro visíveis. | Média | IMPLEMENTADO |
 | REQ-039 | Feedback sem campos legados | O parser NÃO DEVE ler nem exibir `bank_approach`, `study_tip` e `review_summary`. | Média | IMPLEMENTADO |
 | REQ-040 | Ajuste das moedas de evolução | As faixas da Temporada 1 DEVEM ser 300/600/1000/1500 moedas, mantendo 0 no Curioso e dias ativos 0/3/6/9/12. | Alta | IMPLEMENTADO |
@@ -130,6 +130,12 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 | ID | Nome | Regra | Prioridade | Status |
 |---|---|---|---|---|
 | REQ-052 | Coleta de conquistas sem recarregar a home | Ao coletar uma recompensa, os cards de recompensas pendentes, visão rápida, saldo/moedas, temporada e ranking DEVEM ser atualizados no próprio lugar, sem substituir a página inteira. A rolagem, o foco e a animação de moedas DEVEM ser preservados, e o card vazio DEVE ser removido quando não houver mais pendências. | Alta | IMPLEMENTADO |
+
+### Fase 16 — Cascata de moedas
+
+| ID | Nome | Regra | Prioridade | Status |
+|---|---|---|---|---|
+| REQ-053 | Cascata de moedas ampliada e som sincronizado | A cascata DEVE ter mais moedas, espalhadas pela largura da tela, caindo do topo por trás da barra superior até cerca de 1/3 da viewport. As moedas DEVEM começar opacas e terminar transparentes, e o som DEVE durar todo o intervalo visível. | Média | IMPLEMENTADO |
 
 ## 2. Requisitos não funcionais
 
@@ -178,6 +184,7 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 | RN-021 | Os dados de estudo pertencem ao escopo ativo (`guest` ou `u:<userId>`); nenhum progresso, sessão, tentativa, estatística, temporada, conquista, carteira, simulado ou recompensa coletada pode ser lido por outro escopo. |
 | RN-022 | Importar ou apagar dados de estudo afeta somente o escopo ativo; configurações, sessão Supabase, cache do ranking e demais contas são preservados. |
 | RN-023 | A coleta de recompensa na home atualiza os cards afetados no próprio lugar, sem recriar a página, preservando rolagem, foco e animação. |
+| RN-024 | A cascata de moedas cai do topo até cerca de 1/3 da viewport, atrás da barra superior, começa opaca e termina transparente; o som acompanha todo o tempo visível. |
 
 ## 4. Critérios de aceitação gerais
 
@@ -197,16 +204,17 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 14. O app continua funcionando offline para o shell e materiais já acessados.
 15. Dados de estudo e recompensas de uma conta nunca aparecem em outra conta nem no modo visitante.
 16. Coletar uma recompensa atualiza os cards da home no próprio lugar, sem recriar a página e sem perder rolagem, foco ou animação.
-17. `npm run check` valida 10 materiais e 1.250 questões sem erros.
+17. A cascata de moedas cai do topo até cerca de 1/3 da tela, atrás da barra superior, começa opaca, termina transparente e tem som durante todo o tempo visível.
+18. `npm run check` valida 10 materiais e 1.250 questões sem erros.
 
 ## 5. Rastreabilidade
 
 | Documento | Requisitos cobertos |
 |---|---|
 | [01 — Visão geral](01-visao-geral.md) | Escopo, personas e princípios de todos os requisitos |
-| [03 — Arquitetura](03-arquitetura.md) | REQ-001 a REQ-052, com ênfase em REQ-008, REQ-024, REQ-032, REQ-041 a REQ-043 e REQ-051 |
+| [03 — Arquitetura](03-arquitetura.md) | REQ-001 a REQ-053, com ênfase em REQ-008, REQ-024, REQ-032, REQ-041 a REQ-043 e REQ-051 |
 | [04 — Modelo de dados](04-modelo-de-dados.md) | REQ-008 a REQ-010, REQ-015, REQ-021, REQ-030, REQ-033, REQ-034, REQ-041 a REQ-043, REQ-051 |
-| [05 — Interface e rotas](05-interface-e-rotas.md) | REQ-004, REQ-005, REQ-007, REQ-017, REQ-026, REQ-036 a REQ-052 |
+| [05 — Interface e rotas](05-interface-e-rotas.md) | REQ-004, REQ-005, REQ-007, REQ-017, REQ-026, REQ-036 a REQ-053 |
 | [06 — Conteúdo e parser](06-conteudo-e-parser.md) | REQ-001 a REQ-003, REQ-006, REQ-007, REQ-039 |
 | [07 — Offline e PWA](07-offline-e-pwa.md) | REQ-023 a REQ-025 |
 | [08 — Segurança e privacidade](08-seguranca-e-privacidade.md) | REQ-021, REQ-041 a REQ-043, REQ-045, REQ-051 |

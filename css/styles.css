@@ -702,9 +702,9 @@ button.achievement-mini {
 /* Cascata decorativa de moedas ao coletar uma conquista. */
 .coin-cascade {
   position: fixed;
-  top: 50%;
+  top: 0;
   left: 50%;
-  z-index: 120;
+  z-index: 35;
   width: 0;
   height: 0;
   pointer-events: none;
@@ -716,34 +716,31 @@ button.achievement-mini {
   left: var(--x);
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
-  margin-left: -10px;
+  width: var(--size, 20px);
+  height: var(--size, 20px);
+  margin-left: calc(var(--size, 20px) / -2);
   color: #fbbf24;
-  opacity: 0;
+  opacity: 1;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
-  animation: coin-cascade-fall 900ms cubic-bezier(0.24, 0.72, 0.32, 1) var(--delay) forwards;
+  animation: coin-cascade-fall var(--fall, 1600ms) cubic-bezier(0.24, 0.72, 0.32, 1) var(--delay) forwards;
 }
 
 .coin-cascade__coin svg {
-  width: 20px;
-  height: 20px;
+  width: var(--size, 20px);
+  height: var(--size, 20px);
 }
 
 @keyframes coin-cascade-fall {
   0% {
-    opacity: 0;
-    transform: translate3d(0, -18px, 0) scale(0.45) rotate(-18deg);
-  }
-  18% {
     opacity: 1;
+    transform: translate3d(0, -32px, 0) scale(0.7) rotate(-18deg);
   }
-  78% {
+  72% {
     opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: translate3d(var(--drift), 118px, 0) scale(1.05) rotate(22deg);
+    transform: translate3d(var(--drift), 33vh, 0) scale(1.05) rotate(22deg);
   }
 }
 

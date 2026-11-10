@@ -21,7 +21,7 @@ O projeto usa apenas HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, Cache
 - **Cronômetro opcional:** contagem regressiva de 5 a 120 minutos nas provas, exibida em um cabeçalho fixo com o contador de questões, com pausa automática ao trocar de aba, pausa enquanto o feedback está aberto e encerramento ao zerar.
 - **Gamificação:** temporada com evolução por moedas acumuladas e dias ativos, meta diária, sequência de estudos, conquistas e ranking local.
 - **Conta e ranking global:** login opcional por e-mail e senha ou cadastro com apelido, e-mail e senha para enviar nível e moedas ao ranking da Temporada 1, com top 5 na tela inicial, posição do próprio usuário, sessão persistente, apelido e saída rápida na barra superior e sincronização automática quando a conexão volta.
-- **Moedas e personagem:** recompensas por acerto, sessão e meta; coleta manual das moedas das conquistas, com pendências destacadas na tela inicial e animação centralizada ao coletar; personagem com cinco estágios que evolui apenas dentro da temporada e congela ao término.
+- **Moedas e personagem:** recompensas por acerto, sessão e meta; coleta manual das moedas das conquistas, com pendências destacadas na tela inicial e cascata de moedas vinda do topo, sincronizada com o som, ao coletar; personagem com cinco estágios que evolui apenas dentro da temporada e congela ao término.
 - **Som e ludicidade:** efeitos gerados via Web Audio, com volume configurável e respeito a animações reduzidas.
 - **Acessibilidade:** navegação por teclado, foco visível, link de pular, rótulos ARIA, contraste e alvos de toque adequados.
 - **Offline e instalação:** app shell em cache, materiais já acessados disponíveis offline e instalação como PWA.
@@ -131,7 +131,7 @@ O simulado permite escolher quantas questões usar de cada assunto. Ele tem sess
 - **10 moedas** ao concluir uma sessão, mais **5** se todas as respostas estiverem corretas.
 - **15 moedas** ao atingir a meta diária, uma única vez por dia.
 - As conquistas desbloqueadas têm recompensas próprias em moedas. Elas **não são pagas automaticamente**: toque em “Clique para coletar” na tela de progresso.
-- As conquistas desbloqueadas e ainda não coletadas também aparecem no início, na seção **Conquistas para coletar**. Ao coletar, os cards de recompensas, visão rápida e ranking são atualizados na hora, sem recarregar a página: a rolagem e o foco são preservados, a animação de moedas continua e a seção desaparece quando todas as recompensas forem coletadas.
+- As conquistas desbloqueadas e ainda não coletadas também aparecem no início, na seção **Conquistas para coletar**. Ao coletar, os cards de recompensas, visão rápida e ranking são atualizados na hora, sem recarregar a página: a rolagem e o foco são preservados, as moedas caem do topo até cerca de um terço da tela com o som acompanhando o tempo visível e a seção desaparece quando todas as recompensas forem coletadas.
 
 A **Temporada 1** vai de **05/11/2026 a 04/12/2026**. O personagem evolui pelo mínimo de moedas acumuladas na temporada e pelo total de dias ativos com pelo menos uma questão respondida. Os dois requisitos precisam ser atendidos ao mesmo tempo:
 

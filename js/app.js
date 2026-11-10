@@ -56,7 +56,7 @@ import {
 import { buildRanking, RANKING_DISCLOSURE } from "./ranking.js";
 import { createBackup, validateBackup } from "./backup.js";
 import { clearAppCaches } from "./storage.js";
-import { installSoundUnlock, playSound, unlockAudio } from "./sound.js";
+import { installSoundUnlock, playCoinRain, playSound, unlockAudio } from "./sound.js";
 import {
   TIMER_MAX_MINUTES,
   TIMER_MIN_MINUTES,
@@ -451,25 +451,51 @@ function renderAchievementItem(achievement) {
   );
 }
 
+const COIN_CASCADE = Object.freeze({
+  minCoins: 28,
+  maxCoins: 48,
+  fallMs: 1600,
+  stepMs: 40,
+});
+
+function prefersReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+}
+
 function playCoinCascade(amount) {
-  if (!getSettings().animations) return false;
-  const count = Math.max(6, Math.min(14, Math.ceil(amount / 2)));
-  const spacing = 26;
+  if (!getSettings().animations || prefersReducedMotion()) return 0;
+
+  const count = Math.max(
+    COIN_CASCADE.minCoins,
+    Math.min(COIN_CASCADE.maxCoins, Math.ceil(Number(amount) * 3))
+  );
+  const viewportWidth = Math.max(320, window.innerWidth || 360);
+  const spread = Math.min(viewportWidth * 0.82, 900);
   const layer = h("div", { class: "coin-cascade", "aria-hidden": "true" });
+  let visibleUntil = 0;
+
   for (let index = 0; index < count; index += 1) {
-    const x = Math.round((index - (count - 1) / 2) * spacing);
-    const drift = ((index % 5) - 2) * 11;
-    const delay = (index % 4) * 70 + Math.floor(index / 4) * 45;
+    const ratio = count > 1 ? index / (count - 1) : 0.5;
+    const jitter = ((index * 37) % 41) - 20;
+    const x = Math.round((ratio - 0.5) * spread + jitter);
+    const drift = ((index % 7) - 3) * 9;
+    const delay = (index % 8) * (COIN_CASCADE.stepMs + 20);
+    const size = 16 + ((index * 7) % 14);
+    const fall = COIN_CASCADE.fallMs + ((index * 13) % 320);
+    visibleUntil = Math.max(visibleUntil, delay + fall);
+
     layer.append(
       h("span", {
         class: "coin-cascade__coin",
-        style: `--x:${x}px;--drift:${drift}px;--delay:${delay}ms`,
+        style: `--x:${x}px;--drift:${drift}px;--delay:${delay}ms;--fall:${fall}ms;--size:${size}px`,
       }, icon("coin"))
     );
   }
+
   document.body.append(layer);
-  window.setTimeout(() => layer.remove(), 1500);
-  return true;
+  window.setTimeout(() => layer.remove(), visibleUntil + 120);
+  playCoinRain(visibleUntil);
+  return visibleUntil;
 }
 
 async function collectAchievement(button, achievement) {
@@ -490,8 +516,8 @@ async function collectAchievement(button, achievement) {
     await refreshProgress();
     refreshHomeAfterClaim();
     if (result?.gain > 0) {
-      playSound("coin");
-      playCoinCascade(result.gain);
+      const cascade = playCoinCascade(result.gain);
+      if (!cascade) playSound("coin");
       const evolved = result.seasonEvolved && result.seasonStage
         ? ` Personagem evoluiu para ${result.seasonStage.stage.name}.`
         : "";
