@@ -244,17 +244,20 @@ Características:
 | `test-051a` | Isolamento por escopo, backup canônico, importação e limpeza | 1 suíte |
 | `test-051b` | Migração única e IDs escopados | 1 suíte |
 | `test-051c` | Login/logout real com recompensas de duas contas | 1 suíte |
+| `test-052` | Coleta atualiza a home no lugar, sem recriar `#main` | 1 suíte |
 
 Essas suítes também confirmaram:
 
 - `node --check js/app.js`;
 - `node --check js/db.js`;
-- `node --check service-worker.js`;
+- `node --check js/service-worker.js`;
 - `npm run check` com 10 materiais e 1.250 questões;
 - `git diff --check`;
-- service worker `v27`.
+- service worker `v28`.
 
 A suíte do REQ-051 cobriu `guest`, `u:A` e `u:B` com `fake-indexeddb`: recompensas, progresso, sessões, tentativas, estatísticas, temporada e simulados ficaram isolados; a migração legada ocorreu uma única vez e só no primeiro escopo; o backup do escopo ativo saiu com chaves e IDs canônicos, sem dados privados; a importação e a exclusão não tocaram nas outras contas. O teste DOM com `happy-dom` percorreu o login real de Alice, a coleta de “Primeiro passo”, o logout, o login de Bruno (sem saldo, coleta ou pendências da Alice) e o retorno à Alice com o saldo preservado e apenas “Primeiro acerto” pendente.
+
+A suíte do REQ-052 reutilizou o fluxo DOM de login/logout e verificou que a coleta mantém a mesma instância de `#main` e do hero, atualiza a visão rápida com o novo saldo, remove o card quando não há mais pendências e preserva o saldo e as coletas ao trocar de conta.
 
 ## 6. Campanha final registrada (REQ-027)
 
@@ -289,7 +292,7 @@ A campanha final executou 12 suítes temporárias, todas aprovadas:
 6. Responder uma questão, ver o feedback e avançar.
 7. Concluir uma sessão e conferir o resumo.
 8. Voltar à home e conferir a ordem dos quatro cards.
-9. Coletar uma conquista pendente.
+9. Coletar uma conquista pendente e confirmar que os cards de recompensas, visão rápida e ranking são atualizados sem recarregar a página, preservando a rolagem e o foco.
 10. Abrir Progresso, Revisões, Simulado e Configurações.
 11. Sair da conta e confirmar o retorno ao modo visitante.
 

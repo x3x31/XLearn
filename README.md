@@ -131,7 +131,7 @@ O simulado permite escolher quantas questões usar de cada assunto. Ele tem sess
 - **10 moedas** ao concluir uma sessão, mais **5** se todas as respostas estiverem corretas.
 - **15 moedas** ao atingir a meta diária, uma única vez por dia.
 - As conquistas desbloqueadas têm recompensas próprias em moedas. Elas **não são pagas automaticamente**: toque em “Clique para coletar” na tela de progresso.
-- As conquistas desbloqueadas e ainda não coletadas também aparecem no início, na seção **Conquistas para coletar**. A seção permanece visível durante a animação de moedas centralizada na tela e desaparece quando todas as recompensas forem coletadas.
+- As conquistas desbloqueadas e ainda não coletadas também aparecem no início, na seção **Conquistas para coletar**. Ao coletar, os cards de recompensas, visão rápida e ranking são atualizados na hora, sem recarregar a página: a rolagem e o foco são preservados, a animação de moedas continua e a seção desaparece quando todas as recompensas forem coletadas.
 
 A **Temporada 1** vai de **05/11/2026 a 04/12/2026**. O personagem evolui pelo mínimo de moedas acumuladas na temporada e pelo total de dias ativos com pelo menos uma questão respondida. Os dois requisitos precisam ser atendidos ao mesmo tempo:
 

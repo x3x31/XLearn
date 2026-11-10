@@ -483,15 +483,15 @@ async function collectAchievement(button, achievement) {
     const result = await claimAchievementReward(achievement.id);
     if (result?.notUnlocked) {
       await refreshProgress();
-      render();
+      refreshHomeAfterClaim();
       toast("Esta conquista ainda não foi desbloqueada.", "info");
       return;
     }
     await refreshProgress();
-    let cascade = false;
+    refreshHomeAfterClaim();
     if (result?.gain > 0) {
       playSound("coin");
-      cascade = playCoinCascade(result.gain);
+      playCoinCascade(result.gain);
       const evolved = result.seasonEvolved && result.seasonStage
         ? ` Personagem evoluiu para ${result.seasonStage.stage.name}.`
         : "";
@@ -505,16 +505,10 @@ async function collectAchievement(button, achievement) {
     } else if (result?.alreadyClaimed) {
       toast("Essa recompensa já foi coletada.", "info");
     }
-    if (cascade) {
-      await new Promise((resolve) => window.setTimeout(resolve, 1300));
-    }
-    render();
-    const target = document.querySelector(`[data-achievement="${achievement.id}"]`);
-    const fallback =
-      document.querySelector('[data-role="home-achievements"] [data-achievement]') ||
-      document.querySelector('[data-role="home-achievements"]') ||
-      document.getElementById("main");
-    (target || fallback)?.focus?.({ preventScroll: true });
+    const target =
+      document.querySelector(`[data-achievement="${achievement.id}"]`) ||
+      document.querySelector('[data-role="home-achievements"] [data-achievement]');
+    (target || document.getElementById("main"))?.focus?.({ preventScroll: true });
   } catch (error) {
     warnStorageOnce(error);
   } finally {
@@ -1234,7 +1228,7 @@ async function syncScoreNow({ refreshRankingAfter = true } = {}) {
         "Não foi possível sincronizar sua pontuação agora."
       );
       console.warn("XLearn: falha ao sincronizar a pontuação.", error);
-      if (currentRoute() === "inicio") render();
+      updateHomeRankingCard();
       return null;
     }
   })();
@@ -1260,7 +1254,7 @@ async function refreshRanking({ manual = false } = {}) {
         "info"
       );
     }
-    if (currentRoute() === "inicio") render();
+    updateHomeRankingCard();
     return null;
   }
 
@@ -1268,7 +1262,7 @@ async function refreshRanking({ manual = false } = {}) {
   const seasonId = season.id || SEASON_1.id;
   state.cloud.rankLoading = true;
   state.cloud.rankError = null;
-  if (currentRoute() === "inicio") render();
+  updateHomeRankingCard();
 
   const task = (async () => {
     try {
@@ -1310,7 +1304,7 @@ async function refreshRanking({ manual = false } = {}) {
       return null;
     } finally {
       state.cloud.rankLoading = false;
-      if (currentRoute() === "inicio") render();
+      updateHomeRankingCard();
     }
   })();
 
@@ -1585,7 +1579,11 @@ function renderCloudRanking() {
 
   return h(
     "section",
-    { class: "card rank-card", "aria-labelledby": "cloud-rank-title" },
+    {
+      class: "card rank-card",
+      "aria-labelledby": "cloud-rank-title",
+      "data-role": "cloud-rank",
+    },
     h(
       "div",
       { class: "section-head" },
@@ -2692,7 +2690,11 @@ function renderQuickStats() {
   const account = hasAccount();
   return h(
     "section",
-    { class: "card quick-panel", "aria-labelledby": "quick-title" },
+    {
+      class: "card quick-panel",
+      "aria-labelledby": "quick-title",
+      "data-role": "quick-panel",
+    },
     h(
       "div",
       { class: "section-head quick-panel__head" },
@@ -2779,6 +2781,56 @@ function renderHomeAchievements() {
       ...pending.map((achievement) => renderAchievementItem(achievement))
     )
   );
+}
+
+/**
+ * Atualiza apenas os cards afetados pela coleta, sem substituir a home inteira.
+ * Mantém a posição de rolagem, o foco e a animação de moedas.
+ */
+function updateHomeAchievementsSection() {
+  const current = document.querySelector('[data-role="home-achievements"]');
+  const next = hasAccount() ? renderHomeAchievements() : null;
+  if (current && next) {
+    current.replaceWith(next);
+    return true;
+  }
+  if (current) {
+    current.remove();
+    return true;
+  }
+  if (!next) return true;
+  const anchor =
+    document.querySelector('[data-role="quick-panel"]') ||
+    document.querySelector('[data-role="cloud-rank"]');
+  if (!anchor) return false;
+  anchor.before(next);
+  return true;
+}
+
+function updateHomeQuickStats() {
+  if (!hasAccount()) return;
+  const current = document.querySelector('[data-role="quick-panel"]');
+  if (current) current.replaceWith(renderQuickStats());
+}
+
+function updateHomeRankingCard() {
+  if (currentRoute() !== "inicio") return;
+  const current = document.querySelector('[data-role="cloud-rank"]');
+  if (!current) {
+    render();
+    return;
+  }
+  current.replaceWith(renderCloudRanking());
+}
+
+function refreshHomeAfterClaim() {
+  if (currentRoute() !== "inicio") {
+    render();
+    return;
+  }
+  const achievementsUpdated = updateHomeAchievementsSection();
+  updateHomeQuickStats();
+  if (!achievementsUpdated) render();
 }
 
 function renderSeasonBar({ label, value, percent, ariaLabel, ariaText }) {

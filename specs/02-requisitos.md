@@ -125,6 +125,12 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 |---|---|---|---|---|
 | REQ-051 | Isolamento de dados por conta | Progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, simulados, conquistas e recompensas coletadas DEVEM ser isolados por conta (`u:<userId>`) e pelo modo visitante (`guest`). Configurações e sessão Supabase continuam globais. Dados legados DEVEM migrar uma única vez para o primeiro escopo ativado. Backup, importação e exclusão DEVEM operar apenas no escopo ativo. | Alta | IMPLEMENTADO |
 
+### Fase 15 — Atualização local da home
+
+| ID | Nome | Regra | Prioridade | Status |
+|---|---|---|---|---|
+| REQ-052 | Coleta de conquistas sem recarregar a home | Ao coletar uma recompensa, os cards de recompensas pendentes, visão rápida, saldo/moedas, temporada e ranking DEVEM ser atualizados no próprio lugar, sem substituir a página inteira. A rolagem, o foco e a animação de moedas DEVEM ser preservados, e o card vazio DEVE ser removido quando não houver mais pendências. | Alta | IMPLEMENTADO |
+
 ## 2. Requisitos não funcionais
 
 | ID | Requisito | Critério mensurável |
@@ -171,6 +177,7 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 | RN-020 | Limpar cache remove apenas caches `xlearn`, `xlearn-*` ou `xlearn:*` e não toca no IndexedDB. |
 | RN-021 | Os dados de estudo pertencem ao escopo ativo (`guest` ou `u:<userId>`); nenhum progresso, sessão, tentativa, estatística, temporada, conquista, carteira, simulado ou recompensa coletada pode ser lido por outro escopo. |
 | RN-022 | Importar ou apagar dados de estudo afeta somente o escopo ativo; configurações, sessão Supabase, cache do ranking e demais contas são preservados. |
+| RN-023 | A coleta de recompensa na home atualiza os cards afetados no próprio lugar, sem recriar a página, preservando rolagem, foco e animação. |
 
 ## 4. Critérios de aceitação gerais
 
@@ -189,16 +196,17 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 13. A Temporada 1 congela após o término.
 14. O app continua funcionando offline para o shell e materiais já acessados.
 15. Dados de estudo e recompensas de uma conta nunca aparecem em outra conta nem no modo visitante.
-16. `npm run check` valida 10 materiais e 1.250 questões sem erros.
+16. Coletar uma recompensa atualiza os cards da home no próprio lugar, sem recriar a página e sem perder rolagem, foco ou animação.
+17. `npm run check` valida 10 materiais e 1.250 questões sem erros.
 
 ## 5. Rastreabilidade
 
 | Documento | Requisitos cobertos |
 |---|---|
 | [01 — Visão geral](01-visao-geral.md) | Escopo, personas e princípios de todos os requisitos |
-| [03 — Arquitetura](03-arquitetura.md) | REQ-001 a REQ-051, com ênfase em REQ-008, REQ-024, REQ-032, REQ-041 a REQ-043 e REQ-051 |
+| [03 — Arquitetura](03-arquitetura.md) | REQ-001 a REQ-052, com ênfase em REQ-008, REQ-024, REQ-032, REQ-041 a REQ-043 e REQ-051 |
 | [04 — Modelo de dados](04-modelo-de-dados.md) | REQ-008 a REQ-010, REQ-015, REQ-021, REQ-030, REQ-033, REQ-034, REQ-041 a REQ-043, REQ-051 |
-| [05 — Interface e rotas](05-interface-e-rotas.md) | REQ-004, REQ-005, REQ-007, REQ-017, REQ-026, REQ-036 a REQ-051 |
+| [05 — Interface e rotas](05-interface-e-rotas.md) | REQ-004, REQ-005, REQ-007, REQ-017, REQ-026, REQ-036 a REQ-052 |
 | [06 — Conteúdo e parser](06-conteudo-e-parser.md) | REQ-001 a REQ-003, REQ-006, REQ-007, REQ-039 |
 | [07 — Offline e PWA](07-offline-e-pwa.md) | REQ-023 a REQ-025 |
 | [08 — Segurança e privacidade](08-seguranca-e-privacidade.md) | REQ-021, REQ-041 a REQ-043, REQ-045, REQ-051 |
