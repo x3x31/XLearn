@@ -1019,6 +1019,48 @@ button.achievement-mini {
   font-size: 0.72rem;
 }
 
+.field__status {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.field__status[hidden] {
+  display: none;
+}
+
+.field__status.is-checking {
+  color: var(--text-soft);
+}
+
+.field__status.is-available {
+  color: var(--success, #1f9d55);
+}
+
+.field__status.is-taken,
+.field__status.is-error {
+  color: var(--danger);
+}
+
+.field__status.is-available::before {
+  content: "✓";
+  font-weight: 800;
+}
+
+.field__status.is-taken::before,
+.field__status.is-error::before {
+  content: "!";
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
 .field--compact > span {
   font-size: 0.68rem;
 }

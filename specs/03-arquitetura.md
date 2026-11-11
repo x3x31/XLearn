@@ -190,6 +190,7 @@ O estado persistente vive em IndexedDB ([04 — Modelo de dados](04-modelo-de-da
 7. O resultado é cacheado em `meta/cloudRank`.
 8. Falhas de rede não bloqueiam o estudo e são reenviadas ao reconectar.
 9. “Apagar progresso” remove a pontuação da temporada via `DELETE` em `season_scores`; se a rede falhar, a intenção fica em `meta/cloudPendingDelete` e é repetida antes de qualquer novo envio.
+10. No cadastro, o `blur` do apelido chama a RPC `nickname_available`; a resposta booleana só bloqueia o envio quando o apelido está em uso, e falhas de rede não impedem o cadastro.
 
 ### 5.9 Atualização do PWA
 

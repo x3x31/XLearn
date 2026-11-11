@@ -1813,6 +1813,105 @@ function renderCloudRanking() {
 
 /* Modal de conta ---------------------------------------------------------- */
 
+function resetNicknameCheck(modal) {
+  if (!modal) return;
+  modal.nicknameCheckSeq = (modal.nicknameCheckSeq || 0) + 1;
+  modal.nicknameCheck = { status: "idle", nickname: "", message: "" };
+}
+
+function setNicknameCheck(modal, status, nickname, message) {
+  if (!modal) return;
+  modal.nicknameCheck = { status, nickname, message };
+}
+
+async function verifyNicknameAvailability(nickname) {
+  const modal = state.loginModal;
+  if (!modal || modal.mode !== "signup") return null;
+  const clean = normalizeNickname(nickname);
+  modal.nicknameCheckSeq = (modal.nicknameCheckSeq || 0) + 1;
+  const sequence = modal.nicknameCheckSeq;
+
+  if (!cloudClient) {
+    setNicknameCheck(
+      modal,
+      "error",
+      clean,
+      "A verificação de apelido não está disponível neste ambiente."
+    );
+    updateLoginModal();
+    return null;
+  }
+  if (!isOnline()) {
+    setNicknameCheck(
+      modal,
+      "error",
+      clean,
+      "Sem conexão: não foi possível verificar o apelido agora."
+    );
+    updateLoginModal();
+    return null;
+  }
+
+  setNicknameCheck(modal, "checking", clean, `Verificando “${clean}”…`);
+  updateLoginModal();
+
+  try {
+    const available = await cloudClient.checkNicknameAvailability(clean);
+    if (
+      state.loginModal !== modal ||
+      modal.nicknameCheckSeq !== sequence ||
+      modal.mode !== "signup"
+    ) {
+      return null;
+    }
+    const current = normalizeNickname(document.querySelector("#login-nickname")?.value);
+    if (current !== clean) return null;
+    if (available) {
+      setNicknameCheck(modal, "available", clean, `“${clean}” está disponível.`);
+    } else {
+      setNicknameCheck(
+        modal,
+        "taken",
+        clean,
+        `“${clean}” já está em uso. Escolha outro apelido.`
+      );
+    }
+    updateLoginModal();
+    return available;
+  } catch (error) {
+    if (state.loginModal !== modal || modal.nicknameCheckSeq !== sequence) return null;
+    const message =
+      error instanceof CloudError && error.code === "nickname_check_missing"
+        ? "Não foi possível verificar o apelido porque a função ainda não foi configurada no Supabase."
+        : "Não foi possível verificar agora. Você ainda pode criar a conta e tentar novamente.";
+    setNicknameCheck(modal, "error", clean, message);
+    updateLoginModal();
+    return null;
+  }
+}
+
+function handleNicknameInput(event) {
+  const modal = state.loginModal;
+  if (!modal || modal.mode !== "signup") return;
+  if (modal.nicknameCheck?.status === "idle" && !modal.nicknameCheck?.message) return;
+  resetNicknameCheck(modal);
+  updateLoginModal();
+}
+
+function handleNicknameBlur(event) {
+  const modal = state.loginModal;
+  if (!modal || modal.mode !== "signup" || modal.busy) return;
+  let nickname;
+  try {
+    nickname = validateNickname(event.currentTarget.value);
+  } catch {
+    resetNicknameCheck(modal);
+    updateLoginModal();
+    return;
+  }
+  verifyNicknameAvailability(nickname);
+}
+
 function updateLoginModal() {
   if (!state.loginModal?.open) return;
   const overlay = document.querySelector('[data-role="login-modal"]');
@@ -1835,6 +1934,22 @@ function updateLoginModal() {
   }
   const nickname = overlay.querySelector("#login-nickname");
   if (nickname) nickname.required = mode === "signup";
+  const nicknameCheck = modal.nicknameCheck || { status: "idle", nickname: "", message: "" };
+  const nicknameStatus = overlay.querySelector('[data-role="login-nickname-status"]');
+  if (nicknameStatus) {
+    const show = mode === "signup" && Boolean(nicknameCheck.message);
+    nicknameStatus.hidden = !show;
+    nicknameStatus.textContent = show ? nicknameCheck.message : "";
+    nicknameStatus.dataset.status = nicknameCheck.status;
+    nicknameStatus.classList.toggle("is-available", nicknameCheck.status === "available");
+    nicknameStatus.classList.toggle("is-taken", nicknameCheck.status === "taken");
+    nicknameStatus.classList.toggle("is-error", nicknameCheck.status === "error");
+    nicknameStatus.classList.toggle("is-checking", nicknameCheck.status === "checking");
+  }
+  if (nickname) {
+    const taken = mode === "signup" && nicknameCheck.status === "taken";
+    nickname.setAttribute("aria-invalid", taken ? "true" : "false");
+  }
   const password = overlay.querySelector("#login-password");
   if (password) {
     password.setAttribute(
@@ -1873,7 +1988,7 @@ function updateLoginModal() {
   }
   const submit = overlay.querySelector('[data-role="login-submit"]');
   if (submit) {
-    submit.disabled = modal.busy;
+    submit.disabled = modal.busy || (mode === "signup" && nicknameCheck.status === "taken");
     const label = submit.querySelector('[data-role="login-submit-label"]');
     if (label) {
       if (modal.busy) label.textContent = mode === "signup" ? "Criando conta…" : "Entrando…";
@@ -1893,6 +2008,7 @@ function switchLoginMode(mode) {
   if (modal.mode === next) return;
   modal.mode = next;
   modal.error = null;
+  resetNicknameCheck(modal);
   updateLoginModal();
   requestAnimationFrame(() => {
     const target = document.querySelector(next === "signup" ? "#login-nickname" : "#login-email");
@@ -1944,9 +2060,22 @@ function buildLoginModal() {
           placeholder: "Como você quer aparecer no ranking",
           value: nickname,
           required: mode === "signup",
+          "aria-describedby": "login-nickname-hint login-nickname-status",
+          oninput: handleNicknameInput,
+          onblur: handleNicknameBlur,
         }),
         h("small", {
+          id: "login-nickname-hint",
           text: "Aparece no ranking e pode ter de 2 a 24 caracteres.",
+        }),
+        h("small", {
+          class: "field__status",
+          id: "login-nickname-status",
+          "data-role": "login-nickname-status",
+          role: "status",
+          "aria-live": "polite",
+          "aria-atomic": "true",
+          hidden: true,
         })
       ),
       h(
@@ -2164,8 +2293,10 @@ function openLoginModal({ entry = null, options = null, trigger = null, mode = "
     if (entry) state.loginModal.pendingStart = { entry, options: options || {} };
     if (trigger instanceof HTMLElement) state.loginModal.trigger = trigger;
     if (mode === "signup" || mode === "login") {
+      const changed = state.loginModal.mode !== mode;
       state.loginModal.mode = mode;
       state.loginModal.error = null;
+      if (changed) resetNicknameCheck(state.loginModal);
     }
     if (reason) state.loginModal.reason = reason;
     updateLoginModal();
@@ -2180,6 +2311,8 @@ function openLoginModal({ entry = null, options = null, trigger = null, mode = "
     error: null,
     reason: reason || null,
     busy: false,
+    nicknameCheck: { status: "idle", nickname: "", message: "" },
+    nicknameCheckSeq: 0,
   };
   setFeedbackBackgroundInert(true);
   document.body.classList.add("has-modal");
@@ -2291,6 +2424,23 @@ async function submitCloudLogin(event) {
     modal.error = describeCloudError(error, "Confira os dados informados.");
     updateLoginModal();
     return;
+  }
+
+  if (mode === "signup") {
+    const check = modal.nicknameCheck;
+    if (check?.status === "taken" && check.nickname === credentials.nickname) {
+      modal.error = `O apelido “${credentials.nickname}” já está em uso. Escolha outro apelido.`;
+      updateLoginModal();
+      return;
+    }
+    if (check?.status !== "available" || check.nickname !== credentials.nickname) {
+      const available = await verifyNicknameAvailability(credentials.nickname);
+      if (available === false) {
+        modal.error = `O apelido “${credentials.nickname}” já está em uso. Escolha outro apelido.`;
+        updateLoginModal();
+        return;
+      }
+    }
   }
 
   modal.busy = true;

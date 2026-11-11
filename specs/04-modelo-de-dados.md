@@ -445,6 +445,18 @@ GET /rest/v1/season_leaderboard?season_id=eq.2026-1&user_id=eq.<uuid>&select=...
 
 O top é limitado a **5** na home; a posição própria é consultada separadamente quando o usuário não aparece no top.
 
+### 4.6 RPC `public.nickname_available`
+
+```http
+POST /rest/v1/rpc/nickname_available
+Content-Type: application/json
+apikey: <publishable_key>
+
+{ "candidate": "Ana" }
+```
+
+Resposta: `true` ou `false`. A função é `stable`, `security definer`, usa `set search_path = ''` e lê somente `auth.users.raw_user_meta_data->>'nickname'`, comparando `lower(btrim(...))`. Ela valida o comprimento de 2–24 caracteres e não devolve e-mails, UUIDs ou listas. `anon` e `authenticated` recebem `execute`. No banco existente, a migration `20261110001000_nickname_available.sql` aplica a função e os grants.
+
 ## 5. Ciclo de vida dos dados
 
 | Operação | Efeito |

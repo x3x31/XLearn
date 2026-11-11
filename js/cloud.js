@@ -474,6 +474,29 @@ export function createCloudClient(options = {}) {
     };
   }
 
+  async function checkNicknameAvailability(nickname) {
+    const candidate = validateNickname(nickname);
+    try {
+      const payload = await request("/rest/v1/rpc/nickname_available", {
+        method: "POST",
+        body: { candidate },
+      });
+      return payload === true;
+    } catch (error) {
+      if (
+        error instanceof CloudError &&
+        (error.code === "PGRST202" ||
+          (error.status === 404 && /function|schema cache/i.test(error.rawMessage)))
+      ) {
+        throw new CloudError(
+          "A verificação de apelido ainda não foi configurada no servidor.",
+          { code: "nickname_check_missing", rawMessage: error.rawMessage }
+        );
+      }
+      throw error;
+    }
+  }
+
   async function signOut(session) {
     if (!session?.accessToken) return true;
     try {
@@ -575,6 +598,7 @@ export function createCloudClient(options = {}) {
     signUp,
     refresh,
     updateNickname,
+    checkNicknameAvailability,
     signOut,
     saveScore,
     deleteScore,

@@ -144,6 +144,12 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 | REQ-054 | Exclusão do progresso local e remoto | “Apagar progresso” DEVE apagar os dados de estudo do escopo ativo, atualizar imediatamente a interface e excluir a pontuação do usuário no Supabase para a temporada. Se a exclusão remota falhar por falta de rede, a intenção DEVE ficar pendente e ser repetida quando a conexão voltar, sem que uma sincronização posterior recrie o placar. | Alta | IMPLEMENTADO |
 | REQ-055 | Cascata contínua com desaparecimento aleatório | As moedas DEVEM desaparecer progressivamente em alturas aleatórias durante a queda, sem parar visualmente em uma linha fixa. Coletas consecutivas DEVEM reutilizar a mesma camada, acrescentar novas moedas sem sobrepor animações e tocar o som novamente, parecendo uma única cascata contínua. | Média | IMPLEMENTADO |
 
+### Fase 18 — Disponibilidade de apelido no cadastro
+
+| ID | Nome | Regra | Prioridade | Status |
+|---|---|---|---|---|
+| REQ-056 | Verificação automática de apelido | No modo “Criar conta”, ao sair do campo Apelido, o app DEVE consultar o servidor e informar de forma acessível se o apelido está disponível. Apelido em uso DEVE ser anunciado e bloquear o envio; falha de rede ou de configuração NÃO PODE impedir o cadastro, apenas avisar que a verificação não foi possível. A consulta DEVE devolver somente verdadeiro/falso, sem expor e-mails, IDs ou a lista de apelidos. | Alta | IMPLEMENTADO |
+
 ## 2. Requisitos não funcionais
 
 | ID | Requisito | Critério mensurável |
@@ -194,6 +200,7 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 | RN-024 | A cascata de moedas cai do topo até cerca de 1/3 da viewport, atrás da barra superior, começa opaca e termina transparente; o som acompanha todo o tempo visível. |
 | RN-025 | “Apagar progresso” remove os dados do escopo ativo e a pontuação da temporada no Supabase; sem rede, a exclusão remota fica em `meta/cloudPendingDelete` e é repetida ao reconectar, e a sincronização automática é bloqueada enquanto a exclusão estiver pendente. |
 | RN-026 | Cada moeda da cascata some em altura e ritmo aleatórios; coletas consecutivas acrescentam moedas à mesma camada ativa, repetem o som e não sobrepõem uma segunda cascata. |
+| RN-027 | A disponibilidade do apelido é consultada ao sair do campo no cadastro; a RPC devolve apenas booleano, compara apelidos sem diferenciar maiúsculas/minúsculas e sem espaços nas extremidades, e falhas de rede não bloqueiam o cadastro. |
 
 ## 4. Critérios de aceitação gerais
 
@@ -217,15 +224,16 @@ Este documento consolida os requisitos do XLearn. A coluna **Status** reflete 20
 18. Cada moeda some em uma altura aleatória da queda, e coletas consecutivas reaproveitam a mesma cascata, com som repetido e sem animações sobrepostas.
 19. “Apagar progresso” apaga os dados do escopo ativo, atualiza a tela e exclui a pontuação da temporada no Supabase; se a rede falhar, a exclusão fica pendente e é repetida ao reconectar.
 20. `npm run check` valida 10 materiais e 1.250 questões sem erros.
+21. Ao sair do campo Apelido no cadastro, o status informa se o apelido está disponível; apelido em uso bloqueia o envio e falha de rede apenas avisa, sem impedir o cadastro.
 
 ## 5. Rastreabilidade
 
 | Documento | Requisitos cobertos |
 |---|---|
 | [01 — Visão geral](01-visao-geral.md) | Escopo, personas e princípios de todos os requisitos |
-| [03 — Arquitetura](03-arquitetura.md) | REQ-001 a REQ-055, com ênfase em REQ-008, REQ-024, REQ-032, REQ-041 a REQ-043, REQ-051 e REQ-054 |
-| [04 — Modelo de dados](04-modelo-de-dados.md) | REQ-008 a REQ-010, REQ-015, REQ-021, REQ-030, REQ-033, REQ-034, REQ-041 a REQ-043, REQ-051 e REQ-054 |
-| [05 — Interface e rotas](05-interface-e-rotas.md) | REQ-004, REQ-005, REQ-007, REQ-017, REQ-026, REQ-036 a REQ-055 |
+| [03 — Arquitetura](03-arquitetura.md) | REQ-001 a REQ-056, com ênfase em REQ-008, REQ-024, REQ-032, REQ-041 a REQ-043, REQ-051 e REQ-054 |
+| [04 — Modelo de dados](04-modelo-de-dados.md) | REQ-008 a REQ-010, REQ-015, REQ-021, REQ-030, REQ-033, REQ-034, REQ-041 a REQ-043, REQ-051, REQ-054 e REQ-056 |
+| [05 — Interface e rotas](05-interface-e-rotas.md) | REQ-004, REQ-005, REQ-007, REQ-017, REQ-026, REQ-036 a REQ-056 |
 | [06 — Conteúdo e parser](06-conteudo-e-parser.md) | REQ-001 a REQ-003, REQ-006, REQ-007, REQ-039 |
 | [07 — Offline e PWA](07-offline-e-pwa.md) | REQ-023 a REQ-025 |
 | [08 — Segurança e privacidade](08-seguranca-e-privacidade.md) | REQ-021, REQ-041 a REQ-043, REQ-045, REQ-051 |

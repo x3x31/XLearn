@@ -12,7 +12,7 @@
  * Ao alterar arquivos do shell, incremente VERSION para invalidar as caches.
  */
 
-const VERSION = "v30";
+const VERSION = "v31";
 const SHELL_CACHE = `xlearn-shell-${VERSION}`;
 const RUNTIME_CACHE = `xlearn-runtime-${VERSION}`;
 

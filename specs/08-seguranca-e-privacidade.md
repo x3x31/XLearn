@@ -137,9 +137,9 @@ POST /auth/v1/token?grant_type=password
 - `select`: `using (true)` para `anon` e `authenticated`.
 - `insert`: `with check (auth.uid() = user_id)` para `authenticated`.
 - `update`: `using` e `with check` com `auth.uid() = user_id`.
+- `delete`: `using (auth.uid() = user_id)`, para o próprio usuário apagar a pontuação ao limpar o progresso.
 - `anon` recebe apenas `select`.
-- `authenticated` recebe `select`, `insert` e `update`.
-- Não há `delete` para clientes.
+- `authenticated` recebe `select`, `insert`, `update` e `delete`.
 - A chave estrangeira `user_id → auth.users(id)` usa `on delete cascade`.
 
 ### 5.2 View `public.season_leaderboard`
@@ -156,14 +156,28 @@ POST /auth/v1/token?grant_type=password
 revoke all on public.season_scores from anon;
 revoke all on public.season_scores from authenticated;
 grant select on public.season_scores to anon, authenticated;
-grant insert, update on public.season_scores to authenticated;
+grant insert, update, delete on public.season_scores to authenticated;
 
 revoke all on public.season_leaderboard from anon;
 revoke all on public.season_leaderboard from authenticated;
 grant select on public.season_leaderboard to anon, authenticated;
+
+revoke all on function public.nickname_available(text) from public;
+grant execute on function public.nickname_available(text) to anon, authenticated;
 ```
 
-### 5.4 Envio de placar
+### 5.4 Verificação de apelido
+
+`public.nickname_available(candidate text)` é `stable`, `security definer` e usa `set search_path = ''`. A função:
+
+- valida o comprimento de 2–24 caracteres após `btrim`;
+- compara `lower(btrim(auth.users.raw_user_meta_data->>'nickname'))` com o candidato;
+- devolve apenas `true` ou `false`;
+- não expõe e-mails, UUIDs ou a lista de apelidos.
+
+A execução é liberada para `anon` e `authenticated`, pois o cadastro acontece antes de existir sessão. A ausência da função não bloqueia o cadastro: o cliente mostra o aviso e segue.
+
+### 5.5 Envio de placar
 
 ```http
 POST /rest/v1/season_scores?on_conflict=user_id,season_id
@@ -265,7 +279,7 @@ Contém tokens e e-mail. Regras:
 
 ### 8.3 Escolha do apelido
 
-O apelido é público. O app orienta o usuário a não usar dados pessoais e informa isso na modal e no rodapé do ranking. Não há verificação de unicidade: dois usuários podem usar o mesmo apelido.
+O apelido é público. O app orienta o usuário a não usar dados pessoais e informa isso na modal e no rodapé do ranking. Desde REQ-056, ao sair do campo no cadastro o app consulta a RPC `nickname_available`, que compara apelidos sem diferenciar maiúsculas/minúsculas e sem espaços nas extremidades e devolve apenas `true`/`false`. A verificação é uma proteção de experiência: não há índice único em `auth.users`, então duas contas criadas simultaneamente ainda podem escolher o mesmo apelido; a consulta também não expõe e-mails, UUIDs ou a lista de apelidos.
 
 ### 8.4 Cache do ranking
 

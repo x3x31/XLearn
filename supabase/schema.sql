@@ -82,6 +82,29 @@ revoke all on public.season_scores from authenticated;
 grant select on public.season_scores to anon, authenticated;
 grant insert, update, delete on public.season_scores to authenticated;
 
+-- Verificação pública de apelido usada no cadastro. A função lê apenas
+-- auth.users.raw_user_meta_data->>'nickname' e devolve um booleano; nunca
+-- expõe e-mails, IDs ou a lista de apelidos. SECURITY DEFINER é necessário
+-- porque o cliente anônimo não tem acesso à tabela auth.users.
+create or replace function public.nickname_available(candidate text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select char_length(btrim(coalesce(candidate, ''))) between 2 and 24
+    and not exists (
+      select 1
+      from auth.users u
+      where lower(btrim(coalesce(u.raw_user_meta_data->>'nickname', ''))) =
+            lower(btrim(coalesce(candidate, '')))
+    );
+$$;
+
+revoke all on function public.nickname_available(text) from public;
+grant execute on function public.nickname_available(text) to anon, authenticated;
+
 -- Views do PostgREST usam as permissões do dono por padrão. security_invoker
 -- garante que a RLS da tabela-base continue valendo para quem consulta.
 drop view if exists public.season_leaderboard;

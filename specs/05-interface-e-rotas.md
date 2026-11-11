@@ -304,6 +304,7 @@ O gate cobre `config`, `progresso`, `simulado` e `revisoes` inclusive quando a r
 - Abas acessíveis **Entrar** e **Criar conta**, com `role="tablist"`, `role="tab"`, `aria-selected`, `aria-controls` e `tabindex` móvel.
 - Navegação por setas, `Home` e `End`; o painel é `role="tabpanel"` e é rotulado pela aba ativa.
 - Campos: apelido (somente cadastro, 2–24 caracteres), e-mail e senha (6–72 caracteres).
+- No cadastro, ao sair do campo Apelido, o app consulta `nickname_available` e exibe o resultado em `#login-nickname-status` (`role="status"`, `aria-live="polite"`): disponível, em uso, verificando ou erro. Apelido em uso marca `aria-invalid="true"` e desabilita o envio; erro de rede ou RPC ausente apenas avisa, sem bloquear o cadastro (REQ-056).
 - **Login nunca cria conta automaticamente**; credenciais inválidas exibem erro e mantêm a modal.
 - **Cadastro** exige apelido e usa `signUp`.
 - A modal mostra o motivo quando aberta por uma ação restrita (`data-role="login-reason"`).
@@ -386,3 +387,4 @@ Requisitos aplicados:
 12. O botão “Apagar progresso” não faz a página saltar para o topo.
 13. O clique em “Apagar progresso” remove os dados do escopo ativo, atualiza a tela e exclui a pontuação da temporada no Supabase; falhas de rede ficam pendentes e são repetidas ao reconectar.
 14. A cascata de moedas desaparece em alturas aleatórias e coletas consecutivas reaproveitam a mesma camada, sem sobrepor animações.
+15. No cadastro, sair do campo Apelido anuncia a disponibilidade; apelido em uso bloqueia o envio e falha de rede não impede o cadastro.

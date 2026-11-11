@@ -248,6 +248,7 @@ Características:
 | `test-053` | Cascata ampliada, queda do topo e som sincronizado | 1 suíte |
 | `test-054` | Exclusão local e remota, fila offline e retry sem recriar placar | 4 suítes |
 | `test-055` | Cascata contínua, fade aleatório e som repetido | 1 suíte |
+| `test-056` | Apelido disponível/em uso no blur, bloqueio e tolerância a erro | 1 suíte |
 
 Essas suítes também confirmaram:
 
@@ -257,7 +258,7 @@ Essas suítes também confirmaram:
 - `node --check service-worker.js`;
 - `npm run check` com 10 materiais e 1.250 questões;
 - `git diff --check`;
-- service worker `v30`.
+- service worker `v31`.
 
 A suíte do REQ-051 cobriu `guest`, `u:A` e `u:B` com `fake-indexeddb`: recompensas, progresso, sessões, tentativas, estatísticas, temporada e simulados ficaram isolados; a migração legada ocorreu uma única vez e só no primeiro escopo; o backup do escopo ativo saiu com chaves e IDs canônicos, sem dados privados; a importação e a exclusão não tocaram nas outras contas. O teste DOM com `happy-dom` percorreu o login real de Alice, a coleta de “Primeiro passo”, o logout, o login de Bruno (sem saldo, coleta ou pendências da Alice) e o retorno à Alice com o saldo preservado e apenas “Primeiro acerto” pendente.
 
@@ -268,6 +269,8 @@ A suíte do REQ-053 confirmou que a cascata gera pelo menos 28 moedas com posiç
 A suíte do REQ-054 cobriu IndexedDB com `fake-indexeddb` e DOM com `happy-dom`: `clearProgressData` apagou progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, simulados e simulado ativo do escopo ativo, preservou `meta/settings` e as demais contas, atualizou a tela e voltou para `#/inicio`; com conta conectada, o `DELETE` em `season_scores` foi chamado para o `user_id` e a temporada corretos. Sem rede, a intenção ficou em `meta/cloudPendingDelete` e foi repetida no evento `online`, sem que a sincronização automática recriasse o placar. A migration `20261110000000_score_delete.sql` adiciona a política e o `GRANT DELETE` necessários para bancos existentes.
 
 A suíte do REQ-055 confirmou que coletas consecutivas reutilizam a mesma camada `.coin-cascade`, acrescentam moedas sem criar uma segunda camada, limitam o total a 140 e sorteiam `--fall`, `--fade`, `--distance`, `--delay`, `--drift`, `--size` e `--x` por moeda. A inspeção do CSS confirmou o fade em altura aleatória antes do fim da queda, e o som foi reagendado a cada onda.
+
+A suíte do REQ-056 abriu o cadastro com `happy-dom`, digitou um apelido e confirmou que a RPC `nickname_available` foi chamada com `{ candidate }` após o `blur`. A resposta `true` exibiu o status “está disponível” sem bloquear o envio; a resposta `false` exibiu “já está em uso”, marcou `aria-invalid="true"` e desabilitou o botão, e o envio do formulário não chamou `/auth/v1/signup`. Uma falha de rede exibiu o aviso e manteve o cadastro permitido. Campo vazio não chamou a RPC, e a troca de aba limpou o status.
 
 ## 6. Campanha final registrada (REQ-027)
 
@@ -298,7 +301,7 @@ A campanha final executou 12 suítes temporárias, todas aprovadas:
 2. Confirmar home de visitante com dois cards.
 3. Abrir Provas, iniciar um material, responder à primeira questão.
 4. Confirmar que o feedback abre o cadastro.
-5. Criar uma conta de teste.
+5. Criar uma conta de teste; no cadastro, sair do campo Apelido e conferir o aviso de disponibilidade. Tentar um apelido já usado e confirmar que o envio fica bloqueado; com a rede desligada, confirmar que o aviso aparece e o cadastro continua permitido.
 6. Responder uma questão, ver o feedback e avançar.
 7. Concluir uma sessão e conferir o resumo.
 8. Voltar à home e conferir a ordem dos quatro cards.
