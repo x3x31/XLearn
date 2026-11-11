@@ -149,6 +149,7 @@ const state = {
     syncError: null,
     lastSyncAt: null,
     pendingSync: false,
+    pendingDelete: null,
     refreshing: null,
   },
 };
@@ -157,6 +158,7 @@ const CLOUD_STORAGE = Object.freeze({
   auth: "cloudAuth",
   profile: "cloudProfile",
   rank: "cloudRank",
+  pendingDelete: "cloudPendingDelete",
 });
 const CLOUD_SYNC_DELAY_MS = 2500;
 
@@ -454,48 +456,99 @@ function renderAchievementItem(achievement) {
 const COIN_CASCADE = Object.freeze({
   minCoins: 28,
   maxCoins: 48,
-  fallMs: 1600,
-  stepMs: 40,
+  maxActiveCoins: 140,
+  minFallMs: 1350,
+  maxFallMs: 2200,
+  maxDelayMs: 420,
+  cleanupMarginMs: 160,
 });
+
+let activeCoinCascade = null;
 
 function prefersReducedMotion() {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
 }
 
+function randomBetween(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+function ensureCoinCascadeLayer() {
+  if (activeCoinCascade && document.body.contains(activeCoinCascade.layer)) {
+    return activeCoinCascade;
+  }
+  const layer = h("div", { class: "coin-cascade", "aria-hidden": "true" });
+  document.body.append(layer);
+  activeCoinCascade = { layer, timer: null, endAt: 0 };
+  return activeCoinCascade;
+}
+
+/**
+ * Faz as moedas caírem do topo e desaparecerem em pontos aleatórios da queda.
+ * Quando outra recompensa é coletada durante a cascata, a mesma camada é
+ * reaproveitada: novas moedas entram sem criar uma animação sobreposta e o som
+ * toca novamente pelo tempo da nova leva.
+ */
 function playCoinCascade(amount) {
   if (!getSettings().animations || prefersReducedMotion()) return 0;
 
-  const count = Math.max(
+  const cascade = ensureCoinCascadeLayer();
+  const existing = cascade.layer.childElementCount;
+  const remaining = Math.max(0, COIN_CASCADE.maxActiveCoins - existing);
+  if (remaining === 0) {
+    playCoinRain(500);
+    return 500;
+  }
+  const requested = Math.max(
     COIN_CASCADE.minCoins,
     Math.min(COIN_CASCADE.maxCoins, Math.ceil(Number(amount) * 3))
   );
+  const count = Math.min(requested, remaining);
   const viewportWidth = Math.max(320, window.innerWidth || 360);
-  const spread = Math.min(viewportWidth * 0.82, 900);
-  const layer = h("div", { class: "coin-cascade", "aria-hidden": "true" });
-  let visibleUntil = 0;
+  const spread = Math.min(viewportWidth * 0.86, 960);
+  let waveEnd = 0;
 
   for (let index = 0; index < count; index += 1) {
-    const ratio = count > 1 ? index / (count - 1) : 0.5;
-    const jitter = ((index * 37) % 41) - 20;
-    const x = Math.round((ratio - 0.5) * spread + jitter);
-    const drift = ((index % 7) - 3) * 9;
-    const delay = (index % 8) * (COIN_CASCADE.stepMs + 20);
-    const size = 16 + ((index * 7) % 14);
-    const fall = COIN_CASCADE.fallMs + ((index * 13) % 320);
-    visibleUntil = Math.max(visibleUntil, delay + fall);
+    // Distribuição estratificada: evita que todas as moedas se aglomerem no
+    // centro e mantém a largura da tela ocupada em coletas consecutivas.
+    const ratio = (index + Math.random()) / count - 0.5;
+    const x = Math.round(ratio * spread);
+    const drift = Math.round(randomBetween(-28, 28));
+    const delay = Math.round(Math.random() * COIN_CASCADE.maxDelayMs);
+    const size = Math.round(randomBetween(16, 29));
+    const fall = Math.round(
+      randomBetween(COIN_CASCADE.minFallMs, COIN_CASCADE.maxFallMs)
+    );
+    // O fade termina antes da queda: cada moeda some no próprio ritmo, em uma
+    // altura aleatória, sem parar visualmente em uma linha fixa.
+    const fade = Math.max(520, Math.round(fall * randomBetween(0.52, 0.9)));
+    const distance = Math.round(randomBetween(24, 42));
+    waveEnd = Math.max(waveEnd, delay + fall);
 
-    layer.append(
-      h("span", {
-        class: "coin-cascade__coin",
-        style: `--x:${x}px;--drift:${drift}px;--delay:${delay}ms;--fall:${fall}ms;--size:${size}px`,
-      }, icon("coin"))
+    cascade.layer.append(
+      h(
+        "span",
+        {
+          class: "coin-cascade__coin",
+          style: `--x:${x}px;--drift:${drift}px;--delay:${delay}ms;--fall:${fall}ms;--fade:${fade}ms;--distance:${distance}vh;--size:${size}px`,
+        },
+        icon("coin")
+      )
     );
   }
 
-  document.body.append(layer);
-  window.setTimeout(() => layer.remove(), visibleUntil + 120);
-  playCoinRain(visibleUntil);
-  return visibleUntil;
+  const now = Date.now();
+  cascade.endAt = Math.max(cascade.endAt, now + waveEnd);
+  if (cascade.timer) window.clearTimeout(cascade.timer);
+  cascade.timer = window.setTimeout(
+    () => {
+      if (activeCoinCascade === cascade) activeCoinCascade = null;
+      cascade.layer.remove();
+    },
+    Math.max(0, cascade.endAt - Date.now()) + COIN_CASCADE.cleanupMarginMs
+  );
+  playCoinRain(waveEnd);
+  return waveEnd;
 }
 
 async function collectAchievement(button, achievement) {
@@ -1055,16 +1108,25 @@ function normalizeCachedRank(raw) {
   };
 }
 
+function normalizePendingScoreDeletion(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const userId = typeof raw.userId === "string" ? raw.userId.trim() : "";
+  const seasonId = typeof raw.seasonId === "string" ? raw.seasonId.trim() : "";
+  if (!userId || !seasonId) return null;
+  return { userId, seasonId };
+}
+
 async function loadCloudState() {
   if (!cloudClient) {
     state.cloud.ready = true;
     return;
   }
   try {
-    const [auth, profile, rank] = await Promise.all([
+    const [auth, profile, rank, pendingDelete] = await Promise.all([
       getMeta(CLOUD_STORAGE.auth),
       getMeta(CLOUD_STORAGE.profile),
       getMeta(CLOUD_STORAGE.rank),
+      getMeta(CLOUD_STORAGE.pendingDelete),
     ]);
     state.cloud.session = normalizeStoredCloudSession(auth);
     state.cloud.profile = {
@@ -1074,6 +1136,7 @@ async function loadCloudState() {
         "",
     };
     state.cloud.rank = normalizeCachedRank(rank);
+    state.cloud.pendingDelete = normalizePendingScoreDeletion(pendingDelete);
   } catch (error) {
     warnStorageOnce(error);
   } finally {
@@ -1169,6 +1232,85 @@ function currentCloudScore() {
   };
 }
 
+async function rememberPendingScoreDeletion(userId, seasonId) {
+  const pending = { userId, seasonId };
+  state.cloud.pendingDelete = pending;
+  try {
+    await setMeta(CLOUD_STORAGE.pendingDelete, pending);
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+  return pending;
+}
+
+async function clearPendingScoreDeletion() {
+  state.cloud.pendingDelete = null;
+  try {
+    await setMeta(CLOUD_STORAGE.pendingDelete, null);
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+}
+
+async function forgetCachedOwnRank(userId) {
+  const rank = state.cloud.rank;
+  if (!rank?.me || (userId && rank.me.userId !== userId)) return;
+  state.cloud.rank = { ...rank, me: null };
+  try {
+    await setMeta(CLOUD_STORAGE.rank, state.cloud.rank);
+  } catch (error) {
+    warnStorageOnce(error);
+  }
+}
+
+/**
+ * Remove a pontuação da conta na temporada. Se a rede falhar, guarda a
+ * intenção para que a exclusão seja repetida quando a conexão voltar.
+ */
+async function deleteRemoteScore({
+  userId = state.cloud.session?.userId,
+  seasonId = state.season?.id || SEASON_1.id,
+} = {}) {
+  const targetUserId = typeof userId === "string" ? userId.trim() : "";
+  const targetSeasonId = typeof seasonId === "string" ? seasonId.trim() : "";
+  if (!cloudClient || !targetUserId || !targetSeasonId) {
+    return { ok: false, skipped: true };
+  }
+  if (!isOnline()) {
+    await rememberPendingScoreDeletion(targetUserId, targetSeasonId);
+    return { ok: false, offline: true };
+  }
+
+  const session = await ensureCloudSession();
+  if (!session || session.userId !== targetUserId) {
+    await rememberPendingScoreDeletion(targetUserId, targetSeasonId);
+    return { ok: false, offline: true, unauthenticated: true };
+  }
+
+  try {
+    const deleted = await cloudClient.deleteScore(session, targetSeasonId);
+    const pending = state.cloud.pendingDelete;
+    if (
+      pending?.userId === targetUserId &&
+      pending?.seasonId === targetSeasonId
+    ) {
+      await clearPendingScoreDeletion();
+    }
+    await forgetCachedOwnRank(targetUserId);
+    return { ok: true, deleted };
+  } catch (error) {
+    if (error instanceof CloudError && error.tableMissing) {
+      return { ok: false, error };
+    }
+    await rememberPendingScoreDeletion(targetUserId, targetSeasonId);
+    return {
+      ok: false,
+      offline: error instanceof CloudError && (error.network || error.timeout),
+      error,
+    };
+  }
+}
+
 function scheduleScoreSync({ immediate = false } = {}) {
   if (!state.cloud.ready || !cloudClient || !state.cloud.session) return;
   if (!isOnline()) {
@@ -1197,6 +1339,24 @@ async function syncScoreNow({ refreshRankingAfter = true } = {}) {
   const task = (async () => {
     try {
       if (!state.cloud.session) return null;
+
+      // Uma exclusão feita offline é concluída antes de qualquer novo envio.
+      if (state.cloud.pendingDelete) {
+        const pending = state.cloud.pendingDelete;
+        if (pending.userId !== state.cloud.session.userId) {
+          await clearPendingScoreDeletion();
+        } else {
+          const deletion = await deleteRemoteScore(pending);
+          if (!deletion.ok) {
+            if (deletion.offline) {
+              state.cloud.pendingSync = true;
+              state.cloud.syncStatus = "offline";
+            }
+            return null;
+          }
+        }
+      }
+
       const score = currentCloudScore();
       if (!score) {
         state.cloud.pendingSync = false;
@@ -4776,7 +4936,23 @@ async function confirmProgressReset() {
   state.pendingReset = false;
   state.pendingImport = null;
   showLoadingOverlay("Apagando progresso…");
+  const userId = state.cloud.session?.userId || null;
+  const seasonId = state.season?.id || SEASON_1.id;
+  let remote = { ok: false, skipped: !userId };
   try {
+    // Evita que uma sincronização agendada recrie o placar depois da limpeza.
+    if (state.cloud.syncTimer) {
+      window.clearTimeout(state.cloud.syncTimer);
+      state.cloud.syncTimer = null;
+    }
+    if (state.cloud.syncPromise) {
+      try {
+        await state.cloud.syncPromise;
+      } catch {
+        // A limpeza local deve continuar mesmo se o envio anterior falhou.
+      }
+    }
+
     await clearProgressData();
     stopTimerTicker();
     state.session = null;
@@ -4789,8 +4965,26 @@ async function confirmProgressReset() {
     state.scheduling = null;
     state.finishingSession = false;
     await refreshProgress();
-    toast("Progresso apagado. Suas configurações foram preservadas.", "success");
+    // A posição antiga não pode continuar no card de ranking da home.
+    await forgetCachedOwnRank(userId);
+    if (userId) {
+      remote = await deleteRemoteScore({ userId, seasonId });
+    }
+
+    const message = remote.ok
+      ? "Progresso apagado neste dispositivo e no ranking da temporada."
+      : remote.offline
+        ? "Progresso apagado neste dispositivo. O placar remoto será removido quando a conexão voltar."
+        : remote.error
+          ? "Progresso apagado neste dispositivo, mas o placar remoto não pôde ser removido agora."
+          : "Progresso apagado. Suas configurações foram preservadas.";
+    toast(message, remote.error ? "info" : "success");
     navigate("inicio");
+    if (remote.ok) {
+      void refreshRanking();
+    } else if (state.cloud.session) {
+      updateHomeRankingCard();
+    }
   } catch (error) {
     toast(error.message || "Não foi possível apagar o progresso local.", "error");
   } finally {

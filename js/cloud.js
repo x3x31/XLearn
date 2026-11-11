@@ -515,6 +515,27 @@ export function createCloudClient(options = {}) {
       : null;
   }
 
+  async function deleteScore(session, seasonId) {
+    if (!session?.accessToken || !session?.userId) {
+      throw new CloudError("Entre na sua conta para remover a pontuação.", {
+        code: "missing_session",
+        authInvalid: true,
+      });
+    }
+    const season = text(seasonId);
+    if (!season) throw new CloudError("Temporada inválida.", { code: "invalid_season" });
+    const query = new URLSearchParams({
+      user_id: `eq.${text(session.userId)}`,
+      season_id: `eq.${season}`,
+    });
+    const payload = await request(`/rest/v1/season_scores?${query}`, {
+      method: "DELETE",
+      token: session.accessToken,
+      prefer: "return=representation",
+    });
+    return Array.isArray(payload) ? payload.length : 0;
+  }
+
   async function fetchLeaderboard(seasonId, listOptions = {}) {
     const season = text(seasonId);
     if (!season) throw new CloudError("Temporada inválida.", { code: "invalid_season" });
@@ -556,6 +577,7 @@ export function createCloudClient(options = {}) {
     updateNickname,
     signOut,
     saveScore,
+    deleteScore,
     fetchLeaderboard,
     fetchOwnRank,
   });

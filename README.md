@@ -25,7 +25,7 @@ O projeto usa apenas HTML5, CSS3, JavaScript puro (ES Modules), IndexedDB, Cache
 - **Som e ludicidade:** efeitos gerados via Web Audio, com volume configurável e respeito a animações reduzidas.
 - **Acessibilidade:** navegação por teclado, foco visível, link de pular, rótulos ARIA, contraste e alvos de toque adequados.
 - **Offline e instalação:** app shell em cache, materiais já acessados disponíveis offline e instalação como PWA.
-- **Dados locais:** progresso isolado por conta e pelo modo visitante, além de backup e restauração em JSON do escopo ativo e exclusão seletiva do progresso.
+- **Dados locais:** progresso isolado por conta e pelo modo visitante, além de backup e restauração em JSON do escopo ativo e exclusão do progresso local e da pontuação da conta no Supabase.
 
 ## Requisitos
 
@@ -131,7 +131,7 @@ O simulado permite escolher quantas questões usar de cada assunto. Ele tem sess
 - **10 moedas** ao concluir uma sessão, mais **5** se todas as respostas estiverem corretas.
 - **15 moedas** ao atingir a meta diária, uma única vez por dia.
 - As conquistas desbloqueadas têm recompensas próprias em moedas. Elas **não são pagas automaticamente**: toque em “Clique para coletar” na tela de progresso.
-- As conquistas desbloqueadas e ainda não coletadas também aparecem no início, na seção **Conquistas para coletar**. Ao coletar, os cards de recompensas, visão rápida e ranking são atualizados na hora, sem recarregar a página: a rolagem e o foco são preservados, as moedas caem do topo até cerca de um terço da tela com o som acompanhando o tempo visível e a seção desaparece quando todas as recompensas forem coletadas.
+- As conquistas desbloqueadas e ainda não coletadas também aparecem no início, na seção **Conquistas para coletar**. Ao coletar, os cards de recompensas, visão rápida e ranking são atualizados na hora, sem recarregar a página: a rolagem e o foco são preservados, as moedas caem do topo até cerca de um terço da tela com o som acompanhando o tempo visível e a seção desaparece quando todas as recompensas forem coletadas. Cada moeda desaparece em uma altura aleatória da queda, e coletas em sequência reaproveitam a mesma cascata por mais tempo, sem sobrepor animações.
 
 A **Temporada 1** vai de **05/11/2026 a 04/12/2026**. O personagem evolui pelo mínimo de moedas acumuladas na temporada e pelo total de dias ativos com pelo menos uma questão respondida. Os dois requisitos precisam ser atendidos ao mesmo tempo:
 
@@ -255,7 +255,7 @@ Em **Configurações → Dados**:
 - **Exportar backup:** baixa um JSON versionado com configurações, estatísticas, temporada, gamificação, conquistas, moedas, personagem, progresso, sessões, tentativas e simulados **apenas do escopo ativo**. As chaves e os IDs são gravados de forma canônica, sem o prefixo do escopo, e a sessão, o perfil, o cache do ranking e o marcador de migração são excluídos do arquivo.
 - **Importar backup:** valida formato, versão e registros antes de mostrar um resumo; somente após a confirmação os dados do escopo ativo são substituídos. As demais contas, a sessão Supabase, o cache do ranking e o marcador de migração são preservados.
 - **Limpar cache do app:** remove apenas os caches `xlearn-*`, preservando respostas e histórico.
-- **Apagar progresso:** remove progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, histórico de simulados e simulado ativo **apenas do escopo ativo**, mas mantém as configurações de estudo e aparência e os dados das demais contas. A confirmação “Apagar todo o progresso?” aparece mantendo a posição de rolagem, sem levar a página ao topo.
+- **Apagar progresso:** remove progresso, sessões, tentativas, estatísticas, temporada, gamificação, carteira, histórico de simulados e simulado ativo **apenas do escopo ativo**, mas mantém as configurações de estudo e aparência e os dados das demais contas. A confirmação “Apagar todo o progresso?” aparece mantendo a posição de rolagem, sem levar a página ao topo. Com conta conectada, a pontuação da temporada também é excluída do Supabase; se a rede falhar, a remoção fica pendente e é repetida quando a conexão voltar, sem que uma sincronização posterior recrie o placar.
 
 ## Estrutura do projeto
 

@@ -529,30 +529,33 @@ export async function clearProgressData() {
   const scope = storageScope;
   return new Promise((resolve, reject) => {
     const tx = db.transaction(BACKUP_STORES, "readwrite");
-    try {
-      for (const storeName of ["progress", "sessions", "attempts"]) {
-        const store = tx.objectStore(storeName);
-        const request = store.openCursor();
-        request.onsuccess = () => {
-          const cursor = request.result;
-          if (!cursor) return;
-          const record = cursor.value;
+    const counts = { progress: 0, sessions: 0, attempts: 0 };
+
+    // Lê os registros dentro da transação e apaga somente os do escopo ativo.
+    // A leitura por `getAll` evita depender de múltiplos cursores simultâneos,
+    // que podem falhar em navegadores mais antigos.
+    for (const storeName of ["progress", "sessions", "attempts"]) {
+      const store = tx.objectStore(storeName);
+      const request = store.getAll();
+      request.onsuccess = () => {
+        for (const record of request.result || []) {
           const inScope =
             storeName === "progress"
               ? belongsToScope(record, scope)
               : record?.scope === scope;
-          if (inScope) cursor.delete();
-          cursor.continue();
-        };
-      }
-      const meta = tx.objectStore("meta");
-      for (const key of SCOPED_META_KEYS) meta.delete(scopeMetaKey(key, scope));
-    } catch (error) {
-      tx.abort();
-      reject(error);
-      return;
+          if (!inScope) continue;
+          const key = storeName === "sessions" ? record.id : record.key;
+          if (key === undefined || key === null) continue;
+          store.delete(key);
+          counts[storeName] += 1;
+        }
+      };
     }
-    tx.oncomplete = () => resolve({ progress: 0, sessions: 0, attempts: 0 });
+
+    const meta = tx.objectStore("meta");
+    for (const key of SCOPED_META_KEYS) meta.delete(scopeMetaKey(key, scope));
+
+    tx.oncomplete = () => resolve(counts);
     tx.onerror = () => reject(tx.error || new Error("Falha ao apagar o progresso local."));
     tx.onabort = () => reject(tx.error || new Error("Operação cancelada."));
   });

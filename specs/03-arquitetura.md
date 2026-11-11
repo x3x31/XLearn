@@ -189,6 +189,7 @@ O estado persistente vive em IndexedDB ([04 — Modelo de dados](04-modelo-de-da
 6. `fetchOwnRank` consulta a posição do usuário fora do top 5.
 7. O resultado é cacheado em `meta/cloudRank`.
 8. Falhas de rede não bloqueiam o estudo e são reenviadas ao reconectar.
+9. “Apagar progresso” remove a pontuação da temporada via `DELETE` em `season_scores`; se a rede falhar, a intenção fica em `meta/cloudPendingDelete` e é repetida antes de qualquer novo envio.
 
 ### 5.9 Atualização do PWA
 

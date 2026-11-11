@@ -69,10 +69,18 @@ create policy season_scores_update_own
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+-- O próprio usuário pode apagar a pontuação ao limpar o progresso.
+drop policy if exists season_scores_delete_own on public.season_scores;
+create policy season_scores_delete_own
+  on public.season_scores
+  for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
 revoke all on public.season_scores from anon;
 revoke all on public.season_scores from authenticated;
 grant select on public.season_scores to anon, authenticated;
-grant insert, update on public.season_scores to authenticated;
+grant insert, update, delete on public.season_scores to authenticated;
 
 -- Views do PostgREST usam as permissões do dono por padrão. security_invoker
 -- garante que a RLS da tabela-base continue valendo para quem consulta.

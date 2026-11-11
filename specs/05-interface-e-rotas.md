@@ -135,7 +135,7 @@ O visitante usa um escopo de estudo próprio (`guest`). Ao entrar em uma conta, 
 - Cada cartão é um botão acessível com rótulo que informa a recompensa e o nome da conquista.
 - A coleta é manual, idempotente e atualiza a carteira.
 - A seção desaparece quando não há recompensa pendente.
-- A cascata de moedas usa de 28 a 48 moedas espalhadas pela largura da tela, com tamanhos e durações variados. A camada fica fixa no topo, atrás da barra superior (`z-index: 35`), e cada moeda cai de `-32px` até `33vh`, começando opaca e terminando transparente. O som da chuva de moedas dura todo o intervalo visível calculado.
+- A cascata de moedas usa uma única camada `.coin-cascade`, reaproveitada por coletas consecutivas, com até 140 moedas espalhadas pela largura da tela, tamanhos, durações, atrasos e desvios variados. A camada fica fixa no topo, atrás da barra superior (`z-index: 35`), e cada moeda cai de `-32px` até `33vh`, começando opaca e desaparecendo em uma altura aleatória da queda (`--fall`), com o fade terminando antes do fim do percurso. O som da chuva de moedas dura todo o intervalo visível calculado e é repetido a cada nova coleta.
 - A coleta atualiza os cards afetados no próprio lugar, sem recriar a página: `[data-role="home-achievements"]` é substituído ou removido, `[data-role="quick-panel"]` é substituído com o saldo/temporada recalculados e `[data-role="cloud-rank"]` é substituído quando o ranking muda. A posição de rolagem, o foco e a cascata de moedas são preservados, e a atualização não espera o término da animação.
 
 ### 3.5 Visão rápida
@@ -297,7 +297,7 @@ O gate cobre `config`, `progresso`, `simulado` e `revisoes` inclusive quando a r
 - Conta: apelido, e-mail mascarado/identificação, estado de sincronização e saída.
 - Dados: exportar backup, importar backup com confirmação, apagar progresso com confirmação.
 - Armazenamento: limpar caches do app sem apagar o IndexedDB.
-- “Apagar progresso” preserva a rolagem e foca `#reset-confirm-title` com `preventScroll` (REQ-046).
+- “Apagar progresso” preserva a rolagem e foca `#reset-confirm-title` com `preventScroll` (REQ-046). Ao confirmar, apaga os dados do escopo ativo, atualiza a tela e exclui a pontuação da temporada no Supabase; sem rede, a exclusão fica pendente em `meta/cloudPendingDelete` e é repetida ao reconectar (REQ-054).
 
 ## 13. Modal de conta
 
@@ -384,3 +384,5 @@ Requisitos aplicados:
 10. A interface funciona a partir de 320 px sem rolagem horizontal.
 11. A troca de rota move o foco para o conteúdo principal.
 12. O botão “Apagar progresso” não faz a página saltar para o topo.
+13. O clique em “Apagar progresso” remove os dados do escopo ativo, atualiza a tela e exclui a pontuação da temporada no Supabase; falhas de rede ficam pendentes e são repetidas ao reconectar.
+14. A cascata de moedas desaparece em alturas aleatórias e coletas consecutivas reaproveitam a mesma camada, sem sobrepor animações.

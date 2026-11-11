@@ -50,9 +50,10 @@ O banco é único por dispositivo, mas os dados de estudo são separados por esc
 | `cloudAuth` | Objeto \| `null` | Sessão Supabase (access/refresh token, validade, `userId`, e-mail, apelido) (global) |
 | `cloudProfile` | Objeto \| `null` | Perfil local da conta e estado de sincronização (global) |
 | `cloudRank` | Objeto | Cache do ranking consultado (temporada, top, posição própria, data) (global) |
+| `cloudPendingDelete` | Objeto \| `null` | Exclusão de placar remoto pendente: `{ userId, seasonId }` (global) |
 | `storageScopedOnce` | Booleano | Marcador local da migração única de escopo |
 
-`cloudAuth`, `cloudProfile` e `cloudRank` são gravados por `app.js` via `getMeta`/`setMeta`, não por regras de domínio, e permanecem globais ao escopo ativo.
+`cloudAuth`, `cloudProfile`, `cloudRank`, `cloudPendingDelete` e `storageScopedOnce` são gravados por `app.js` via `getMeta`/`setMeta`, não por regras de domínio, e permanecem globais ao escopo ativo.
 
 #### `meta/settings`
 
@@ -394,9 +395,10 @@ Trigger: `touch_season_scores_updated_at` antes de `insert or update`.
 | `season_scores_public_read` | `select` | `using (true)` para `anon` e `authenticated` |
 | `season_scores_insert_own` | `insert` | `with check (auth.uid() = user_id)` |
 | `season_scores_update_own` | `update` | `using (auth.uid() = user_id)` e `with check (auth.uid() = user_id)` |
+| `season_scores_delete_own` | `delete` | `using (auth.uid() = user_id)` |
 
 - `anon` e `authenticated` recebem apenas `select` na tabela.
-- `authenticated` recebe `insert` e `update`.
+- `authenticated` recebe `insert`, `update` e `delete` (este último somente na própria linha).
 - Nenhum e-mail é armazenado em `season_scores`; o vínculo é apenas o UUID do Auth.
 
 ### 4.4 Payload de placar
@@ -423,6 +425,16 @@ apikey: <publishable_key>
 ```
 
 `user_id` é sempre o da sessão; o cliente valida `row.user_id === session.userId` antes de enviar.
+
+A exclusão da própria pontuação usa:
+
+```http
+DELETE /rest/v1/season_scores?user_id=eq.<uuid>&season_id=eq.2026-1
+Authorization: Bearer <access_token>
+apikey: <publishable_key>
+```
+
+Se a chamada falhar por rede, o cliente guarda `{ userId, seasonId }` em `meta/cloudPendingDelete` e repete a exclusão no evento `online` ou antes do próximo envio de placar.
 
 ### 4.5 Consultas de ranking
 

@@ -720,9 +720,12 @@ button.achievement-mini {
   height: var(--size, 20px);
   margin-left: calc(var(--size, 20px) / -2);
   color: #fbbf24;
-  opacity: 1;
+  opacity: 0;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
-  animation: coin-cascade-fall var(--fall, 1600ms) cubic-bezier(0.24, 0.72, 0.32, 1) var(--delay) forwards;
+  will-change: transform, opacity;
+  animation:
+    coin-cascade-fall var(--fall, 1800ms) cubic-bezier(0.24, 0.72, 0.32, 1) var(--delay) forwards,
+    coin-cascade-fade var(--fade, 1400ms) linear var(--delay) forwards;
 }
 
 .coin-cascade__coin svg {
@@ -732,15 +735,22 @@ button.achievement-mini {
 
 @keyframes coin-cascade-fall {
   0% {
-    opacity: 1;
-    transform: translate3d(0, -32px, 0) scale(0.7) rotate(-18deg);
+    transform: translate3d(0, -40px, 0) scale(0.7) rotate(-18deg);
   }
-  72% {
+  100% {
+    transform: translate3d(var(--drift), var(--distance, 33vh), 0) scale(1.05) rotate(22deg);
+  }
+}
+
+@keyframes coin-cascade-fade {
+  0% {
+    opacity: 0;
+  }
+  10% {
     opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: translate3d(var(--drift), 33vh, 0) scale(1.05) rotate(22deg);
   }
 }
 
